@@ -4,16 +4,6 @@ See swagger documentation for service details at: https://rrp.blob.core.windows.
 
 Paste the following into the box (Expires Feb 8th,2019):https://rrp.blob.core.windows.net/swaggerspecs/inventory-service.json?st=2018-02-08T10%3A50%3A00Z&se=2019-02-09T10%3A50%3A00Z&sp=rl&sv=2017-04-17&sr=b&sig=h%2FWLiamzg5LrGAmAFHqWhTWisrlhxvB6gapuMU0dFtE%3D
 
-## Vendoring
-We use govendor to manage vendored packages and commit all the vendored packages.
-Do the following to add package from remote repository 
-```bash
-$ govendor fetch <package>
-```
-Do the following to update package from remote repository 
-```bash
-$ govendor sync <package>
-```
 ## Linting
 We use gometalinter.v2 for linting of code. The linter options are in a config file stored in the Go-Mongo-Docker-Build repository. You must clone this repository and pull latest prior to running the linter as follows:
 ```bash
