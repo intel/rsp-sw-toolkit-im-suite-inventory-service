@@ -1,0 +1,48 @@
+.vscode
+.idea
+*.iml
+
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+app/**/*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
+.glide/
+
+.idea/workspace.xml
+.idea/libraries/GOPATH__*.xml
+
+# Binaries
+retailInventoryService-level2
+inventory-service
+
+#Debug
+debug
+debug.test
+
+#Ignoring Mongodata
+data/
+/inventory-service
+
+#goreporter files
+
+#Ignore coverage outputs
+*coverage.out
+
+#Ignore temp files
+*~
+
+#vendor stuff
+vendor/github.impcloud.net/RSP-Inventory-Suite/**/*.md
+vendor/github.impcloud.net/RSP-Inventory-Suite/**/vendor/*
+vendor/github.impcloud.net/RSP-Inventory-Suite/**/Jenkinsfile
+vendor/github.impcloud.net/RSP-Inventory-Suite/utilities/configuration/testData

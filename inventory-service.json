@@ -1,0 +1,1194 @@
+{
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "swagger": "2.0",
+  "info": {
+    "description": "The inventory service subscribes to the context-sensing broker to receive sensor data from RRS and Handheld RFID devices.\nThe service processes the fixed and handheld tag, handheld event, and heartbeat data consumed from the broker.\n__Configuration Values__\nThe Inventory configuration is split between values set in a configuration file and those set as environment variables in the compose file. The configuration file is expected to be contained in a docker secret for production deployments, but can be on a docker volume for validation and development.\n\n## __Example configuration file json__:\n```json\n{\n\u0026#9\u0026#9\"serviceName\": \"RRP - inventory-service\",\n\u0026#9\u0026#9\"databaseName\": \"inventory\",\n\u0026#9\u0026#9\"loggingLevel\": \"debug\",\n\u0026#9\u0026#9\"secureMode\" : false,\n\u0026#9\u0026#9\"skipCertVerify\" : false,\n\u0026#9\u0026#9\"ageOuts\": \"front:10,back:60\",\n\u0026#9\u0026#9\"epcFilters\": [\"30\"],\n\u0026#9\u0026#9\"dailyInventoryPercentage\": \"0.01\",\n\u0026#9\u0026#9\"probUnreadToRead\":\"0.20\",\n\u0026#9\u0026#9\"probInStoreRead\":\"0.75\",\n\u0026#9\u0026#9\"probExitError\":\"0.10\",\n\u0026#9\u0026#9\"triggerRules\": \"/triggerrules\",\n\u0026#9\u0026#9\"purgingDays\": \"90\",\n\u0026#9\u0026#9\"serverReadTimeOutSeconds\" : 5,\n\u0026#9\u0026#9\"serverWriteTimeOutSeconds\" : 30,\n\u0026#9\u0026#9\"responseLimit\": 10000,\n\u0026#9\u0026#9\"contextEventFilterProviderID\" : \"rrp_handheld_filter\",\n\u0026#9\u0026#9\"telemetryEndpoint\": \"http://166.130.9.122:8000\",\n\u0026#9\u0026#9\"telemetryDataStoreName\" : \"Store105\",\n\u0026#9\u0026#9\"port\": \"8080\",\n\u0026#9\u0026#9\"rrsGatewayToCloudURLHost\": \"abc123.execute-api.us-west-2.amazonaws.com\",\n\u0026#9\u0026#9\"rrsGatewayToCloudURLStage\": \"/prod\",\n\u0026#9\u0026#9\"rrsGatewayToCloudRegion\": \"us-west-2\",\n\u0026#9\u0026#9\"rrsGatewayToCloudURLEventEndpoint\": \"inventoryappevent\",\n\u0026#9\u0026#9\"jwtSignerUrl\": \"http://jwt-signing:8080\",\n\u0026#9\u0026#9\"jwtSignerEndpoint\": \"/jwt-signing/sign\",\n\u0026#9\u0026#9\"cloudConnectorUrl\" : \"http://cloud-connector:8089\",\n\u0026#9\u0026#9\"cloudConnectorApiGatewayEndpoint\" : \"/callwebhook\"\n}\n```\n\n## __Example environment variables in compose File__:\n```\n\u0026#9\u0026#9contextSdk: \"127.0.0.1:8888\"\n\u0026#9\u0026#9connectionString: \"mongodb://127.0.0.1:27017\"\n\u0026#9\u0026#9rules: \"http://rules:8080\"\n\u0026#9\u0026#9runtimeConfigPath: \"/run/secrets/configuration.json\"\n```\n###__Configuration file values__\n+ `serviceName`  \t\t\t\t - Runtime name of the service\n\n+ `databaseName`  \t\t\t\t - Name of database\n\n+ `loggingLevel`  \t\t\t\t - Logging level to use: \"info\" (default) or \"debug\" (verbose)\n\n+ `secureMode`  \t\t\t\t\t - Boolean flag indicating if using secure connection to the Context Brokers\n\n+ `skipCertVerify`  \t\t\t\t - Boolean flag indicating if secure connection to the Context Brokers should skip certificate validation\n\n+ `ageOuts`  \t\t\t\t\t - Automatically mark tags as departed when their last-read timestamp exceeds a threshold configured for that facility. Only for fixed tags and when received on cycle count\n\n+ `epcFilters`  \t\t\t\t\t - Whitelist of EPC prefixes that should be accepted\n\n+ `dailyInventoryPercentage`  \t - Percent of inventory that is sold daily\n\n+ `probUnreadToRead`  \t\t\t - Probability of an unreadable tag becoming readable again each day (i.e. moved or retagged)\n\n+ `probInStoreRead`  \t\t\t - Probability of a tag in the store being read by the overhead sensor each day\n\n+ `probExitError`  \t\t\t\t - Probability of an exit error (missed 'departed' event) occurring\n\n+ `triggerRules`  \t\t\t\t - Endpoint used to trigger rules\n\n+ `purgingDays`  \t\t\t\t - Number of days from its last read timestamp before a tag will be purged from the database\n\n+ `serverReadTimeOutSeconds`  \t - Seconds until server read timeout\n\n+ `serverWriteTimeOutSeconds`  \t - Seconds until server write timeout\n\n+ `responseLimit`  \t\t\t\t - Default limit to what can be returned in a GET call - because of this, client must define their own top-skip functionality\n\n+ `contextEventFilterProviderID`  - ID of the Event Filter Provider service\n\n+ `telemetryEndpoint`  \t\t\t\t - URL of the telemetry service receiving the metrics from the service\n\n+ `telemetryDataStoreName`  \t\t - Name of the data store in the telemetry service to store the metrics\n\n+ `port`  \t\t\t\t\t\t - Port to run the service/s HTTP Server on\n\n###__Compose file environment variable values__\n\n+ `contextSdk`  \t\t\t- Host and port number for the Context Broker\n\n+ `connectionString`  \t- Host and port number for the Database connection\n\n+ `rules`  \t\t\t\t- Base Rules Service URL\n\n+ `runtimeConfigPath`  \t- Path to the configuration file to use at runtime - Optional. Only needed if not in the standard /run/secrets/configuration.json location\n\n##__Age Outs:__\nThe ageOuts environment variable/configuration is a feature available to automatically mark tags as departed when their timestamp (last read time) exceeds a threshold configured for that facility. The feature is used in environments that do not have exit readers. Aging out tags only happens during cycle counts; that is, the tag's timestamp is only inspected for age out if its current event type is \"cycle_count\".\nFor example, suppose a store has two facilities, \"front\" and \"back\". For tags in the \"front\", they want to consider them departed if they haven't been read for 60 minutes or more. For tags in the \"back\", they want to consider them departed if they haven't been read for 24 hours or more. In this scenario, they can configure their ageOuts variable as \"ageOuts\": \"front:60,back:1440\" (note that 1440 is the number of minutes in 24 hours). When a cycle count occurs, each tag is inspected - if its timestamp + the facility's ageout is less than or equal to the system's current time, the tag's event is changed from \"cycle_count\" to \"departed\".\nIf a facility is not configured in the ageOuts list, then no tags for that facility will have its event modified by this feature. Note that the facility name is case sensitive. If ageing out is not required for any facility, the string can be left empty (\"ageOuts\": \"\"), or simply not configured.\n\n##__Filters:__\nThe \"filters\" environment variable/configuration is a comma delimited whitelist of EPC prefixes that should be accepted. When a tag comes in, its epc_code is compared to the filter list. If its epc_code starts with any of the values in the filters list, then it will be added to inventory; if not, then it is ignored.\nFor example, \"filters\": \"302,300\" will only store tags which begin with 302 or 300. If storing all tags is required, specifying a comma seperated list of valid characters is sufficient. E.g, for SGTIN-96, every tag begins with 1-9, so the filter list \"1,2,3,4,5,6,7,8,9\" would capture all of them. The variable is required, since no filters means no data is stored; moreover, the value should not be empty, since again, no filters -\u003e no data.\nA future specification may change this methodology to accept regular expressions or specific elements of decomposed EPCs, but for now, the filters specify only prefixes.\n\n## __Known services this service depends on:__\n+ context-broker\n+ jwt-signing-service\nThese are the topics that this service subscribes to from the Context Sensing SDK Websocket bus. To learn more about the Context Sensing SDK, please visit http://contextsensing.intel.com/\n```\n\u0026#9eventsUrn         = \"urn:x-intel:context:retailsensingplatform:events\"\n\u0026#9heartbeatUrn      = \"urn:x-intel:context:retailsensingplatform:heartbeat\"\n\u0026#9handheldUrn       = \"urn:x-intel:context:handheld:data\"\n\u0026#9handheldEventUrn  = \"urn:x-intel:context:handheld:event\"\n```\n+ rrp-mongo\n+ rules-service\n+ triggerrules\n\n## __Known services that depend upon this service:__\n+ item-finder\n+ rules-service\n+ nordstrom tran-service\n+ cloud-connector-service",
+    "title": "Inventory Service API.",
+    "contact": {
+      "name": "RRP",
+      "email": "rrp@intel.com"
+    },
+    "version": "0.0.1"
+  },
+  "host": "inventory:8080",
+  "basePath": "/",
+  "paths": {
+    "/": {
+      "get": {
+        "description": "Endpoint that is used to determine if the application is ready to take web requests",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "default"
+        ],
+        "summary": "Healthcheck Endpoint",
+        "operationId": "Healthcheck",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/inventory/facilities": {
+      "get": {
+        "description": "This API call is used to retrieve facilities that are configured on RRS.\u003cbr\u003e\u003cbr\u003e\n\ninventory/facilities\ninventory/facilities?$filter=(name eq 'CH6_Common_Area') - Filter facilities by name\n\nExample Result:\n```\n{\n\u0026#8195\"results\": [\n\u0026#8195\u0026#8195{\n\u0026#8195\u0026#8195\u0026#8195\u0026#8195\"coefficients\": {\n\u0026#9\"dailyinventorypercentage\": 0.01,\n\u0026#9\"probexiterror\": 0.1,\n\u0026#9\"probinstoreread\": 0.75,\n\u0026#9\"probunreadtoread\": 0.2\n\u0026#8195\u0026#8195\u0026#8195\u0026#8195},\n\u0026#8195\u0026#8195\u0026#8195\"name\": \"CH6\"\n\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "facilities"
+        ],
+        "summary": "Retrieves Data for Facilities",
+        "operationId": "getFacilities",
+        "responses": {
+          "200": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "count": {
+                  "description": "Count of records for query",
+                  "type": "int"
+                },
+                "results": {
+                  "description": "Array containing results of query",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/Facility"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "schema": {
+              "$ref": "#/definitions/schemaValidation"
+            }
+          },
+          "500": {
+            "schema": {
+              "$ref": "#/definitions/internalError"
+            }
+          }
+        }
+      }
+    },
+    "/inventory/handheldevents": {
+      "get": {
+        "description": "This API call is used to retrieve handheld events that have been received.\u003cbr\u003e\u003cbr\u003e\n\n+ `/inventory/handheldevents`\n+ `/inventory/handheldevents?$filter=(event eq 'FullScanStart')`\n+ `/inventory/handheldevents?$filter=(event eq 'FullScanComplete')`\n+ `/inventory/handheldevents?$filter=(event eq 'Calculate')`\n\nExample Result:\n```\n{\n\u0026#8195\"results\": [\n\u0026#8195\u0026#8195{\n\u0026#9\"_id\": \"59d2818dd0cb6260bf85e3cf\",\n\u0026#9\"timestamp\": 1506967944919,\n\u0026#9\"event\": \"FullScanStart\"\n\u0026#8195\u0026#8195},\n\u0026#8195\u0026#8195{\n\u0026#9\"_id\": \"59d28294d0cb6260bf85f70e\",\n\u0026#9\"timestamp\": 1506968207311,\n\u0026#9\"event\": \"FullScanComplete\"\n\u0026#8195\u0026#8195},\n\u0026#8195\u0026#8195{\n\u0026#9\"_id\": \"59d28294d0cb6260bf85f710\",\n\u0026#9\"timestamp\": 1506968212265,\n\u0026#9\"event\": \"Calculate\"\n\u0026#8195\u0026#8195}]\n}\n```",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "handheldevents"
+        ],
+        "summary": "Retrieves Handheld Event Data",
+        "operationId": "getHandheldevents",
+        "responses": {
+          "200": {
+            "schema": {
+              "description": "Results Response",
+              "type": "object",
+              "properties": {
+                "count": {
+                  "description": "Count of records for query",
+                  "type": "int"
+                },
+                "results": {
+                  "description": "Array containing results of query",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/HandheldEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/definitions/schemaValidation"
+          },
+          "500": {
+            "$ref": "#/definitions/internalError"
+          }
+        }
+      }
+    },
+    "/inventory/query/current": {
+      "post": {
+        "description": "The current endpoint is used to query a store's inventory. It returns a list of unique tags. Parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#8195\u0026#8195\"qualified_state\":\"sold\",\n\u0026#8195\u0026#8195\"facility_id\":\"store001\",\n\u0026#8195\u0026#8195\"epc_state\":\"sold\",\n\u0026#8195\u0026#8195\"starttime\":1482624000000,\n\u0026#8195\u0026#8195\"endtime\":1483228800000,\n\u0026#8195\u0026#8195\"confidence\":.75,\n\u0026#8195\u0026#8195\"cursor\":\"aGksIDovMSB0aGlz\",\n\u0026#8195\u0026#8195\"size\":500,\n\u0026#8195\u0026#8195\"count_only\":false\n}\n```\n\n\n\n+ __qualified_state__ - User set qualified state for the item\n+ __facility_id__ - Return only facilities provided\n+ __epc_state__ - EPC state of 'present' or 'departed'\n+ __starttime__ - Millisecond epoch start time\n+ __endtime__ - Millisecond epoch stop time\n+ __confidence__ - Minimum probability items must meet\n+ __cursor__ - Cursor from previous response used to retrieve next page of results\n+ __size__ - Number of results per page\n+ __count_only__ - Return only tag count\n\n\n\nExample Response:\n```\n{\n\u0026#8195\"paging\":{\n\u0026#8195\u0026#8195\u0026#8195\"cursor\":\"string\"\n\u0026#8195},\n\u0026#8195\u0026#8195\"results\":[\n\u0026#8195\u0026#8195{\n\u0026#9\"epc\":\"string\",\n\u0026#9\"facility_id\":\"string\",\n\u0026#9\"event\":\"string\",\n\u0026#9\"gtin\":\"string\",\n\u0026#9\"last_read\":0,\n\u0026#9\"arrived\":0,\n\u0026#9\"epc_state\":\"string\",\n\u0026#9\"confidence\":0,\n\u0026#9\"encode_format\":\"string\",\n\u0026#9\"tid\":\"string\",\n\u0026#9\"qualified_state\":\"string\",\n\u0026#9\"epc_context\":\"string\",\n\u0026#9\"location_history\":[\n\u0026#9\u0026#8195\u0026#8195{\n\u0026#9\u0026#9\"location\":\"string\",\n\u0026#9\u0026#9\"timestamp\":0\n\u0026#9\u0026#8195\u0026#8195}\n\u0026#9]\n\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json",
+          "schemes:",
+          "http"
+        ],
+        "tags": [
+          "current"
+        ],
+        "summary": "Queries a store's inventory",
+        "operationId": "getCurrentInventory",
+        "parameters": [
+          {
+            "x-go-name": "Body",
+            "name": "datadata",
+            "in": "body",
+            "schema": {
+              "$ref": "#/definitions/RequestBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/query/missingtags": {
+      "post": {
+        "description": "Returns a list of unique tags that have not been read by a reader since a defined timestamp. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"facility_id\":\"store99\",\n\u0026#9\"time\":1495575432000,\n\u0026#9\"confidence\":.5,\n\u0026#9\"cursor\":\"abcd1023abcd\",\n\u0026#9\"size\":500,\n\u0026#9\"count_only\":false\n}\n```\n\n+ facility_id  - Return only facilities provided\n+ time  - \"Not read since\" time in epoch milliseconds\n+ confidence  - Minimum probability items must meet\n+ cursor  - Cursor from previous response used to retrieve next page of results\n+ size  - Number of results per page\n+ count_only  - Return only tag count\n\n\nExample Response:\n```\n{\n\u0026#8195\"paging\":{\n\u0026#8195\u0026#8195\u0026#8195\"cursor\":\"string\"\n\u0026#8195},\n\u0026#8195\u0026#8195\"results\":[\n\u0026#8195\u0026#8195{\n\u0026#9\"epc\":\"string\",\n\u0026#9\"facility_id\":\"string\",\n\u0026#9\"event\":\"string\",\n\u0026#9\"gtin\":\"string\",\n\u0026#9\"last_read\":0,\n\u0026#9\"arrived\":0,\n\u0026#9\"epc_state\":\"string\",\n\u0026#9\"confidence\":0,\n\u0026#9\"encode_format\":\"string\",\n\u0026#9\"tid\":\"string\",\n\u0026#9\"qualified_state\":\"string\",\n\u0026#9\"epc_context\":\"string\",\n\u0026#9\"location_history\":[\n\u0026#9\u0026#8195\u0026#8195{\n\u0026#9\u0026#9\"location\":\"string\",\n\u0026#9\u0026#9\"timestamp\":0\n\u0026#9\u0026#8195\u0026#8195}\n\u0026#9]\n\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```\n\n\n+ paging  - Paging object\n+ cursor  - Cursor used to get next page of results\n+ results  - Array of result objects\n+ epc  - SGTIN EPC code\n+ facility_id  - Facility ID\n+ event  - Last event recorded for tag\n+ gtin  - GTIN-14 decoded from EPC\n+ last_read  - Tag last read Time in milliseconds epoch\n+ arrived  - Arrival time in milliseconds epoch\n+ epc_state  - Current state of tag, either 'present' or 'departed'\n+ confidence  - Probability item is in inventory\n+ encode_format  -\n+ tid  - Tag manufacturer ID\n+ qualified_state  - Customer defined state\n+ epc_context  - Customer defined context\n+ location_history  - Array of objects showing tag history\n+ location - Location of tag at below time\n+ timestamp - Time in milliseconds epoch",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "missingtags"
+        ],
+        "summary": "Retrieves missing tag data",
+        "operationId": "getMissingTags",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/query/searchbygtin": {
+      "post": {
+        "description": "Returns a list of unique EPCs matching the GTIN(s) provided. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"gtin\":\"00012345678905\",\n\u0026#9\"facility_id\":\"store001\",\n\u0026#9\"confidence\":.75,\n\u0026#9\"cursor\":\"aGksIDovMSB0aGlz\",\n\u0026#9\"size\":500,\n\u0026#9\"count_only\":false\n}\n```\n\n\n+ gtin  - A valid GTIN-14 to search for\n+ facility_id  - Return only facilities provided\n+ confidence  - Minimum probability items must meet\n+ cursor  - Cursor from previous response used to retrieve next page of results\n+ size  - Number of results per page\n+ count_only  - Return only tag count\n\n\n\nExample Response:\n```\n{\n\u0026#8195\"paging\":{\n\u0026#8195\u0026#8195\u0026#8195\"cursor\":\"string\"\n\u0026#8195},\n\u0026#8195\u0026#8195\"results\":[\n\u0026#8195\u0026#8195{\n\u0026#9\"epc\":\"string\",\n\u0026#9\"facility_id\":\"string\",\n\u0026#9\"event\":\"string\",\n\u0026#9\"gtin\":\"string\",\n\u0026#9\"last_read\":0,\n\u0026#9\"arrived\":0,\n\u0026#9\"epc_state\":\"string\",\n\u0026#9\"confidence\":0,\n\u0026#9\"encode_format\":\"string\",\n\u0026#9\"tid\":\"string\",\n\u0026#9\"qualified_state\":\"string\",\n\u0026#9\"epc_context\":\"string\",\n\u0026#9\"location_history\":[\n\u0026#9\u0026#8195\u0026#8195{\n\u0026#9\u0026#9\"location\":\"string\",\n\u0026#9\u0026#9\"timestamp\":0\n\u0026#9\u0026#8195\u0026#8195}\n\u0026#9]\n\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```\n\n+ paging  - Paging object\n+ cursor  - Cursor used to get next page of results\n+ results  - Array of result objects\n+ epc  - SGTIN EPC code\n+ facility_id  - Facility ID\n+ event  - Last event recorded for tag\n+ gtin  - GTIN-14 decoded from EPC\n+ last_read  - Tag last read Time in milliseconds epoch\n+ arrived  - Arrival time in milliseconds epoch\n+ epc_state  - Current state of tag, either 'present' or 'departed'\n+ confidence  - Probability item is in inventory\n+ encode_format  -\n+ tid  - Tag manufacturer ID\n+ qualified_state  - Customer defined state\n+ epc_context  - Customer defined context\n+ location_history  - Array of objects showing tag history\n+ location  \t- Location of tag at below time\n+ timestamp  \t- Time in milliseconds epoch",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "searchbygtin"
+        ],
+        "summary": "Retrieves EPC data corresponding to specified GTIN(s)",
+        "operationId": "searchByGtin",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/search": {
+      "post": {
+        "description": "Returns a list of tags with their EPCs matching a pattern. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"epc\":\"3038E511C6E9A6400012D687\",\n\u0026#9\"facility_id\":\"store001\",\n\u0026#9\"cursor\":\"aGksIDovMSB0aGlz\",\n\u0026#9\"size\":500\n}\n```\n\n+ epc  - EPC search string which can contain a single asterisk at the beginning, middle, or end of EPC string\n+ facility_id  - Facility code or identifier\n+ cursor  - Cursor from previous response used to retrieve next page of results\n+ size  - Number of results per page\n\nExample Response:\n```\n{\n\u0026#8195\"paging\":{\n\u0026#8195\u0026#8195\u0026#8195\"cursor\":\"string\"\n\u0026#8195},\n\u0026#8195\u0026#8195\"results\":[\n\u0026#8195\u0026#8195{\n\u0026#9\"epc\":\"string\",\n\u0026#9\"facility_id\":\"string\",\n\u0026#9\"event\":\"string\",\n\u0026#9\"gtin\":\"string\",\n\u0026#9\"last_read\":0,\n\u0026#9\"arrived\":0,\n\u0026#9\"epc_state\":\"string\",\n\u0026#9\"confidence\":0,\n\u0026#9\"encode_format\":\"string\",\n\u0026#9\"tid\":\"string\",\n\u0026#9\"qualified_state\":\"string\",\n\u0026#9\"epc_context\":\"string\",\n\u0026#9\"location_history\":[\n\u0026#9\u0026#8195\u0026#8195{\n\u0026#9\u0026#9\"location\":\"string\",\n\u0026#9\u0026#9\"timestamp\":0\n\u0026#9\u0026#8195\u0026#8195}\n\u0026#9]\n\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```\n\n+ paging  - Paging object\n+ cursor  - Cursor used to get next page of results\n+ results  - Array of result objects\n+ epc  - SGTIN EPC code\n+ facility_id  - Facility ID\n+ event  - Last event recorded for tag\n+ gtin  - GTIN-14 decoded from EPC\n+ last_read  - Tag last read Time in milliseconds epoch\n+ arrived  - Arrival time in milliseconds epoch\n+ epc_state  - Current state of tag, either 'present' or 'departed'\n+ confidence  - Probability item is in inventory\n+ encode_format  -\n+ tid  - Tag manufacturer ID\n+ qualified_state  - Customer defined state\n+ epc_context  - Customer defined context\n+ location_history  - Array of objects showing tag history\n+ location  \t- Location of tag at below time\n+ timestamp  \t- Time in milliseconds epoch",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "epc"
+        ],
+        "summary": "Retrieves tag data corresponding to specified EPC pattern",
+        "operationId": "getSearchByEpc",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/tags": {
+      "get": {
+        "description": "This API call is used to retrieve a list of inventory tags. \u003cbr\u003e\u003cbr\u003e\n\n+ Search by epc: To search by epc, you would use the filter query parameter like so: /inventory/tags?$filter=(epc eq 'example')\n\ninventory/tags\ninventory/tags?$top=10\u0026$select=epc,tid  - Useful for paging data. Grab the top 10 records and only pull back the epc and tid fields\ninventory/tags?$count - Shows how many records are in the database\ninventory/tags?$filter=(epc eq 'example') and (tid ne '1000030404') - Filters on a particular epc whose tid does not match the one specified\ninventory/tags?$filter=startswith(epc,'100') or endswith(epc,'003') or contains(epc,'2') - Allows you to filter based on only certain portions of an epc\n\nExample of one object being returned:\u003cbr\u003e\u003cbr\u003e\n```\n{\n\u0026#8195\"results\":[\n\u0026#8195\u0026#8195\u0026#8195{\n\u0026#9\"arrived\": 1501863300375,\n\u0026#9\"encode_format\": \"tbd\",\n\u0026#9\"epc\": \"30143639F84191AD22900204\",\n\u0026#9\"epc_state\": \"\",\n\u0026#9\"event\": \"cycle_count\",\n\u0026#9\"facility_id\": \"\",\n\u0026#9\"fixed\": 1,\n\u0026#9\"gtin\": \"00888446671424\",\n\u0026#9\"company_prefix\": 36232,\n\u0026#9\"item_filter\": 3,\n\u0026#9\"handheld\": 1,\n\u0026#9\"last_read\": 1501863300375,\n\u0026#9\"location_history\": [\n\u0026#8195\u0026#8195\u0026#9{\n\u0026#9\u0026#9\"location\": \"RSP-95bd71\",\n\u0026#9\u0026#9\"source\": \"fixed\",\n\u0026#9\u0026#9\"timestamp\": 1501863300375\n\u0026#8195\u0026#8195\u0026#9}\n\u0026#9],\n\u0026#9\"qualified_state\": \"unknown\",\n\u0026#9\"source\": \"fixed\",\n\u0026#9\"tid\": \"\",\n\u0026#9\"ttl\": 1503704119\n\u0026#8195\u0026#8195\u0026#8195\t}\n\u0026#8195]\n}\n```\n\n+ arrived \t\t- Arrival time in milliseconds epoch\n+ encode_format \t- TBD\n+ epc \t\t\t- SGTIN EPC code\n+ epc_state \t\t- Current state of tag, either 'present' or 'departed'\n+ event \t\t\t- Last event recorded for tag\n+ facility_id \t- Facility ID\n+ fixed \t\t\t- Count of how many times tag was read by fixed\n+ gtin \t\t\t- GTIN-14 decoded from EPC\n+ company_prefix \t- Part of EPC assigned by GS1\n+ item_filter \t- Part of EPC, denotes packaging level of the item\n+ handheld \t\t- Count of how many times tag was read by handheld\n+ last_read \t\t- Tag last read Time in milliseconds epoch\n+ location_history - Array of objects showing tag history\n+  location \t- Location of tag at below time\n+  source \t- Where tags were read from (fixed or handheld)\n+  timestamp \t- Time in milliseconds epoch\n+ qualified_state - Customer defined state\n+ source \t\t\t- Where tags were read from (fixed or handheld)\n+ tid \t\t\t- Tag manufacturer ID\n+ ttl \t\t\t- Time to live, used for db purging - always in sync with last read",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "tags"
+        ],
+        "summary": "Retrieves Tag Data",
+        "operationId": "getTags",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          }
+        }
+      },
+      "delete": {
+        "description": "This endpoint allows the customer to delete the context for a particular EPC. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "tags"
+        ],
+        "summary": "Delete Tag Collection in database",
+        "operationId": "deleteAllTags",
+        "responses": {
+          "204": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/update/coefficients": {
+      "put": {
+        "description": "This API call is used to retrieve handheld events that have been received. Coefficient variables are used to calculate the confidence of a tag. Default values are set as configuration variables. When a Heartbeat is received from RRS, the inventory-service extracts the one or more facility_id configured in the RRS gateway and if it doesn't exist in the database, applies the default coefficient values to each facility. \u003cbr\u003e\u003cbr\u003e\n\n\nExample Schema:\n```\n{\n\u0026#8195\u0026#8195\"coefficients\": {\n\u0026#8195\u0026#8195\u0026#9\"dailyinventorypercentage\": 0.01,\n\u0026#8195\u0026#8195\u0026#9\"probexiterror\": 0.1,\n\u0026#8195\u0026#8195\u0026#9\"probinstoreread\": 0.75,\n\u0026#8195\u0026#8195\u0026#9\"probunreadtoread\": 0.2\n\u0026#8195\u0026#8195},\n\u0026#8195\u0026#8195\"name\": \"Facility\"\n}\n```\n\n\n+ coefficients - The coefficients used in the probabilistic inventory algorithm\n+  dailyinventorypercentage - Percent of inventory that is sold daily\n+  probexiterror - Probability of an exit error (missed 'departed' event) occurring\n+  probinstoreread - Probability of a tag in the store being read by the overhead sensor each day\n+  probunreadtoread - Probability of an unreadable tag becoming readable again each day (i.e. moved or retagged)\n+ name - Facility name",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "update"
+        ],
+        "summary": "Update Facility Coefficents",
+        "operationId": "updateCoefficients",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          }
+        }
+      }
+    },
+    "/inventory/update/contraepc": {
+      "post": {
+        "description": "The contra-epc endpoint is used to create synthetic EPC tags (contra) to represent an item being transferred out, or a “negative” item to zero out an EPC still showing present in inventory. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#8195\"data\":[\n\u0026#8195\u0026#8195\u0026#8195{\n\u0026#9\"facility_id\":\"fac01\",\n\u0026#9\"gtin\":\"12345678901234\"\n\u0026#8195\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```\n\n\n+ data  - Array of events\n+ facility_id  - Facility code or identifier\n+ gtin  - GTIN-14\n\n\nExample Response:\n\n```\n{\n\u0026#8195\"results\":[\n\u0026#8195\u0026#8195\u0026#8195{\n\u0026#9\"epc\":\"30B48F2B38B9AAFEE91CA698\",\n\u0026#9\"facility_id\":\"fac01\",\n\u0026#9\"event_type\":\"arrival\",\n\u0026#9\"timestamp\":1495729703522,\n\u0026#9\"location\":\"contra-epc\",\n\u0026#9\"epc_encode_format\":\"tbd\"\n\u0026#8195\u0026#8195\u0026#8195}\n\u0026#8195]\n}\n```\n\n\n\n+ results  - Array of result objects\n+ epc  - SGTIN EPC code\n+ facility_id  - Facility ID\n+ event_type  - Event will be set to “arrival”\n+ timestamp  - Time in milliseconds epoch\n+ location  - Will be “contra-epc”\n+ epc_encode_format  - TBD",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "epc"
+        ],
+        "summary": "Creates synthetic contra EPC tags",
+        "operationId": "createContraEpc",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      },
+      "delete": {
+        "description": "This endpoint allows a user to delete a contra EPC record; if the EPC is not a contra EPC, an error is returned. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"facility_id\":\"fac01\",\n\u0026#9\"epc\":\"30B4D2FC54C484AB9E8C7868\"\n}\n```\n\n+ facility_id  - Facility code or identifier\n+ epc  - SGTIN-96 EPC",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "epc"
+        ],
+        "summary": "Deletes contra EPC records",
+        "operationId": "deleteContraEpc",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/update/epccontext": {
+      "put": {
+        "description": "This endpoint allows the customer to arbitrarily set the context for a particular EPC. For example, the customer may want to mark the tag as received, sold, lost, stolen, and anything else the customer decides is appropriate. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"epc_context\":\"received\",\n\u0026#9\"epc\":\"3038E511C6E9A6400012D687\",\n\u0026#9\"facility_id\":\"store555\"\n}\n```\n\n+ epc_context  - User-defined context\n+ facility_id  - Facility code or identifier\n+ epc  - SGTIN-96 EPC",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "epc"
+        ],
+        "summary": "Set EPC context",
+        "operationId": "setEpcContext",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      },
+      "delete": {
+        "description": "This endpoint allows the customer to delete the context for a particular EPC. Body parameters shall be provided in request body in JSON format.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"epc\":\"3038E511C6E9A6400012D687\",\n\u0026#9\"facility_id\":\"store100\"\n}\n```\n\n+ epc  - SGTIN-96 EPC\n+ facility_id  - Facility code or identifier",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "epc"
+        ],
+        "summary": "Delete EPC context",
+        "operationId": "deleteEpcContext",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    },
+    "/inventory/update/qualifiedstate": {
+      "put": {
+        "description": "The update endpoint is for uploading inventory events such as those from a handheld RFID reader.\u003cbr\u003e\u003cbr\u003e\n\nExample Input:\n```\n{\n\u0026#9\"qualified_state\":\"string\",\n\u0026#9\"epc\":\"string\",\n\u0026#9\"facility_id\":\"string\"\n}\n```\n\n+ qualified_state  - User-defined state\n+ epc  - SGTIN-96 EPC\n+ facility_id  - Facility code or identifier",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "schemes": [
+          "http"
+        ],
+        "tags": [
+          "update"
+        ],
+        "summary": "Upload inventory events",
+        "operationId": "updateQualifiedState",
+        "responses": {
+          "200": {
+            "description": "resultsResponse",
+            "schema": {
+              "$ref": "#/definitions/resultsResponse"
+            }
+          },
+          "400": {
+            "$ref": "#/responses/schemaValidation"
+          },
+          "403": {
+            "$ref": "#/responses/forbidden"
+          },
+          "500": {
+            "$ref": "#/responses/internalError"
+          },
+          "502": {
+            "$ref": "#/responses/externalError"
+          },
+          "503": {
+            "$ref": "#/responses/serviceUnavailable"
+          },
+          "504": {
+            "$ref": "#/responses/externalServiceTimeout"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ASNContext": {
+      "description": "ASNContext represents the data to be marshaled into the EPCContext field for\nan Advanced Shipping Notice for each EPC to which the ASN applies.",
+      "type": "object",
+      "properties": {
+        "asnId": {
+          "description": "ASNID is the ID of the shipment copied from the top level of the ASN that added this EPC.",
+          "type": "string",
+          "x-go-name": "ASNID"
+        },
+        "eventTime": {
+          "description": "EventTime is a string provided by the ASN indicating when it was updated.",
+          "type": "string",
+          "x-go-name": "EventTime"
+        },
+        "itemGtin": {
+          "description": "ItemGTIN is a company identifier provided with the original ASN data.",
+          "type": "string",
+          "x-go-name": "ItemGTIN"
+        },
+        "itemId": {
+          "description": "ItemID is also a company identifier provided with the original ASN data.",
+          "type": "string",
+          "x-go-name": "ItemID"
+        },
+        "siteId": {
+          "description": "SiteID indicates the site to which this ASN applies.",
+          "type": "string",
+          "x-go-name": "SiteID"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "ASNInputItem": {
+      "type": "object",
+      "title": "ASNInputItem is a block of metadata and list of EPCs to which the metadata applies.",
+      "properties": {
+        "itemEpcs": {
+          "description": "EPCs to which this ASN applies",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "x-go-name": "EPCs"
+        },
+        "itemGtin": {
+          "description": "ItemGTIN is a company identifier provided with the original ASN data.",
+          "type": "string",
+          "x-go-name": "ItemGTIN"
+        },
+        "itemId": {
+          "description": "ItemID is also a company identifier provided with the original ASN data.",
+          "type": "string",
+          "x-go-name": "ItemID"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "AdvanceShippingNotice": {
+      "description": "AdvanceShippingNotice models the information meant to be serialized to the\nEPCContext field for all the EPCs in the provided data list.",
+      "type": "object",
+      "properties": {
+        "asnId": {
+          "description": "ID is the ID of this shipment.",
+          "type": "string",
+          "x-go-name": "ID"
+        },
+        "eventTime": {
+          "description": "EventTime is a string provided by the ASN indicating when it was updated.",
+          "type": "string",
+          "x-go-name": "EventTime"
+        },
+        "items": {
+          "description": "Items is the list of ASNInputItems for this ASN.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ASNInputItem"
+          },
+          "x-go-name": "Items"
+        },
+        "siteId": {
+          "description": "SiteID indicates the site to which this ASN applies.",
+          "type": "string",
+          "x-go-name": "SiteID"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "Coefficients": {
+      "description": "Coefficients represents a set of attributes to calculate confidence",
+      "type": "object",
+      "properties": {
+        "dailyinventorypercentage": {
+          "description": "Percent of inventory that is sold daily",
+          "type": "number",
+          "format": "double",
+          "x-go-name": "DailyInventoryPercentage"
+        },
+        "probexiterror": {
+          "description": "Probability of an exit error (missed 'departed' event) occurring",
+          "type": "number",
+          "format": "double",
+          "x-go-name": "ProbExitError"
+        },
+        "probinstoreread": {
+          "description": "Probability of a tag in the store being read by the overhead sensor each day",
+          "type": "number",
+          "format": "double",
+          "x-go-name": "ProbInStoreRead"
+        },
+        "probunreadtoread": {
+          "description": "Probability of an unreadable tag becoming readable again each day (i.e. moved or retagged)",
+          "type": "number",
+          "format": "double",
+          "x-go-name": "ProbUnreadToRead"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
+    },
+    "CountType": {
+      "description": "CountType represents a wrapper for count and inlinecount",
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Count"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
+    },
+    "ErrReport": {
+      "description": "ErrReport is used to wrap schema validation errors int json object",
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "x-go-name": "Description"
+        },
+        "errortype": {
+          "type": "string",
+          "x-go-name": "ErrorType"
+        },
+        "field": {
+          "type": "string",
+          "x-go-name": "Field"
+        },
+        "value": {
+          "type": "object",
+          "x-go-name": "Value"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/schemas"
+    },
+    "Facility": {
+      "description": "Facility represents a facility model",
+      "type": "object",
+      "properties": {
+        "coefficients": {
+          "$ref": "#/definitions/Coefficients"
+        },
+        "name": {
+          "description": "Facility name",
+          "type": "string",
+          "x-go-name": "Name"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
+    },
+    "HandheldEvent": {
+      "description": "HandheldEvent represents a handheld event model",
+      "type": "object",
+      "properties": {
+        "event": {
+          "description": "Can be FullScanStart, FullScanComplete, or Calculate",
+          "type": "string",
+          "x-go-name": "Event"
+        },
+        "timestamp": {
+          "description": "Time event was received in epoch",
+          "type": "integer",
+          "format": "int64",
+          "minimum": 13,
+          "x-go-name": "Timestamp"
+        },
+        "ttl": {
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "TTL"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/handheldevent"
+    },
+    "LocationHistory": {
+      "description": "LocationHistory is the model to record the whereabouts history of a tag",
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "x-go-name": "Location"
+        },
+        "source": {
+          "type": "string",
+          "x-go-name": "Source"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Timestamp"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "PagingType": {
+      "description": "PagingType is the model used for paging that is returned in the query response",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "x-go-name": "Cursor"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "PurgingRequest": {
+      "description": "PurgingRequest is the model for request body of the api used for purging the collection periodically",
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Days"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "RequestBody": {
+      "type": "object",
+      "title": "RequestBody is the model for request body used for many data apis.",
+      "properties": {
+        "confidence": {
+          "description": "Minimum probability items must meet",
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Confidence"
+        },
+        "count_only": {
+          "description": "Return only tag count",
+          "type": "boolean",
+          "x-go-name": "CountOnly"
+        },
+        "cursor": {
+          "description": "Cursor from previous response used to retrieve next page of results.",
+          "type": "string",
+          "x-go-name": "Cursor"
+        },
+        "endtime": {
+          "description": "Millisecond epoch stop time",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "EndTime"
+        },
+        "epc": {
+          "description": "SGTIN EPC code",
+          "type": "string",
+          "x-go-name": "Epc"
+        },
+        "epc_state": {
+          "description": "EPC state of ‘present’ or ‘departed’",
+          "type": "string",
+          "x-go-name": "EpcState"
+        },
+        "facility_id": {
+          "description": "Return only facilities provided",
+          "type": "string",
+          "x-go-name": "FacilityID"
+        },
+        "productId": {
+          "description": "GTIN-14 decoded from EPC",
+          "type": "string",
+          "x-go-name": "ProductID"
+        },
+        "qualified_state": {
+          "description": "User set qualified state for the item",
+          "type": "string",
+          "x-go-name": "QualifiedState"
+        },
+        "size": {
+          "description": "Number of results per page",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Size"
+        },
+        "starttime": {
+          "description": "Millisecond epoch start time",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "StartTime"
+        },
+        "time": {
+          "description": "Millisecond epoch current time",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Time"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "Response": {
+      "description": "Response is the model used to return the query response",
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Count"
+        },
+        "results": {
+          "type": "object",
+          "x-go-name": "Results"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/handheldevent"
+    },
+    "Tag": {
+      "description": "Tag is the model containing items for a Tag",
+      "type": "object",
+      "properties": {
+        "arrived": {
+          "description": "Arrival time in milliseconds epoch",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Arrived"
+        },
+        "confidence": {
+          "description": "Probability item is actually present",
+          "type": "number",
+          "format": "double",
+          "x-go-name": "Confidence"
+        },
+        "encode_format": {
+          "description": "TBD",
+          "type": "string",
+          "x-go-name": "EpcEncodeFormat"
+        },
+        "epc": {
+          "description": "SGTIN EPC code",
+          "type": "string",
+          "x-go-name": "Epc"
+        },
+        "epc_context": {
+          "description": "Customer defined context",
+          "type": "string",
+          "x-go-name": "EpcContext"
+        },
+        "epc_state": {
+          "description": "Current state of tag, either ’present’ or ’departed’",
+          "type": "string",
+          "x-go-name": "EpcState"
+        },
+        "event": {
+          "description": "Last event recorded for tag",
+          "type": "string",
+          "x-go-name": "Event"
+        },
+        "facility_id": {
+          "description": "Facility ID",
+          "type": "string",
+          "x-go-name": "FacilityID"
+        },
+        "filter_value": {
+          "description": "Part of EPC, denotes packaging level of the item",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "FilterValue"
+        },
+        "last_read": {
+          "description": "Tag last read time in milliseconds epoch",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "LastRead"
+        },
+        "location_history": {
+          "description": "Array of objects showing history of the tag's location",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LocationHistory"
+          },
+          "x-go-name": "LocationHistory"
+        },
+        "productId": {
+          "description": "ProductID",
+          "type": "string",
+          "x-go-name": "ProductID"
+        },
+        "qualified_state": {
+          "description": "Customer defined state",
+          "type": "string",
+          "x-go-name": "QualifiedState"
+        },
+        "source": {
+          "description": "Where tags were read from (fixed or handheld)",
+          "type": "string",
+          "x-go-name": "Source"
+        },
+        "tid": {
+          "description": "Tag manufacturer ID",
+          "type": "string",
+          "x-go-name": "Tid"
+        },
+        "ttl": {
+          "description": "Time to live, used for db purging - always in sync with last read",
+          "type": "string",
+          "format": "date-time",
+          "x-go-name": "TTL"
+        },
+        "uri": {
+          "description": "URI string representation of tag",
+          "type": "string",
+          "x-go-name": "URI"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "TagEvent": {
+      "description": "TagEvent is the model of the tag event received from gateway",
+      "type": "object",
+      "properties": {
+        "epc_code": {
+          "description": "nolint :golint",
+          "type": "string",
+          "x-go-name": "EpcCode"
+        },
+        "epc_encode_format": {
+          "type": "string",
+          "x-go-name": "EpcEncodeFormat"
+        },
+        "event_type": {
+          "type": "string",
+          "x-go-name": "EventType"
+        },
+        "facility_id": {
+          "type": "string",
+          "x-go-name": "FacilityID"
+        },
+        "location": {
+          "type": "string",
+          "x-go-name": "Location"
+        },
+        "tid": {
+          "type": "string",
+          "x-go-name": "Tid"
+        },
+        "timestamp": {
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Timestamp"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "TagStateChange": {
+      "description": "TagStateChange is the model to capture the previous and current state of a tag\nnolint :golint",
+      "type": "object",
+      "properties": {
+        "currentState": {
+          "$ref": "#/definitions/Tag"
+        },
+        "previousState": {
+          "$ref": "#/definitions/Tag"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "doc_RequestBody": {
+      "description": "doc_RequsetBody is the swagger doc model",
+      "type": "object",
+      "properties": {
+        "datadata": {
+          "$ref": "#/definitions/RequestBody"
+        }
+      },
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+    },
+    "resultsResponse": {
+      "description": "Response is the model used to return the query response",
+      "type": "object",
+      "properties": {
+        "count": {
+          "description": "Count of records for query",
+          "type": "integer",
+          "format": "int64",
+          "x-go-name": "Count"
+        },
+        "results": {
+          "description": "Array containing results of query",
+          "type": "object",
+          "x-go-name": "Results"
+        }
+      },
+      "x-go-name": "Response",
+      "x-go-package": "github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
+    }
+  },
+  "responses": {
+    "externalError": {
+      "description": "externalError"
+    },
+    "externalServiceTimeout": {
+      "description": "externalServiceTimeout"
+    },
+    "forbidden": {
+      "description": "forbidden"
+    },
+    "internalError": {
+      "description": "JSONError is the response for errors that occur within the API."
+    },
+    "schemaValidation": {
+      "description": "ErrorList provides a collection of errors for processing",
+      "schema": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/ErrReport"
+        }
+      }
+    },
+    "serviceUnavailable": {
+      "description": "serviceUnavailable"
+    }
+  }
+}
