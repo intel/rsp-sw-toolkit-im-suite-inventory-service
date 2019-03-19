@@ -19,22 +19,23 @@
 package main
 
 import (
-	"context_linux_go/core"
 	"encoding/json"
-	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
-	"github.impcloud.net/RSP-Inventory-Suite/expect"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/expect"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"

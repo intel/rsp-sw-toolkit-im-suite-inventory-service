@@ -14,8 +14,9 @@
 package sensing
 
 import (
-	"context_linux_go/core"
 	"fmt"
+
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core"
 )
 
 const (

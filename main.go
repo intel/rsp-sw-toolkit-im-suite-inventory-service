@@ -44,8 +44,8 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
-	"github.impcloud.net/RSP-Inventory-Suite/product-data-service/saf/core"
-	"github.impcloud.net/RSP-Inventory-Suite/product-data-service/saf/core/sensing"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core/sensing"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	reporter "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics-influxdb"
 )

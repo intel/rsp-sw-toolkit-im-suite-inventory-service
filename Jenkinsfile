@@ -1,5 +1,5 @@
 rrpBuildGoCode {
-    projectKey = 'inventory-service'
+    projectKey = 'rsp-inventory-service'
     testDependencies = ['mongo']
     dockerBuildOptions = ['--squash', '--build-arg GIT_COMMIT=$GIT_COMMIT']
     testStepsInParallel = false

@@ -238,11 +238,12 @@ github.com/xanzy/ssh-agent v0.2.0/go.mod h1:0NyE30eGUDliuLEHJgYte/zncp2zdTStcOnW
 github.com/yudai/gojsondiff v1.0.0/go.mod h1:AY32+k2cwILAkW1fbgxQ5mUmMiZFgLIV+FBNExI05xg=
 github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82/go.mod h1:lgjkn3NuSvDfVJdfcVVdX+jpBxNmX4rDAzaS45IcYoM=
 github.com/yudai/pp v2.0.1+incompatible/go.mod h1:PuxR/8QJ7cyCkFp/aUDS+JY727OFEZkTdatxwunjIkc=
+github.impcloud.net/RSP-Inventory-Suite/expect v1.0.0 h1:2LHLJ93SWx6z69DX1ldlmch+AEXL+eBVTIv/JICM0t8=
+github.impcloud.net/RSP-Inventory-Suite/expect v1.0.0/go.mod h1:E+a15BBtQmZpww1wVNivY+9ADMv6jIyVUGPEWX5JuNQ=
 github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper v0.0.0-20190313210115-0b51b1c07cb2 h1:Suh599o2R4D5njGnUjwvF/ueEe7PNmlNIdl3jmJEobY=
 github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper v0.0.0-20190313210115-0b51b1c07cb2/go.mod h1:iDgnkIDY79ntAHcqn3q5xSpTIQ7YG4CyGaVXQw0IFiY=
 github.impcloud.net/RSP-Inventory-Suite/go-odata v0.0.0-20190313205301-6becc242e190 h1:3YOwiuZMaZaYCdvGC2j8++iPkC29ODPqyHOKGZqCtN0=
 github.impcloud.net/RSP-Inventory-Suite/go-odata v0.0.0-20190313205301-6becc242e190/go.mod h1:W1StUG61JDomZkl9hDK36nVks52hlG2bbttQJcTRVFU=
-github.impcloud.net/RSP-Inventory-Suite/product-data-service v0.0.0-20190318223341-990ae05155c5 h1:w83td6qaEU0Xs8ajaB5qTK/jILUW8ZxIof8nJc1I+Bo=
 github.impcloud.net/RSP-Inventory-Suite/product-data-service v0.0.0-20190318223341-990ae05155c5/go.mod h1:IsV0qlromQNanv1Uy5qg5OStw1oIj69oa7tQkz9pLlo=
 github.impcloud.net/RSP-Inventory-Suite/utilities v0.0.0-20190318223020-7136022498b9 h1:Ube5aC8yTq59sWjwGn0TwyV1fh3po84LQgQYAuHRRgw=
 github.impcloud.net/RSP-Inventory-Suite/utilities v0.0.0-20190318223020-7136022498b9/go.mod h1:WsQsjgVseD1gyLkKs8TNYHObiD3LcwlDBwFoveH6WAA=

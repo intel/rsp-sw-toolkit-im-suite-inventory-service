@@ -14,11 +14,12 @@
 package client
 
 import (
-	"context_linux_go/core"
 	"errors"
 	"net"
 	"reflect"
 	"strings"
+
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core"
 )
 
 // RegisterDevice registers this application with the wsClient, and calls onStartedHandler

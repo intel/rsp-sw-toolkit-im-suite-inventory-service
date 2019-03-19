@@ -14,10 +14,11 @@
 package core
 
 import (
-	"context_linux_go/logger"
 	"crypto/x509"
 	"fmt"
 	"reflect"
+
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/logger"
 )
 
 // JSONSchema is a generic JSON schema representation.

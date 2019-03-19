@@ -1,5 +1,5 @@
 {
-  "serviceName": "RRP - Inventory Service",
+  "serviceName": "Inventory Service",
   "connectionString": "mongodb://127.0.0.1:27017",
   "databaseName": "inventory",
   "loggingLevel": "debug",

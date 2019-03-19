@@ -12,12 +12,13 @@ package integrationtest
 
 import (
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"log"
 	"sync"
 	"testing"
 	"time"
+
+	mongodb "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 )
 
 type DBHost string
@@ -57,7 +58,7 @@ func (dbHost DBHost) CreateDB(t *testing.T) *mongodb.DB {
 		t.Skip("Skipping integration test")
 	}
 
-	dbName := string(dbHost)+t.Name()
+	dbName := string(dbHost) + t.Name()
 	if len(dbName) > 64 {
 		dbName = dbName[:62]
 	}
