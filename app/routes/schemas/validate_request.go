@@ -23,7 +23,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/gojsonschema"
+	"github.impcloud.net/RSP-Inventory-Suite/gojsonschema"
 )
 
 // ValidateSchemaRequest validates the api request body with the required json schema
@@ -66,13 +66,23 @@ func BuildErrorsString(resultsErrors []gojsonschema.ResultError) interface{} {
 	var error ErrReport
 	var errorSlice []ErrReport
 	var errors ErrorList
+
 	for _, err := range resultsErrors {
+
+		// err.Field() is not set for "required" error
+		var field string
+		if property, ok := err.Details()["property"].(string); ok {
+			field = property
+		} else {
+			field = err.Field()
+		}
+
 		// ignore extraneous "number_one_of" error
 		if err.Type() == "number_one_of" {
 			continue
 		}
+		error.Field = field
 		error.Description = err.Description()
-		error.Field = err.Field()
 		error.ErrorType = err.Type()
 		error.Value = err.Value()
 		errorSlice = append(errorSlice, error)
