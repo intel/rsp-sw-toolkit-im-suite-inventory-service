@@ -31,10 +31,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/globalsign/mgo"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
+	zmq "github.com/pebbe/zmq4"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
@@ -59,6 +62,12 @@ const (
 	shippingNoticeUrn = "urn:x-intel:context:retailsensingplatform:shippingmasterdata"
 	jsonApplication   = "application/json;charset=utf-8"
 )
+
+// ZeroMQ implementation of the event publisher
+type zeroMQEventPublisher struct {
+	publisher *zmq.Socket
+	mux       sync.Mutex
+}
 
 func main() {
 	mDBIndexesError := metrics.GetOrRegisterGauge("Inventory.Main.DBIndexesError", nil)
@@ -88,6 +97,8 @@ func main() {
 
 	dbName := config.AppConfig.DatabaseName
 	dbHost := config.AppConfig.ConnectionString + "/" + dbName
+
+	initZmq()
 
 	// Connect to mongodb
 	log.WithFields(log.Fields{
@@ -781,4 +792,41 @@ func initMetrics() {
 			nil,
 		)
 	}
+}
+
+func initZmq() {
+	q, _ := zmq.NewSocket(zmq.SUB)
+	defer q.Close()
+
+	logrus.Info("Connecting to incoming 0MQ")
+	if err := q.Connect("tcp://127.0.0.1:5563"); err != nil {
+		logrus.Error(err)
+	}
+	logrus.Info("Connected to inbound 0MQ")
+	q.SetSubscribe("")
+
+	for {
+		msg, err := q.RecvMessage(0)
+		if err != nil {
+			id, _ := q.GetIdentity()
+			logrus.Error(fmt.Sprintf("Error getting message %s", id))
+		} else {
+			for _, str := range msg {
+				//event := parseEvent(str)
+				logrus.Info(fmt.Sprintf("Event received: %s", str))
+				//eventCh <- event
+			}
+		}
+	}
+}
+
+func parseEvent(str string) *models.Event {
+	event := models.Event{}
+
+	if err := json.Unmarshal([]byte(str), &event); err != nil {
+		logrus.Error(err.Error())
+		logrus.Warn("Failed to parse event")
+		return nil
+	}
+	return &event
 }
