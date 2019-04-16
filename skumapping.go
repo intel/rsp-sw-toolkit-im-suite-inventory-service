@@ -28,12 +28,12 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 // SkuMapping struct for the sku-mapping service
@@ -64,12 +64,7 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 		return errors.Wrap(err, "unable to Decode data")
 	}
 
-	value, ok := data["value"].(map[string]interface{})
-	if !ok { //nolint: golint
-		return errors.New("Missing Value Field")
-	}
-
-	if tags, ok := value["data"].([]interface{}); !ok { //nolint: golint
+	if tags, ok := data["data"].([]interface{}); !ok { //nolint: golint
 		return errors.New("Missing Data Field")
 	} else {
 		var tagData []tag.Tag
@@ -149,13 +144,13 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 			handlers.UpdateForCycleCount(tagData)
 
 			if config.AppConfig.CloudConnectorUrl != "" {
-				gatewayID, ok := value["gateway_id"].(string)
+				gatewayID, ok := data["gateway_id"].(string)
 				if !ok {
 					return errors.New("Missing Gateway ID")
 				}
 
 				var payload event.DataPayload
-				gatewayEventBytes, err := json.Marshal(value)
+				gatewayEventBytes, err := json.Marshal(data)
 				if err != nil {
 					return err
 				}

@@ -22,12 +22,6 @@ import "testing"
 
 func TestProcessRRSAlertOk(t *testing.T) {
 	JSONSample := []byte(`{
-		"macaddress": "02:42:ac:1d:00:04",
-		"application": "rsp_collector",
-		"providerId": -1,
-		"dateTime": "2017-08-25T22:29:23.816Z",
-		"type": "urn:x-intel:context:retailsensingplatform:alerts",
-		"value": {
 		  "device_id": "RSP123",
 		  "facilities": [
 			"Tavern"
@@ -36,8 +30,7 @@ func TestProcessRRSAlertOk(t *testing.T) {
 		  "alert_description": "Test Alert",
 		  "severity": "high",
 		  "sent_on": 1503700192960
-		}
-	  }`)
+		}`)
 
 	rrsAlert := NewRRSAlert(JSONSample)
 
@@ -51,13 +44,7 @@ func TestProcessRRSAlertOk(t *testing.T) {
 }
 
 func TestIsInventoryUnloadAlertOk(t *testing.T) {
-	resetBaselineAlertJSON := []byte(`{
-		"macaddress": "02:42:ac:1d:00:04",
-		"application": "rsp_collector",
-		"providerId": -1,
-		"dateTime": "2017-08-25T22:29:23.816Z",
-		"type": "urn:x-intel:context:retailsensingplatform:alerts",
-		"value": {
+	resetBaselineAlertJSON := []byte(`{		
 		  "device_id": "RSP123",
 		  "facilities": [
 			"Tavern"
@@ -66,7 +53,6 @@ func TestIsInventoryUnloadAlertOk(t *testing.T) {
 		  "alert_description": "Reset baseline Alert",
 		  "severity": "critical",
 		  "sent_on": 1503700192960
-		}
 		}`)
 	rrsAlert := NewRRSAlert(resetBaselineAlertJSON)
 	resetBaselineAlert := rrsAlert.IsInventoryUnloadAlert()
@@ -75,12 +61,6 @@ func TestIsInventoryUnloadAlertOk(t *testing.T) {
 	}
 
 	otherAlertJSON := []byte(`{
-		"macaddress": "02:42:ac:1d:00:04",
-		"application": "rsp_collector",
-		"providerId": -1,
-		"dateTime": "2017-08-25T22:29:23.816Z",
-		"type": "urn:x-intel:context:retailsensingplatform:alerts",
-		"value": {
 		  "device_id": "RSP123",
 		  "facilities": [
 			"Tavern"
@@ -88,8 +68,7 @@ func TestIsInventoryUnloadAlertOk(t *testing.T) {
 		  "alert_number": 241,
 		  "alert_description": "Gateway shutdown Alert",
 		  "severity": "critical",
-		  "sent_on": 1503700192960
-		}
+		  "sent_on": 1503700192960		
 		}`)
 
 	rrsAlert = NewRRSAlert(otherAlertJSON)
@@ -115,12 +94,6 @@ func TestProcessRRSAlertBadInputJson(t *testing.T) {
 	}
 
 	missingDeviceID := []byte(`{
-		"macaddress": "02:42:ac:1d:00:04",
-		"application": "rsp_collector",
-		"providerId": -1,
-		"dateTime": "2017-08-25T22:29:23.816Z",
-		"type": "urn:x-intel:context:retailsensingplatform:alerts",
-		"value": {
 		  "facilities": [
 			"Tavern"
 		  ],
@@ -128,7 +101,6 @@ func TestProcessRRSAlertBadInputJson(t *testing.T) {
 		  "alert_description": "Test Alert",
 		  "severity": "high",
 		  "sent_on": 1503700192960
-		}
 	  }`)
 
 	rrsAlert = NewRRSAlert(missingDeviceID)
@@ -138,20 +110,13 @@ func TestProcessRRSAlertBadInputJson(t *testing.T) {
 	}
 
 	missingAlertNumber := []byte(`{
-		"macaddress": "02:42:ac:1d:00:04",
-		"application": "rsp_collector",
-		"providerId": -1,
-		"dateTime": "2017-08-25T22:29:23.816Z",
-		"type": "urn:x-intel:context:retailsensingplatform:alerts",
-		"value": {
 			"device_id": "RSP123",
 		  "facilities": [
 			"Tavern"
 		  ],
 		  "alert_description": "Test Alert",
 		  "severity": "high",
-		  "sent_on": 1503700192960
-		}
+		  "sent_on": 1503700192960		
 	  }`)
 
 	rrsAlert = NewRRSAlert(missingAlertNumber)

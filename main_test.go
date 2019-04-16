@@ -33,8 +33,6 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 
 	"github.com/globalsign/mgo"
@@ -59,58 +57,6 @@ func TestPrepareDb(t *testing.T) {
 	defer dbSession.Close()
 	if err := prepareDB(dbSession); err != nil {
 		t.Fatalf("failed to prepare db with error: %s", err)
-	}
-}
-
-func TestHandleMessage(t *testing.T) {
-	testGauge := metrics.NewGauge()
-
-	itemData := &core.ItemData{}
-	handleMessage("some type", itemData, &testGauge,
-		func(bytes []byte) error {
-			if bytes == nil || len(bytes) == 0 {
-				t.Fatal("expecting bytes, but none received")
-			}
-			return nil
-		})
-	if testGauge.Value() != 0 {
-		t.Error("Error gauge unexpectedly updated")
-	}
-
-	handleMessage("some type", itemData, &testGauge,
-		func(bytes []byte) error {
-			if bytes == nil || len(bytes) == 0 {
-				t.Fatal("expecting bytes, but none received")
-			}
-			return errors.New("intentional error")
-		})
-	if testGauge.Value() != 1 {
-		t.Errorf("expected error gauge value (%d) to get set to 1, "+
-			"but it did not", testGauge.Value())
-	}
-
-	testGauge.Update(0)
-	handleMessage("some type", nil, &testGauge,
-		func(bytes []byte) error {
-			t.Error("handler should not have been called")
-			return nil
-		})
-	if testGauge.Value() != 1 {
-		t.Errorf("expected error gauge value (%d) to get set to 1, "+
-			"but it did not", testGauge.Value())
-	}
-
-	itemData.Value = make(chan bool, 1)
-	testGauge.Update(0)
-	handleMessage("some type", itemData, &testGauge,
-		func(bytes []byte) error {
-			t.Error("handler should not have been called, because a " +
-				"channel shouldn't be successfully marshaled")
-			return nil
-		})
-	if testGauge.Value() != 1 {
-		t.Errorf("expected error gauge value (%d) to get set to 1, "+
-			"but it did not", testGauge.Value())
 	}
 }
 
@@ -507,8 +453,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		t.Error("Unable to replace tags", err.Error())
 	}
 
-	JSONSample := []byte(`{
-			 "value": {
+	JSONSample := []byte(`{			 
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -533,7 +478,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
@@ -655,8 +600,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		t.Error("Unable to replace tags", err.Error())
 	}
 
-	JSONSample1 := []byte(`{
-			 "value": {
+	JSONSample1 := []byte(`{			 
 				 "gateway_id": "rrpgw",
 				 "event_segment_number": 1,
 				 "total_event_segments": 2,
@@ -681,9 +625,8 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
-	JSONSample2 := []byte(`{
-			 "value": {
+   }`)
+	JSONSample2 := []byte(`{			 
 				 "gateway_id": "rrpgw",
 				 "event_segment_number": 2,
 				 "total_event_segments": 2,
@@ -708,7 +651,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample1, masterDb, "fixed", nil); err != nil {
@@ -826,8 +769,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 		t.Errorf("Unable to replace tags: %+v", err)
 	}
 
-	JSONSample := []byte(`{
-			 "value": {
+	JSONSample := []byte(`{			 
 				 "gateway_id": "rrpgw",
          "total_event_segments": 1,
          "event_segment_number": 1,
@@ -852,7 +794,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
@@ -1015,8 +957,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := []byte(`{
-			 "value": {
+	JSONSample := []byte(`{			 
 				 "gateway_id": "rrpgw",
 				 "data": [
 							 {
@@ -1039,7 +980,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
@@ -1087,12 +1028,6 @@ func TestProcessHeartBeat(t *testing.T) {
 	defer masterDb.Close()
 
 	JSONSample := []byte(`{
-		 "macaddress": "02:42:ac:1d:00:04",
-		 "application": "rsp_collector",
-		 "providerId": -1,
-		 "dateTime": "2017-08-25T22:29:23.816Z",
-		 "type": "urn:x-intel:context:retailsensingplatform:heartbeat",
-		 "value": {
 		   "gateway_id": "rrpgw",
 		   "device_id": "rrpgw",
 		   "facilities": [
@@ -1104,31 +1039,11 @@ func TestProcessHeartBeat(t *testing.T) {
 		   "personality_groups_cfg": null,
 		   "schedule_cfg": "UNKNOWN",
 		   "schedule_groups_cfg": null,
-		   "sent_on": 1503700192960
-		 }
+		   "sent_on": 1503700192960		 
 	   }`)
 
 	if err := processHeartBeat(JSONSample, masterDb); err != nil {
 		t.Errorf("error processing hearbeat data %s", err.Error())
-	}
-}
-
-func TestProcessHandheldEvent(t *testing.T) {
-
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
-
-	JSONSample := []byte(`{
-		 "dateTime": "2017-08-25T22:29:23.816Z",
-		 "type": "urn:x-intel:context:handheld:event",
-		 "value": {
-		   "event": "Calculate",
-		   "timestamp": 1503700192960
-		 }
-	   }`)
-
-	if err := processHandheldEvent(JSONSample, masterDb); err != nil {
-		t.Errorf("error insert Handheld Event data %s", err.Error())
 	}
 }
 
@@ -1432,8 +1347,7 @@ func getTagData() []tag.Tag {
 }
 
 func getJSONCycleCountSample() []byte {
-	return []byte(`{
-			 "value": {
+	return []byte(`{			 
 				 "gateway_id": "rrpgw",
          "total_event_segments": 1,
          "event_segment_number": 1,
@@ -1458,12 +1372,11 @@ func getJSONCycleCountSample() []byte {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 }
 
 func getJSONDepartedSample() []byte {
-	return []byte(`{
-			 "value": {
+	return []byte(`{	
 				 "gateway_id": "rrpgw",
          "total_event_segments": 1,
          "event_segment_number": 1,
@@ -1479,13 +1392,12 @@ func getJSONDepartedSample() []byte {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 }
 
 // gateway_id is empty for handheld data
 func getJSONSampleHandheld() []byte {
-	return []byte(`{
-			 "value": {
+	return []byte(`{			 
 				 "gateway_id": "",
 				 "data": [
 							 {
@@ -1508,7 +1420,7 @@ func getJSONSampleHandheld() []byte {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }}`)
+   }`)
 }
 
 func checkASNContext(t *testing.T, asn *tag.ASNContext) {

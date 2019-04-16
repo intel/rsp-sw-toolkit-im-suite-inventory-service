@@ -50,17 +50,12 @@ func (rrsAlert RRSAlert) ProcessAlert() error {
 		return errors.Wrap(err, "unable to Decode data")
 	}
 
-	value, ok := data["value"].(map[string]interface{})
-	if !ok { //nolint:golint
-		return errors.New("Missing Value Field")
-	}
-
-	deviceID, ok := value["device_id"].(string)
+	deviceID, ok := data["device_id"].(string)
 	if !ok { //nolint:golint
 		return errors.New("Missing device_id Field")
 	}
 
-	alertNumber, ok := value["alert_number"].(float64)
+	alertNumber, ok := data["alert_number"].(float64)
 	if !ok { //nolint:golint
 		return errors.New("Missing alert_number Field")
 	}
@@ -88,12 +83,7 @@ func (rrsAlert RRSAlert) IsInventoryUnloadAlert() bool {
 		return false
 	}
 
-	value, ok := data["value"].(map[string]interface{})
-	if !ok {
-		return false
-	}
-
-	alertNumFromJSON, ok := value["alert_number"].(float64)
+	alertNumFromJSON, ok := data["alert_number"].(float64)
 	if !ok {
 		return false
 	}
