@@ -6,7 +6,7 @@ rrpBuildGoCode {
     buildImage = 'amr-registry.caas.intel.com/rrp/ci-go-build-image:1.12.0-alpine'
     dockerImageName = "rsp/${projectKey}"
     ecrRegistry = "280211473891.dkr.ecr.us-west-2.amazonaws.com"
-    customBuildScript = "CGO_ENABLED=1 go build -o ./inventory-service"
+    customBuildScript = "./build.sh"
 
     infra = [
         stackName: 'RSP-Codepipeline-InventoryService'
