@@ -1,4 +1,5 @@
-FROM scratch
+FROM alpine:3.7
+RUN apk --no-cache add zeromq
 ADD inventory-service /
 HEALTHCHECK --interval=5s --timeout=3s CMD ["/inventory-service","-isHealthy"]
 
