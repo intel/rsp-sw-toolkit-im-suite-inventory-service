@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # inventory-service
 set -e
 
