@@ -569,7 +569,7 @@ func receiveZmqEvents(masterDB *db.DB) {
 					logrus.Debugf(fmt.Sprintf("Event received: %s", event))
 					for _, read := range event.Readings {
 
-						parsedReading := parseReading(&read)
+						parsedReading := parseReadingValue(&read)
 
 						switch parsedReading.Topic {
 						case heartBeatTopic:
@@ -583,7 +583,7 @@ func receiveZmqEvents(masterDB *db.DB) {
 										return skuMapping.processTagData(jsonBytes, masterDB,
 											"fixed", &mRRSEventsTags)
 									})
-							}(&parsedReading)
+							}(parsedReading)
 						case alertTopic:
 							handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
 								func(jsonBytes []byte) error {
@@ -620,17 +620,17 @@ func receiveZmqEvents(masterDB *db.DB) {
 	}
 }
 
-func parseReading(read *models.Reading) reading {
+func parseReadingValue(read *models.Reading) *reading {
 
 	readingObj := reading{}
 
 	if err := json.Unmarshal([]byte(read.Value), &readingObj); err != nil {
 		logrus.Error(err.Error())
 		logrus.Warn("Failed to parse reading")
-		return reading{}
+		return nil
 	}
 
-	return readingObj
+	return &readingObj
 
 }
 

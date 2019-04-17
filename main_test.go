@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/expect"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
@@ -1494,4 +1495,33 @@ func getMappingSkuSample() []byte {
   ]
 }`)
 	return JSONSample
+}
+
+func TestParseReading(t *testing.T) {
+	read := models.Reading{
+		Device: "rrs-gateway",
+		Origin: 1471806386919,
+		Value:  "{\"jsonrpc\":\"2.0\",\"topic\":\"rfid/gw/heartbeat\",\"params\":{} }",
+	}
+
+	reading := parseReadingValue(&read)
+
+	if reading.Topic != "rfid/gw/heartbeat" {
+		t.Error("Error parsing Reading Value")
+	}
+}
+
+func TestParseEvent(t *testing.T) {
+
+	eventStr := `{"origin":1471806386919,
+	"device":"rrs-gateway",
+	"readings":[ {"name" : "gwevent", "value": " " } ] 
+   }`
+
+	event := parseEvent(eventStr)
+
+	if event.Device != "rrs-gateway" || event.Origin != 1471806386919 {
+		t.Error("Error parsing edgex event")
+	}
+
 }
