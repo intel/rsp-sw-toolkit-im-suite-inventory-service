@@ -118,12 +118,6 @@ func main() {
 	prepDBErr := prepareDB(masterDB)
 	errorHandler("error creating indexes", prepDBErr, &mDBIndexesError)
 
-	log.WithFields(log.Fields{
-		"Method": "main",
-		"Action": "Start",
-		"Host":   config.AppConfig.ContextSdk,
-	}).Infof("Starting Sensing with Secure = %v...", config.AppConfig.SecureMode)
-
 	// Connect to EdgeX zeroMQ bus
 	receiveZmqEvents(masterDB)
 

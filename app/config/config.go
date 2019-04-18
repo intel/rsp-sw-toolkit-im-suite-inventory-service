@@ -38,7 +38,7 @@ const (
 
 type (
 	variables struct {
-		ServiceName, ConnectionString, DatabaseName, LoggingLevel, ContextSdk, ZeroMQ, Port            string
+		ServiceName, ConnectionString, DatabaseName, LoggingLevel, ZeroMQ, Port                        string
 		TelemetryEndpoint, TelemetryDataStoreName                                                      string
 		DailyInventoryPercentage, ProbUnreadToRead, ProbInStoreRead, ProbExitError                     float64 // Coefficients
 		EndpointConnectionTimedOutSeconds                                                              int
@@ -97,10 +97,6 @@ func InitConfig() error {
 	}
 
 	AppConfig.DatabaseName, err = config.GetString("databaseName")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
-	AppConfig.ContextSdk, err = config.GetString("contextSdk")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
