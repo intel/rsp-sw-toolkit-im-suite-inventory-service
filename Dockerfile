@@ -1,6 +1,8 @@
-FROM alpine
+FROM alpine:3.7
 
-RUN sed -e 's/dl-cdn[.]alpinelinux.org/nl.alpinelinux.org/g' -i~ /etc/apk/repositories
+RUN echo http://nl.alpinelinux.org/alpine/v3.7/main > /etc/apk/repositories; \
+    echo http://nl.alpinelinux.org/alpine/v3.7/community >> /etc/apk/repositories
+    
 RUN apk --no-cache add zeromq
 
 ADD inventory-service /
