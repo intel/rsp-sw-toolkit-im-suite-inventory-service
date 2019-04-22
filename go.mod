@@ -7,6 +7,7 @@ require (
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/gorilla/mux v1.7.0
 	github.com/gorilla/websocket v1.4.0
+	github.com/kr/pretty v0.1.0 // indirect
 	github.com/pborman/uuid v1.2.0
 	github.com/pebbe/zmq4 v1.0.0
 	github.com/pkg/errors v0.8.1
@@ -16,4 +17,5 @@ require (
 	github.impcloud.net/RSP-Inventory-Suite/go-odata v0.0.0-20190313205301-6becc242e190
 	github.impcloud.net/RSP-Inventory-Suite/gojsonschema v0.0.0-20190328202319-524e56ea9f9a
 	github.impcloud.net/RSP-Inventory-Suite/utilities v0.0.0-20190318223020-7136022498b9
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )

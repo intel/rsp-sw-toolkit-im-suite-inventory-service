@@ -2,21 +2,25 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"plugin"
 	"testing"
 	"time"
 
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
+	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
+
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -41,19 +45,28 @@ func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 			LastRead:   helper.UnixMilli(time.Now().AddDate(0, 0, -1)),
 		},
 	}
+	_, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+	if err != nil {
+		fmt.Print(err.Error())
+		for _, val := range tags {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		}
 
-	if err := ApplyConfidence(dbs, &tags, testServer.URL+"/skus"); err != nil {
-		t.Fatalf("Error returned from applyConfidence %v", err)
-	}
+	} else {
+		for _, val := range tags {
+			configConf := tag.CalculateConfidence(dailyInvPercConfig,
+				probUnreadToReadConfig,
+				probInStoreConfig,
+				probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
 
-	for _, val := range tags {
-		configConf := tag.CalculateConfidence(dailyInvPercConfig,
-			probUnreadToReadConfig,
-			probInStoreConfig,
-			probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+			log.Warn(configConf)
+			log.Warn(val.Confidence)
 
-		if val.Confidence != configConf {
-			t.Errorf("Confidence not set correctly for handheld data")
+			if val.Confidence != configConf {
+				t.Errorf("Confidence not set correctly for handheld data")
+			}
 		}
 	}
 }
