@@ -58,7 +58,7 @@ const (
 	eventTopic     = "rfid/gw/events"
 	alertTopic     = "rfid/gw/alerts"
 	heartBeatTopic = "rfid/gw/heartbeat"
-	device         = "rrs-gateway"
+	name           = "gwevent"
 )
 
 // ZeroMQ implementation of the event publisher
@@ -559,9 +559,11 @@ func receiveZmqEvents(masterDB *db.DB) {
 		} else {
 			for _, str := range msg {
 				event := parseEvent(str)
-				if event.Device == device {
-					logrus.Debugf(fmt.Sprintf("Event received: %s", event))
-					for _, read := range event.Readings {
+
+				logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+				for _, read := range event.Readings {
+
+					if read.Name == "gwevent" {
 
 						parsedReading := parseReadingValue(&read)
 
