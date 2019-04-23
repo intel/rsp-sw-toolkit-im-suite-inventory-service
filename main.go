@@ -540,80 +540,81 @@ func receiveZmqEvents(masterDB *db.DB) {
 	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSAlertError", nil)
 	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZmqEvents.RRSResetEventReceived", nil)
 
-	q, _ := zmq.NewSocket(zmq.SUB)
-	defer q.Close()
-	uri := fmt.Sprintf("%s://%s", "tcp", config.AppConfig.ZeroMQ)
-	if err := q.Connect(uri); err != nil {
-		logrus.Error(err)
-	}
-	logrus.Infof("Connected to 0MQ at %s", uri)
-	q.SetSubscribe("")
+	go func() {
+		q, _ := zmq.NewSocket(zmq.SUB)
+		defer q.Close()
+		uri := fmt.Sprintf("%s://%s", "tcp", config.AppConfig.ZeroMQ)
+		if err := q.Connect(uri); err != nil {
+			logrus.Error(err)
+		}
+		logrus.Infof("Connected to 0MQ at %s", uri)
+		q.SetSubscribe("")
 
-	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+		skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+		for {
+			msg, err := q.RecvMessage(0)
+			if err != nil {
+				id, _ := q.GetIdentity()
+				logrus.Error(fmt.Sprintf("Error getting message %s", id))
+			} else {
+				for _, str := range msg {
+					event := parseEvent(str)
 
-	for {
-		msg, err := q.RecvMessage(0)
-		if err != nil {
-			id, _ := q.GetIdentity()
-			logrus.Error(fmt.Sprintf("Error getting message %s", id))
-		} else {
-			for _, str := range msg {
-				event := parseEvent(str)
+					logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+					for _, read := range event.Readings {
 
-				logrus.Debugf(fmt.Sprintf("Event received: %s", event))
-				for _, read := range event.Readings {
+						if read.Name == "gwevent" {
 
-					if read.Name == "gwevent" {
+							parsedReading := parseReadingValue(&read)
 
-						parsedReading := parseReadingValue(&read)
-
-						switch parsedReading.Topic {
-						case heartBeatTopic:
-							mRRSHeartbeatReceived.Update(1)
-							handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
-								func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
-						case eventTopic:
-							go func(params *reading) {
-								handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
+							switch parsedReading.Topic {
+							case heartBeatTopic:
+								mRRSHeartbeatReceived.Update(1)
+								handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
+									func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
+							case eventTopic:
+								go func(params *reading) {
+									handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
+										func(jsonBytes []byte) error {
+											return skuMapping.processTagData(jsonBytes, masterDB,
+												"fixed", &mRRSEventsTags)
+										})
+								}(parsedReading)
+							case alertTopic:
+								handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
 									func(jsonBytes []byte) error {
-										return skuMapping.processTagData(jsonBytes, masterDB,
-											"fixed", &mRRSEventsTags)
-									})
-							}(parsedReading)
-						case alertTopic:
-							handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
-								func(jsonBytes []byte) error {
-									rrsAlert := alert.NewRRSAlert(jsonBytes)
-									err := rrsAlert.ProcessAlert()
-									if err != nil {
-										return err
-									}
+										rrsAlert := alert.NewRRSAlert(jsonBytes)
+										err := rrsAlert.ProcessAlert()
+										if err != nil {
+											return err
+										}
 
-									if rrsAlert.IsInventoryUnloadAlert() {
-										mRRSResetEventReceived.Add(1)
-										go func() {
-											err := callDeleteTagCollection(masterDB)
-											errorHandler("error calling delete tag collection",
-												err, &mRRSEventsProcessingError)
+										if rrsAlert.IsInventoryUnloadAlert() {
+											mRRSResetEventReceived.Add(1)
+											go func() {
+												err := callDeleteTagCollection(masterDB)
+												errorHandler("error calling delete tag collection",
+													err, &mRRSEventsProcessingError)
 
-											if err == nil {
-												alertMessage := new(alert.MessagePayload)
-												if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-													errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+												if err == nil {
+													alertMessage := new(alert.MessagePayload)
+													if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
+														errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+													}
 												}
-											}
-										}()
-									}
+											}()
+										}
 
-									return nil
-								})
+										return nil
+									})
+							}
 						}
 					}
-				}
 
+				}
 			}
 		}
-	}
+	}()
 }
 
 func parseReadingValue(read *models.Reading) *reading {
