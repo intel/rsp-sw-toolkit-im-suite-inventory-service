@@ -33,6 +33,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"plugin"
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
@@ -71,8 +72,33 @@ type inputTest struct {
 }
 
 var dbHost integrationtest.DBHost
+
+var calculateConfidencePlugin func(float64, float64, float64, float64, int64, bool) float64
+var isProbabilisticPluginFound bool
+
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("handlers_test")
+
+	// Loading Inventory Probabilistic plugin
+	confidencePlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+	if err != nil {
+		isProbabilisticPluginFound = false	
+		log.Print("Inventory Probabilistic algorithm plugin not found. Confidence value will be 0")
+		os.Exit(m.Run())
+	}
+	// Find CalculateConfidence function
+	symbol, err := confidencePlugin.Lookup("CalculateConfidence")
+	if err != nil {
+		log.Print("Unable to find calculate confidence function. Confidence value will be 0")
+		os.Exit(m.Run())
+	}
+
+	var ok bool
+	calculateConfidencePlugin, ok = symbol.(func(float64, float64, float64, float64, int64, bool) float64)
+	if ok {
+		isProbabilisticPluginFound = true	
+	}	
+
 	os.Exit(m.Run())
 }
 
