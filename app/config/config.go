@@ -387,7 +387,8 @@ func InitConfig() error {
 
 	AppConfig.ProbPlugin, err = config.GetBool("probPlugin")
 	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+		log.Warn("Probabilistic Plugin (probPlugin) variable not set. Default to true.")
+		AppConfig.ProbPlugin = true
 	}
 
 	return nil
