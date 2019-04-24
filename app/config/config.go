@@ -66,6 +66,7 @@ type (
 		DailyTurnMinimumDataPoints, DailyTurnHistoryMaximum                                            int
 		DailyTurnComputeUsingMedian                                                                    bool
 		UseComputedDailyTurnInConfidence                                                               bool
+		ProbPlugin                                                                                     bool
 		TagDecoders                                                                                    []encodingscheme.TagDecoder
 	}
 )
@@ -382,6 +383,11 @@ func InitConfig() error {
 	AppConfig.TagDecoders, err = getTagDecoders(config)
 	if err != nil {
 		return err
+	}
+
+	AppConfig.ProbPlugin, err = config.GetBool("probPlugin")
+	if err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
 	return nil

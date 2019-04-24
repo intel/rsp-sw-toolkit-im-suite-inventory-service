@@ -120,19 +120,34 @@ func main() {
 	errorHandler("error creating indexes", prepDBErr, &mDBIndexesError)
 
 	// Verify IA when using Probabilistic Algorithm plugin
-	probPlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
-	if err == nil {
-		log.Info("Loading proprietary Intel Probabilistic Algorithm plugin...")
-		checkIA, err := probPlugin.Lookup("CheckIA")
-		if err != nil {
-			log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
-		}
+	if config.AppConfig.ProbPlugin {
 
-		if err := checkIA.(func() error)(); err != nil {
-			log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
+		retry := 1
+
+		for retry < 10 {
+
+			log.Infof("Loading proprietary Intel Probabilistic Algorithm plugin (Retry %d)", retry)
+			probPlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+			if err == nil {
+				checkIA, err := probPlugin.Lookup("CheckIA")
+				if err != nil {
+					log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
+					break
+				}
+
+				if err := checkIA.(func() error)(); err != nil {
+					log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
+					break
+				}
+
+				log.Info("Intel Probabilistic Algorithm plugin loaded.")
+				break
+			}
+			time.Sleep(1 * time.Second)
+			retry++
+
 		}
 	}
-
 	// Connect to EdgeX zeroMQ bus
 	receiveZmqEvents(masterDB)
 
