@@ -122,6 +122,7 @@ func main() {
 	// Verify IA when using Probabilistic Algorithm plugin
 	probPlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
 	if err == nil {
+		log.Info("Loading proprietary Intel Probabilistic Algorithm plugin...")
 		checkIA, err := probPlugin.Lookup("CheckIA")
 		if err != nil {
 			log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
