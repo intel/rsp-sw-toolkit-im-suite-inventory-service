@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"plugin"
 	"sync"
 	"time"
 
@@ -117,6 +118,19 @@ func main() {
 	// Prepares database indexes
 	prepDBErr := prepareDB(masterDB)
 	errorHandler("error creating indexes", prepDBErr, &mDBIndexesError)
+
+	// Verify IA when using Probabilistic Algorithm plugin
+	probPlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+	if err == nil {
+		checkIA, err := probPlugin.Lookup("CheckIA")
+		if err != nil {
+			log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
+		}
+
+		if err := checkIA.(func() error)(); err != nil {
+			log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
+		}
+	}
 
 	// Connect to EdgeX zeroMQ bus
 	receiveZmqEvents(masterDB)
