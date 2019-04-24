@@ -123,12 +123,14 @@ func main() {
 	if config.AppConfig.ProbPlugin {
 
 		retry := 1
+		pluginFound := false
 
 		for retry < 10 {
 
 			log.Infof("Loading proprietary Intel Probabilistic Algorithm plugin (Retry %d)", retry)
 			probPlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
 			if err == nil {
+				pluginFound = true
 				checkIA, err := probPlugin.Lookup("CheckIA")
 				if err != nil {
 					log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
@@ -146,6 +148,10 @@ func main() {
 			time.Sleep(1 * time.Second)
 			retry++
 
+		}
+
+		if !pluginFound {
+			log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
 		}
 	}
 	// Connect to EdgeX zeroMQ bus
