@@ -151,7 +151,7 @@ func main() {
 		}
 
 		if !pluginFound {
-			log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
+			log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
 		}
 	}
 	// Connect to EdgeX zeroMQ bus
