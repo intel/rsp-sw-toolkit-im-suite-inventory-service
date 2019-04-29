@@ -25,10 +25,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	golog "log"
 	"net/http"
 	"os"
 	"os/signal"
 	"plugin"
+	"strings"
 	"sync"
 	"time"
 
@@ -78,6 +80,12 @@ func main() {
 	mConfigurationError := metrics.GetOrRegisterGauge("Inventory.Main.ConfigurationError", nil)
 	mDatabaseRegisterError := metrics.GetOrRegisterGauge("Inventory.Main.DatabaseRegisterError", nil)
 
+	// Ensure simple text format
+	log.SetFormatter(&log.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	})
+
 	// Load config variables
 	err := config.InitConfig()
 	fatalErrorHandler("unable to load configuration variables", err, &mConfigurationError)
@@ -88,11 +96,7 @@ func main() {
 	// Initialize metrics reporting
 	initMetrics()
 
-	if config.AppConfig.LoggingLevel == "debug" {
-		log.SetLevel(log.DebugLevel)
-	} else {
-		log.SetFormatter(&log.JSONFormatter{})
-	}
+	setLoggingLevel(config.AppConfig.LoggingLevel)
 
 	log.WithFields(log.Fields{
 		"Method": "main",
@@ -676,4 +680,22 @@ func parseEvent(str string) *models.Event {
 		return nil
 	}
 	return &event
+}
+
+func setLoggingLevel(loggingLevel string) {
+	switch strings.ToLower(loggingLevel) {
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+
+	// Not using filtered func (Info, etc ) so that message is always logged
+	golog.Printf("Logging level set to %s\n", loggingLevel)
 }

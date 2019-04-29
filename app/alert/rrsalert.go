@@ -75,7 +75,7 @@ func (rrsAlert RRSAlert) ProcessAlert() error {
 func (rrsAlert RRSAlert) IsInventoryUnloadAlert() bool {
 	// TODO: this is silly; we don't need to deseralize the message twice
 	// TODO: just unmarshal it once, into a type that has the relevant info
-	log.Infof("alert:\n%s", string(rrsAlert))
+	log.Debugf("alert:\n%s", string(rrsAlert))
 
 	var data map[string]interface{}
 
