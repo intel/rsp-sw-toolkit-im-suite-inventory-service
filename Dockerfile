@@ -24,6 +24,8 @@ COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
 
 # Adding bash/lscpu (required by Probabilistic plugin)
 COPY --from=builder /bin/bash /bin
+COPY --from=builder /lib/libsmartcols.so.1 /lib
+COPY --from=builder /usr/lib/libreadline.so.7 /usr/lib/
 COPY --from=builder /usr/lib/bash /usr/lib/
 COPY --from=builder /usr/bin/lscpu /usr/bin/
 
