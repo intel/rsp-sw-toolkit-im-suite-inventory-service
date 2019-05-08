@@ -15,6 +15,9 @@ COPY --from=builder /lib/libcrypto.so.42 /lib/
 
 COPY --from=builder /usr/lib/libzmq.so.5.1.5 /usr/lib/
 COPY --from=builder /usr/lib/libzmq.so.5 /usr/lib/
+COPY --from=builder /usr/lib/libsodium.so.23 /usr/lib/ 
+COPY --from=builder /usr/lib/libstdc++.so.6 /usr/lib/
+COPY --from=builder /usr/lib/libgcc_s.so.1 /usr/lib/
 
 COPY --from=builder /usr/lib/libcrypto.so.42 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
