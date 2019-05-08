@@ -22,6 +22,10 @@ COPY --from=builder /usr/lib/libgcc_s.so.1 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
 
+# Adding bash (required by Probabilistic plugin)
+COPY --from=builder /bin/bash /bin
+COPY --from=builder /usr/lib/bash /usr/lib/
+
 ADD inventory-service /
 HEALTHCHECK --interval=5s --timeout=3s CMD ["/inventory-service","-isHealthy"]
 
