@@ -1,0 +1,68 @@
+FROM golang:1.12-alpine as gobuilder
+
+ENV GO111MODULE=on
+
+RUN echo http://nl.alpinelinux.org/alpine/v3.6/main > /etc/apk/repositories; \
+    echo http://nl.alpinelinux.org/alpine/v3.6/community >> /etc/apk/repositories
+
+RUN apk update && apk add zeromq zeromq-dev libsodium-dev pkgconfig build-base bash util-linux
+
+RUN apk update && \
+    apk add --no-cache linux-headers gcc musl-dev git && \
+    apk add --no-cache \
+        --virtual=.build-dependencies &&\
+    ln -s locale.h /usr/include/xlocale.h && \
+    rm /usr/include/xlocale.h
+
+WORKDIR $GOPATH/src/github.impcloud.net/RSP-Inventory-Suite
+
+RUN mkdir inventory-service
+
+ADD . inventory-service/
+
+# Authentication needed to pull git modules from github.impcloud.net
+RUN git config --global credential.helper store
+ARG GIT_TOKEN
+RUN set +x && echo "https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" > ~/.git-credentials
+
+RUN  cd inventory-service && ./build.sh
+
+FROM alpine:3.7 as builder
+
+RUN echo http://nl.alpinelinux.org/alpine/v3.7/main > /etc/apk/repositories; \
+    echo http://nl.alpinelinux.org/alpine/v3.7/community >> /etc/apk/repositories
+    
+RUN apk --no-cache add zeromq util-linux bash
+
+FROM busybox:1.30.1
+
+# ZeroMQ libraries and dependencies
+COPY --from=builder /lib/libc.musl-x86_64.so.1 /lib/
+COPY --from=builder /lib/ld-musl-x86_64.so.1 /lib/
+COPY --from=builder /lib/libcrypto.so.42.0.0 /lib/
+COPY --from=builder /lib/libcrypto.so.42 /lib/
+
+COPY --from=builder /usr/lib/libzmq.so.5.1.5 /usr/lib/
+COPY --from=builder /usr/lib/libzmq.so.5 /usr/lib/
+COPY --from=builder /usr/lib/libsodium.so.23 /usr/lib/ 
+COPY --from=builder /usr/lib/libstdc++.so.6 /usr/lib/
+COPY --from=builder /usr/lib/libgcc_s.so.1 /usr/lib/
+COPY --from=builder /usr/lib/libcrypto.so.42 /usr/lib/
+COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
+
+# Adding bash/lscpu (required by Probabilistic plugin)
+COPY --from=builder /bin/bash /bin
+COPY --from=builder /lib/libsmartcols.so.1 /lib
+COPY --from=builder /usr/lib/libreadline.so.7 /usr/lib/
+COPY --from=builder /usr/lib/libncursesw.so.6 /usr/lib/
+COPY --from=builder /usr/lib/bash /usr/lib/
+COPY --from=builder /usr/bin/lscpu /usr/bin/
+
+COPY --from=gobuilder /go/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service /
+
+HEALTHCHECK --interval=5s --timeout=3s CMD ["/inventory-service","-isHealthy"]
+
+ARG GIT_COMMIT=unspecified
+LABEL git_commit=$GIT_COMMIT
+
+ENTRYPOINT ["/inventory-service"]
