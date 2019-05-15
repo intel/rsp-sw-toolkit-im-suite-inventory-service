@@ -14,18 +14,16 @@ RUN apk update && \
     ln -s locale.h /usr/include/xlocale.h && \
     rm /usr/include/xlocale.h
 
-WORKDIR $GOPATH/src/github.impcloud.net/RSP-Inventory-Suite
-
-RUN mkdir inventory-service
-
-ADD . inventory-service/
-
 # Authentication needed to pull git modules from github.impcloud.net
 RUN git config --global credential.helper store
 ARG GIT_TOKEN
 RUN set +x && echo "https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" > ~/.git-credentials
 
-RUN  cd inventory-service && ./build.sh
+WORKDIR $GOPATH/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service
+
+COPY . .
+
+RUN ./build.sh
 
 FROM alpine:3.7 as builder
 
