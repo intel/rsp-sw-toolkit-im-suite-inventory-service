@@ -53,7 +53,7 @@ COPY --from=builder /usr/lib/libncursesw.so.6 /usr/lib/
 COPY --from=builder /usr/lib/bash /usr/lib/
 COPY --from=builder /usr/bin/lscpu /usr/bin/
 
-COPY --from=gobuilder /go/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service /
+COPY --from=gobuilder /go/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service/inventory-service /
 
 HEALTHCHECK --interval=5s --timeout=3s CMD ["/inventory-service","-isHealthy"]
 
