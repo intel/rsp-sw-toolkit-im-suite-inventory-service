@@ -548,6 +548,7 @@ func receiveZmqEvents(masterDB *db.DB) {
 			logrus.Error(err)
 		}
 		logrus.Infof("Connected to 0MQ at %s", uri)
+		// Edgex Delhi release uses no topic for all sensor data
 		q.SetSubscribe("")
 
 		skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
@@ -556,63 +557,64 @@ func receiveZmqEvents(masterDB *db.DB) {
 			if err != nil {
 				id, _ := q.GetIdentity()
 				logrus.Error(fmt.Sprintf("Error getting message %s", id))
-			} else {
-				for _, str := range msg {
-					event := parseEvent(str)
+				continue
+			}
+			for _, str := range msg {
+				event := parseEvent(str)
 
-					logrus.Debugf(fmt.Sprintf("Event received: %s", event))
-					for _, read := range event.Readings {
+				logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+				for _, read := range event.Readings {
 
-						if read.Name == "gwevent" {
+					if read.Name == "gwevent" {
 
-							parsedReading := parseReadingValue(&read)
+						parsedReading := parseReadingValue(&read)
 
-							switch parsedReading.Topic {
-							case heartBeatTopic:
-								mRRSHeartbeatReceived.Update(1)
-								handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
-									func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
-							case eventTopic:
-								go func(params *reading) {
-									handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
-										func(jsonBytes []byte) error {
-											return skuMapping.processTagData(jsonBytes, masterDB,
-												"fixed", &mRRSEventsTags)
-										})
-								}(parsedReading)
-							case alertTopic:
-								handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
+						switch parsedReading.Topic {
+						case heartBeatTopic:
+							mRRSHeartbeatReceived.Update(1)
+							handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
+								func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
+						case eventTopic:
+							go func(params *reading) {
+								handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
 									func(jsonBytes []byte) error {
-										rrsAlert := alert.NewRRSAlert(jsonBytes)
-										err := rrsAlert.ProcessAlert()
-										if err != nil {
-											return err
-										}
-
-										if rrsAlert.IsInventoryUnloadAlert() {
-											mRRSResetEventReceived.Add(1)
-											go func() {
-												err := callDeleteTagCollection(masterDB)
-												errorHandler("error calling delete tag collection",
-													err, &mRRSEventsProcessingError)
-
-												if err == nil {
-													alertMessage := new(alert.MessagePayload)
-													if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-														errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
-													}
-												}
-											}()
-										}
-
-										return nil
+										return skuMapping.processTagData(jsonBytes, masterDB,
+											"fixed", &mRRSEventsTags)
 									})
-							}
+							}(parsedReading)
+						case alertTopic:
+							handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
+								func(jsonBytes []byte) error {
+									rrsAlert := alert.NewRRSAlert(jsonBytes)
+									err := rrsAlert.ProcessAlert()
+									if err != nil {
+										return err
+									}
+
+									if rrsAlert.IsInventoryUnloadAlert() {
+										mRRSResetEventReceived.Add(1)
+										go func() {
+											err := callDeleteTagCollection(masterDB)
+											errorHandler("error calling delete tag collection",
+												err, &mRRSEventsProcessingError)
+
+											if err == nil {
+												alertMessage := new(alert.MessagePayload)
+												if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
+													errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+												}
+											}
+										}()
+									}
+
+									return nil
+								})
 						}
 					}
-
 				}
+
 			}
+
 		}
 	}()
 }

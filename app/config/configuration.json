@@ -2,7 +2,7 @@
   "serviceName": "Inventory Service",
   "connectionString": "mongodb://127.0.0.1:27017",
   "databaseName": "inventory",
-  "loggingLevel": "debug",  
+  "loggingLevel": "debug",
   "zeroMQ": "127.0.0.1:5563",
   "secureMode" : false,
   "skipCertVerify" : false,
