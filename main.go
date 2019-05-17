@@ -31,34 +31,46 @@ import (
 	"sync"
 	"time"
 
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/globalsign/mgo"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
+	zmq "github.com/pebbe/zmq4"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/handheldevent"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/saf/core/sensing"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	reporter "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics-influxdb"
 )
 
 const (
-	eventsUrn         = "urn:x-intel:context:retailsensingplatform:events"
-	heartbeatUrn      = "urn:x-intel:context:retailsensingplatform:heartbeat"
-	alertsUrn         = "urn:x-intel:context:retailsensingplatform:alerts"
-	handheldUrn       = "urn:x-intel:context:handheld:data"
-	handheldEventUrn  = "urn:x-intel:context:handheld:event"
-	shippingNoticeUrn = "urn:x-intel:context:retailsensingplatform:shippingmasterdata"
-	jsonApplication   = "application/json;charset=utf-8"
+	jsonApplication = "application/json;charset=utf-8"
 )
+
+const (
+	eventTopic     = "rfid/gw/events"
+	alertTopic     = "rfid/gw/alerts"
+	heartBeatTopic = "rfid/gw/heartbeat"
+	name           = "gwevent"
+)
+
+// ZeroMQ implementation of the event publisher
+type zeroMQEventPublisher struct {
+	publisher *zmq.Socket
+	mux       sync.Mutex
+}
+
+type reading struct {
+	Topic  string                 `json:"topic"`
+	Params map[string]interface{} `json:"params"`
+}
 
 func main() {
 	mDBIndexesError := metrics.GetOrRegisterGauge("Inventory.Main.DBIndexesError", nil)
@@ -106,13 +118,8 @@ func main() {
 	prepDBErr := prepareDB(masterDB)
 	errorHandler("error creating indexes", prepDBErr, &mDBIndexesError)
 
-	log.WithFields(log.Fields{
-		"Method": "main",
-		"Action": "Start",
-		"Host":   config.AppConfig.ContextSdk,
-	}).Infof("Starting Sensing with Secure = %v...", config.AppConfig.SecureMode)
-
-	doContextSensing(masterDB)
+	// Connect to EdgeX zeroMQ bus
+	receiveZmqEvents(masterDB)
 
 	// Initiate webserver and routes
 	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
@@ -120,164 +127,14 @@ func main() {
 	log.WithField("Method", "main").Info("Completed.")
 }
 
-func doContextSensing(masterDB *db.DB) {
-	mEventFilterAddListenerError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.EventFilterAddListenerError", nil)
-	mContextBrokerError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.ContextBrokerError", nil)
-	mRRSEventsReceived := metrics.GetOrRegisterGaugeCollection("Inventory.DoContextSensing.RRSEventsReceived", nil)
-	mRRSEventsTags := metrics.GetOrRegisterGaugeCollection("Inventory.DoContextSensing.RRSTags", nil)
-	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.RRSEventsError", nil)
-	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.RRSHeartbeatReceived", nil)
-	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.RRSHeartbeatError", nil)
-	mHandheldDataReceived := metrics.GetOrRegisterGaugeCollection("Inventory.DoContextSensing.HandheldDataReceived", nil)
-	mHandheldDataTags := metrics.GetOrRegisterGaugeCollection("Inventory.DoContextSensing.HandheldTags", nil)
-	mHandheldDataProcessingError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.HandheldDataError", nil)
-	mHandheldEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.DoContextSensing.HandheldEventReceived", nil)
-	mHandheldEventProcessingError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.HandheldEventError", nil)
-	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.DoContextSensing.RRSAlertError", nil)
-	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
-	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.DoContextSensing.RRSResetEventReceived", nil)
-
-	onSensingStarted := make(core.SensingStartedChannel, 1)
-	onSensingError := make(core.ErrorChannel, 1)
-
-	options := core.SensingOptions{
-		Server:                      config.AppConfig.ContextSdk,
-		Publish:                     true,
-		Secure:                      config.AppConfig.SecureMode,
-		SkipCertificateVerification: config.AppConfig.SkipCertVerify,
-		Application:                 config.AppConfig.ServiceName,
-		OnStarted:                   onSensingStarted,
-		OnError:                     onSensingError,
-		Retries:                     10,
-		RetryInterval:               1,
-	}
-
-	sensingSdk := sensing.NewSensing()
-	sensingSdk.Start(options)
-
-	onHeartbeatItem := make(core.ProviderItemChannel, 10)
-	onEventsItem := make(core.ProviderItemChannel, 50)
-	onAlertsItem := make(core.ProviderItemChannel, 50)
-	onHandHeldItem := make(core.ProviderItemChannel, 100)
-	onHandHeldEvent := make(core.ProviderItemChannel, 10)
-	onShippingNoticeItem := make(core.ProviderItemChannel, 10)
-
-	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
-
-	go func(options core.SensingOptions) {
-
-		for {
-			select {
-			case started := <-options.OnStarted:
-				if !started.Started {
-					log.WithFields(log.Fields{
-						"Method": "main",
-						"Action": "connecting to context broker",
-						"Host":   config.AppConfig.ContextSdk,
-					}).Fatal("sensing has failed to start")
-				}
-
-				log.Info("Sensing has started")
-				sensingSdk.AddContextTypeListener("*:*", heartbeatUrn, &onHeartbeatItem, &onSensingError)
-				sensingSdk.AddContextTypeListener("*:*", eventsUrn, &onEventsItem, &onSensingError)
-				sensingSdk.AddContextTypeListener("*:*", alertsUrn, &onAlertsItem, &onSensingError)
-				sensingSdk.AddContextTypeListener("*:*", handheldUrn, &onHandHeldItem, &onSensingError)
-				sensingSdk.AddContextTypeListener("*:*", shippingNoticeUrn, &onShippingNoticeItem, &onSensingError)
-
-				err := addEventFilterListener(sensingSdk, &onHandHeldEvent, &onSensingError)
-				fatalErrorHandler("Exiting due to not able to add listener for Event Filter", err, &mEventFilterAddListenerError)
-				log.Info("Waiting for Heartbeat and Events data....")
-
-			case heartbeatItem := <-onHeartbeatItem:
-				mRRSHeartbeatReceived.Update(1)
-				handleMessage("heartbeat", heartbeatItem, &mRRSHeartbeatProcessingError,
-					func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
-
-			case handheldData := <-onHandHeldItem:
-				mHandheldDataReceived.Add(1)
-
-				// Using Go func in case large amount of data so don't starve processing other data
-				go func(data *core.ItemData) {
-					handleMessage("handheld", handheldData, &mHandheldDataProcessingError,
-						func(jsonBytes []byte) error {
-							return skuMapping.processTagData(jsonBytes, masterDB,
-								"handheld", &mHandheldDataTags)
-						})
-				}(handheldData)
-
-			case eventsItem := <-onEventsItem:
-				mRRSEventsReceived.Add(1)
-
-				// Using Go func in case large amount of data so don't starve processing other data
-				go func(events *core.ItemData) {
-					handleMessage("fixed", eventsItem, &mRRSEventsProcessingError,
-						func(jsonBytes []byte) error {
-							return skuMapping.processTagData(jsonBytes, masterDB,
-								"fixed", &mRRSEventsTags)
-						})
-				}(eventsItem)
-
-			case handheldEventItem := <-onHandHeldEvent:
-				mHandheldEventReceived.Add(1)
-				handleMessage("handheldEvent", handheldEventItem, &mHandheldEventProcessingError,
-					func(jsonBytes []byte) error { return processHandheldEvent(jsonBytes, masterDB) })
-
-			case alertsItem := <-onAlertsItem:
-				// TODO: this is a mess and needs serious cleanup
-				handleMessage("RRS Alert data", alertsItem, &mRRSAlertError,
-					func(jsonBytes []byte) error {
-						rrsAlert := alert.NewRRSAlert(jsonBytes)
-						err := rrsAlert.ProcessAlert()
-						if err != nil {
-							return err
-						}
-
-						if rrsAlert.IsInventoryUnloadAlert() {
-							mRRSResetEventReceived.Add(1)
-							go func() {
-								err := callDeleteTagCollection(masterDB)
-								errorHandler("error calling delete tag collection",
-									err, &mRRSEventsProcessingError)
-
-								if err == nil {
-									alertMessage := new(alert.MessagePayload)
-									if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-										errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
-									}
-								}
-							}()
-						}
-
-						return nil
-					})
-
-			case shippingNoticeItem := <-onShippingNoticeItem:
-				mRRSASNEpcs.Add(1)
-
-				// Using Go func in case large amount of data so don't starve processing other data
-				go func(notices *core.ItemData) {
-					// TODO: should this have a different error gauge?
-					handleMessage("ASN", shippingNoticeItem, &mRRSEventsProcessingError,
-						func(jsonBytes []byte) error {
-							return processShippingNotice(jsonBytes, masterDB, &mRRSASNEpcs)
-						})
-				}(shippingNoticeItem)
-
-			case err := <-options.OnError:
-				fatalErrorHandler("Context Sensing Broker Error Received, error exiting...", err.Error, &mContextBrokerError)
-			}
-		}
-	}(options)
-}
-
-func handleMessage(dataType string, data *core.ItemData, errGauge *metrics.Gauge, handler func([]byte) error) {
+func handleMessage(dataType string, data *map[string]interface{}, errGauge *metrics.Gauge, handler func([]byte) error) {
 	if data == nil {
 		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
 			errors.New("ItemData was nil"), errGauge)
 		return
 	}
 
-	jsonBytes, err := json.Marshal(*data)
+	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
 			err, errGauge)
@@ -352,114 +209,6 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 	wg.Wait()
 }
 
-// This function figures out the provider ID of the Event Filter service so we can listen only to handheld events from it.
-// This expects the ContextEventFilterProviderID config to be set to the Event Filter provider name that we'll
-// use.
-func addEventFilterListener(sensingSdk *sensing.Sensing, onHandHeldEvent *core.ProviderItemChannel, onSensingError *core.ErrorChannel) error {
-	// If not expecting the Evnet Filter service the ID will be "" and we can skip this.
-	if config.AppConfig.ContextEventFilterProviderID == "" {
-		return nil
-	}
-
-	type Device struct {
-		DeviceID   string `json:"deviceID"`
-		DeviceName string `json:"deviceName"`
-	}
-
-	type Devices struct {
-		Devices []Device `json:"devices"`
-	}
-
-	type DeviceDiscovery struct {
-		Type  string  `json:"type"`
-		Value Devices `json:"value"`
-	}
-
-	commandReturnChannel := make(chan interface{})
-	params := make([]interface{}, 2)
-	params[0] = string("0:0:0:0:0:0:sensing")
-	params[1] = string("urn:x-intel:context:type:devicediscovery")
-	sensingSdk.SendCommand("0:0:0:0:0:0", "sensing", 0, "urn:x-intel:context:command:getitem", params, commandReturnChannel)
-	val := <-commandReturnChannel
-	errorVal, ok := val.(core.ErrorData)
-	if ok {
-		return fmt.Errorf("getitem command returned error for finding filter service provider ID: %s", errorVal.Error.Error())
-	}
-
-	devicesBytes, err := json.MarshalIndent(val, "", "  ")
-	if err != nil {
-		return errors.Wrap(err, "unable to marshalIdent")
-	}
-	devices := DeviceDiscovery{}
-	if err := json.Unmarshal(devicesBytes, &devices); err != nil {
-		return fmt.Errorf("Error unmarshalling devicediscovery json for finding filter service provider ID")
-	}
-
-	foundOne := false
-	for _, device := range devices.Value.Devices {
-		if device.DeviceName == config.AppConfig.ContextEventFilterProviderID {
-			foundOne = true
-			log.Infof("Adding Event Filter listener for : %s", device.DeviceID)
-			sensingSdk.AddContextTypeListener(device.DeviceID, handheldEventUrn, onHandHeldEvent, onSensingError)
-			//not breaking here in case there are multiples, and we don't know which one to attach to, so we attach to all
-		}
-	}
-
-	if !foundOne {
-		return fmt.Errorf("No Event Filter service with then name '%s' found in result from Context Broker device discovery", config.AppConfig.ContextEventFilterProviderID)
-	}
-
-	return nil
-}
-
-func processHandheldEvent(jsonBytes []byte, masterDB *db.DB) error {
-
-	log.Debugf("Received Handheld Event:\n%s", string(jsonBytes))
-
-	var data map[string]interface{}
-	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
-
-	if err := decoder.Decode(&data); err != nil {
-		return errors.Wrap(err, "Error decoding Handheld Event")
-	}
-
-	value := data["value"].(map[string]interface{})
-	eventData := handheldevent.HandheldEvent{}
-
-	eventJSONBytes, err := json.Marshal(value)
-	if err != nil {
-		return errors.Wrap(err, "Error re-encoding Handheld Event value json")
-	}
-
-	if err := json.Unmarshal(eventJSONBytes, &eventData); err != nil {
-		return errors.Wrap(err, "Error decoding Handheld Event value json into model")
-	}
-
-	copySession := masterDB.CopySession()
-
-	// Insert facilities to database and set default coefficients if new facility is inserted
-	if err := handheldevent.Insert(copySession, eventData); err != nil {
-		copySession.Close()
-		return errors.Wrap(err, "Error inserting handheld event")
-	}
-	copySession.Close()
-
-	if eventData.Event == "Calculate" && config.AppConfig.RulesUrl != "" {
-		go func() {
-			if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint, nil); err != nil {
-				// Must log here since in a go function, i.e. can't return the error.
-				log.WithFields(log.Fields{
-					"Method": "processHandheldEvent",
-					"Action": "Trigger rules",
-					"Error":  err.Error(),
-				}).Error(err)
-			}
-		}()
-	}
-
-	return nil
-}
-
 func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
 
 	log.Debugf("Received Heartbeat:\n%s", string(jsonBytes))
@@ -472,8 +221,7 @@ func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
 		return errors.Wrap(err, "Error decoding HeartBeat")
 	}
 
-	value := data["value"].(map[string]interface{})
-	facilities := value["facilities"].([]interface{})
+	facilities := data["facilities"].([]interface{})
 	//noinspection GoPreferNilSlice
 	facilityData := []facility.Facility{}
 
@@ -781,4 +529,117 @@ func initMetrics() {
 			nil,
 		)
 	}
+}
+
+func receiveZmqEvents(masterDB *db.DB) {
+
+	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSEventsError", nil)
+	mRRSEventsTags := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZmqEvents.RRSTags", nil)
+	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSHeartbeatError", nil)
+	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSHeartbeatReceived", nil)
+	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSAlertError", nil)
+	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZmqEvents.RRSResetEventReceived", nil)
+
+	go func() {
+		q, _ := zmq.NewSocket(zmq.SUB)
+		defer q.Close()
+		uri := fmt.Sprintf("%s://%s", "tcp", config.AppConfig.ZeroMQ)
+		if err := q.Connect(uri); err != nil {
+			logrus.Error(err)
+		}
+		logrus.Infof("Connected to 0MQ at %s", uri)
+		// Edgex Delhi release uses no topic for all sensor data
+		q.SetSubscribe("")
+
+		skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+		for {
+			msg, err := q.RecvMessage(0)
+			if err != nil {
+				id, _ := q.GetIdentity()
+				logrus.Error(fmt.Sprintf("Error getting message %s", id))
+				continue
+			}
+			for _, str := range msg {
+				event := parseEvent(str)
+
+				logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+				for _, read := range event.Readings {
+
+					if read.Name == "gwevent" {
+
+						parsedReading := parseReadingValue(&read)
+
+						switch parsedReading.Topic {
+						case heartBeatTopic:
+							mRRSHeartbeatReceived.Update(1)
+							handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
+								func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
+						case eventTopic:
+							go func(params *reading) {
+								handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
+									func(jsonBytes []byte) error {
+										return skuMapping.processTagData(jsonBytes, masterDB,
+											"fixed", &mRRSEventsTags)
+									})
+							}(parsedReading)
+						case alertTopic:
+							handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
+								func(jsonBytes []byte) error {
+									rrsAlert := alert.NewRRSAlert(jsonBytes)
+									err := rrsAlert.ProcessAlert()
+									if err != nil {
+										return err
+									}
+
+									if rrsAlert.IsInventoryUnloadAlert() {
+										mRRSResetEventReceived.Add(1)
+										go func() {
+											err := callDeleteTagCollection(masterDB)
+											errorHandler("error calling delete tag collection",
+												err, &mRRSEventsProcessingError)
+
+											if err == nil {
+												alertMessage := new(alert.MessagePayload)
+												if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
+													errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+												}
+											}
+										}()
+									}
+
+									return nil
+								})
+						}
+					}
+				}
+
+			}
+
+		}
+	}()
+}
+
+func parseReadingValue(read *models.Reading) *reading {
+
+	readingObj := reading{}
+
+	if err := json.Unmarshal([]byte(read.Value), &readingObj); err != nil {
+		logrus.Error(err.Error())
+		logrus.Warn("Failed to parse reading")
+		return nil
+	}
+
+	return &readingObj
+
+}
+
+func parseEvent(str string) *models.Event {
+	event := models.Event{}
+
+	if err := json.Unmarshal([]byte(str), &event); err != nil {
+		logrus.Error(err.Error())
+		logrus.Warn("Failed to parse event")
+		return nil
+	}
+	return &event
 }

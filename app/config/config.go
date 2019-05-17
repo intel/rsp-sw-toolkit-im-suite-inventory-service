@@ -20,13 +20,14 @@
 package config
 
 import (
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -37,7 +38,7 @@ const (
 
 type (
 	variables struct {
-		ServiceName, ConnectionString, DatabaseName, LoggingLevel, ContextSdk, Port                    string
+		ServiceName, ConnectionString, DatabaseName, LoggingLevel, ZeroMQ, Port                        string
 		TelemetryEndpoint, TelemetryDataStoreName                                                      string
 		DailyInventoryPercentage, ProbUnreadToRead, ProbInStoreRead, ProbExitError                     float64 // Coefficients
 		EndpointConnectionTimedOutSeconds                                                              int
@@ -99,7 +100,8 @@ func InitConfig() error {
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
-	AppConfig.ContextSdk, err = config.GetString("contextSdk")
+
+	AppConfig.ZeroMQ, err = config.GetString("zeroMQ")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
