@@ -149,9 +149,9 @@ func main() {
 				log.Info("Intel Probabilistic Algorithm plugin loaded.")
 				break
 			}
+			log.Warn(err)
 			time.Sleep(1 * time.Second)
 			retry++
-
 		}
 
 		if !pluginFound {
