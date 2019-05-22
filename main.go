@@ -124,7 +124,7 @@ func main() {
 	errorHandler("error creating indexes", prepDBErr, &mDBIndexesError)
 
 	// Verify IA when using Probabilistic Algorithm plugin
-	if config.AppConfig.ProbPlugin {
+	if config.AppConfig.ProbabilisticAlgorithmPlugin {
 
 		retry := 1
 		pluginFound := false
@@ -132,7 +132,7 @@ func main() {
 		for retry < 10 {
 
 			log.Infof("Loading proprietary Intel Probabilistic Algorithm plugin (Retry %d)", retry)
-			probPlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+			probPlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
 			if err == nil {
 				pluginFound = true
 				checkIA, err := probPlugin.Lookup("CheckIA")
