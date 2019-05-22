@@ -66,6 +66,7 @@ type (
 		DailyTurnMinimumDataPoints, DailyTurnHistoryMaximum                                            int
 		DailyTurnComputeUsingMedian                                                                    bool
 		UseComputedDailyTurnInConfidence                                                               bool
+		ProbabilisticAlgorithmPlugin                                                                   bool
 		TagDecoders                                                                                    []encodingscheme.TagDecoder
 	}
 )
@@ -382,6 +383,12 @@ func InitConfig() error {
 	AppConfig.TagDecoders, err = getTagDecoders(config)
 	if err != nil {
 		return err
+	}
+
+	AppConfig.ProbabilisticAlgorithmPlugin, err = config.GetBool("probabilisticAlgorithmPlugin")
+	if err != nil {
+		log.Warn("Probabilistic Plugin (probPlugin) variable not set. Default to true.")
+		AppConfig.ProbabilisticAlgorithmPlugin = true
 	}
 
 	return nil

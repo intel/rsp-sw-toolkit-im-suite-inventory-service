@@ -3,7 +3,7 @@ FROM alpine:3.7 as builder
 RUN echo http://nl.alpinelinux.org/alpine/v3.7/main > /etc/apk/repositories; \
     echo http://nl.alpinelinux.org/alpine/v3.7/community >> /etc/apk/repositories
     
-RUN apk --no-cache add zeromq util-linux bash
+RUN apk --no-cache add zeromq util-linux
 
 
 FROM busybox:1.30.1
@@ -19,12 +19,8 @@ COPY --from=builder /usr/lib/libgcc_s.so.1 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
 
-# Adding bash/lscpu (required by Probabilistic plugin)
-COPY --from=builder /bin/bash /bin
+# Adding lscpu (required by Probabilistic plugin)
 COPY --from=builder /lib/libsmartcols.so.1 /lib
-COPY --from=builder /usr/lib/libreadline.so.7 /usr/lib/
-COPY --from=builder /usr/lib/libncursesw.so.6 /usr/lib/
-COPY --from=builder /usr/lib/bash /usr/lib/
 COPY --from=builder /usr/bin/lscpu /usr/bin/
 
 ADD inventory-service /

@@ -31,10 +31,10 @@ import (
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 const (
@@ -165,9 +165,10 @@ func makePostCall(dataBytes []byte, destination string) (*http.Response, error) 
 	if err != nil {
 		mGetErr.Update(1)
 		log.WithFields(log.Fields{
-			"Method": "makePOSTCall",
-			"Action": "Make New HTTP POST request",
-			"Error":  err.Error(),
+			"Method":  "makePOSTCall",
+			"Action":  "Make New HTTP POST request",
+			"Error":   err.Error(),
+			"Payload": string(dataBytes[:]),
 		}).Error(err)
 		return nil, err
 	}
@@ -177,9 +178,10 @@ func makePostCall(dataBytes []byte, destination string) (*http.Response, error) 
 	if err != nil {
 		mGetErr.Update(1)
 		log.WithFields(log.Fields{
-			"Method": "makePOSTCall",
-			"Action": "Make HTTP POST request",
-			"Error":  err.Error(),
+			"Method":  "makePOSTCall",
+			"Action":  "Make New HTTP POST request",
+			"Error":   err.Error(),
+			"Payload": string(dataBytes[:]),
 		}).Error(err)
 		return nil, err
 	}
@@ -187,9 +189,10 @@ func makePostCall(dataBytes []byte, destination string) (*http.Response, error) 
 		mStatusErr.Update(1)
 		errMsg := fmt.Errorf("Response code: %d from POST URL %s", response.StatusCode, destination)
 		log.WithFields(log.Fields{
-			"Method": "makePOSTCall",
-			"Action": "Response code: " + strconv.Itoa(response.StatusCode),
-			"Error":  errMsg,
+			"Method":  "makePOSTCall",
+			"Action":  "Response code: " + strconv.Itoa(response.StatusCode),
+			"Error":   errMsg,
+			"Payload": string(dataBytes[:]),
 		}).Error(err)
 		return response, errMsg
 	}

@@ -29,8 +29,8 @@ import (
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -80,7 +80,7 @@ func (payload *MessagePayload) SendDeleteTagCompletionAlertMessage() error {
 	}
 
 	postErr := postAlertMessageService(payloadBytes)
-	log.Info("SendDeleteTagCompletionAlertMessage posted")
+	log.Debug("SendDeleteTagCompletionAlertMessage posted")
 	return postErr
 }
 
@@ -112,7 +112,7 @@ func (payload *MessagePayload) SendEventPostFailedAlertMessage(cloudConnectorPos
 	}
 
 	postErr := postAlertMessageService(payloadBytes)
-	log.Info("SendEventPostFailedAlertMessage posted")
+	log.Debug("SendEventPostFailedAlertMessage posted")
 	return postErr
 }
 
@@ -152,7 +152,7 @@ func postAlertMessageService(payloadBytes []byte) error {
 
 	defer func() {
 		if err := response.Body.Close(); err != nil {
-			log.Infof("postAlertMessageService response body close error %s", err.Error())
+			log.Errorf("postAlertMessageService response body close error %s", err.Error())
 		}
 	}()
 

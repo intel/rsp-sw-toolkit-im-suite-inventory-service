@@ -2,21 +2,23 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
+	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
+
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -45,17 +47,27 @@ func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 	if err := ApplyConfidence(dbs, &tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
-
 	for _, val := range tags {
-		configConf := tag.CalculateConfidence(dailyInvPercConfig,
-			probUnreadToReadConfig,
-			probInStoreConfig,
-			probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		} else {
+			configConf := calculateConfidencePlugin(dailyInvPercConfig,
+				probUnreadToReadConfig,
+				probInStoreConfig,
+				probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
 
-		if val.Confidence != configConf {
-			t.Errorf("Confidence not set correctly for handheld data")
+			log.Warn(configConf)
+			log.Warn(val.Confidence)
+
+			if val.Confidence != configConf {
+				t.Errorf("Confidence not set correctly for handheld data")
+			}
 		}
+
 	}
+
 }
 
 func TestApplyConfidenceFacilitiesDontMatch(t *testing.T) {
@@ -84,15 +96,22 @@ func TestApplyConfidenceFacilitiesDontMatch(t *testing.T) {
 	}
 
 	for _, val := range tags {
-		configConf := tag.CalculateConfidence(dailyInvPercConfig,
-			probUnreadToReadConfig,
-			probInStoreConfig,
-			probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		} else {
+			configConf := calculateConfidencePlugin(dailyInvPercConfig,
+				probUnreadToReadConfig,
+				probInStoreConfig,
+				probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
 
-		if val.Confidence != configConf {
-			t.Errorf("Confidence not set correctly when no facility found")
+			if val.Confidence != configConf {
+				t.Errorf("Confidence not set correctly when no facility found")
+			}
 		}
 	}
+
 }
 
 func TestApplyConfidenceProductIdCoeffOverridesFacilityCoeffMatch(t *testing.T) {
@@ -135,15 +154,21 @@ func TestApplyConfidenceProductIdCoeffOverridesFacilityCoeffMatch(t *testing.T) 
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
 
-		facilityItem := facilities[val.FacilityID]
-		facilityConf := tag.CalculateConfidence(facilityItem.Coefficients.DailyInventoryPercentage,
-			facilityItem.Coefficients.ProbUnreadToRead,
-			facilityItem.Coefficients.ProbInStoreRead,
-			facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		} else {
+			facilityItem := facilities[val.FacilityID]
+			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
+				facilityItem.Coefficients.ProbUnreadToRead,
+				facilityItem.Coefficients.ProbInStoreRead,
+				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
 
-		if val.Confidence == facilityConf {
-			// product identifier coefficients should override facility coefficients, thus confidence should not be equal
-			t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			if val.Confidence == facilityConf {
+				// product identifier coefficients should override facility coefficients, thus confidence should not be equal
+				t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			}
 		}
 	}
 }
@@ -188,15 +213,21 @@ func TestApplyConfidenceProductIdCoeffNull(t *testing.T) {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
 
-		facilityItem := facilities[val.FacilityID]
-		facilityConf := tag.CalculateConfidence(facilityItem.Coefficients.DailyInventoryPercentage,
-			facilityItem.Coefficients.ProbUnreadToRead,
-			facilityItem.Coefficients.ProbInStoreRead,
-			facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		} else {
+			facilityItem := facilities[val.FacilityID]
+			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
+				facilityItem.Coefficients.ProbUnreadToRead,
+				facilityItem.Coefficients.ProbInStoreRead,
+				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
 
-		if val.Confidence != facilityConf {
-			// product identifier coefficients should override facility coefficients, thus confidence should not be equal
-			t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			if val.Confidence != facilityConf {
+				// product identifier coefficients should override facility coefficients, thus confidence should not be equal
+				t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			}
 		}
 	}
 }
@@ -240,17 +271,23 @@ func TestApplyConfidenceProductIdCoeffOverridesSomeNull(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		} else {
+			facilityItem := facilities[val.FacilityID]
+			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
+				facilityItem.Coefficients.ProbUnreadToRead,
+				facilityItem.Coefficients.ProbInStoreRead,
+				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
 
-		facilityItem := facilities[val.FacilityID]
-		facilityConf := tag.CalculateConfidence(facilityItem.Coefficients.DailyInventoryPercentage,
-			facilityItem.Coefficients.ProbUnreadToRead,
-			facilityItem.Coefficients.ProbInStoreRead,
-			facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
-
-		if val.Confidence == facilityConf {
-			// product identifier coefficients should override facility coefficients, thus confidence should not be equal
-			t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			if val.Confidence == facilityConf {
+				// product identifier coefficients should override facility coefficients, thus confidence should not be equal
+				t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			}
 		}
+
 	}
 }
 
@@ -294,17 +331,25 @@ func TestApplyConfidenceFacilityCoeffMatch(t *testing.T) {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
 
-		facilityItem := facilities[val.FacilityID]
-		facilityConf := tag.CalculateConfidence(facilityItem.Coefficients.DailyInventoryPercentage,
-			facilityItem.Coefficients.ProbUnreadToRead,
-			facilityItem.Coefficients.ProbInStoreRead,
-			facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
+		} else {
 
-		if val.Confidence != facilityConf {
-			// product identifier coefficients should not override facility coefficients when they are equal to 0
-			// thus confidence should be equal
-			t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			facilityItem := facilities[val.FacilityID]
+			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
+				facilityItem.Coefficients.ProbUnreadToRead,
+				facilityItem.Coefficients.ProbInStoreRead,
+				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+
+			if val.Confidence != facilityConf {
+				// product identifier coefficients should not override facility coefficients when they are equal to 0
+				// thus confidence should be equal
+				t.Error("Confidence not set correctly when product identifier has different coefficients than facility")
+			}
 		}
+
 	}
 }
 
@@ -346,22 +391,30 @@ func TestApplyConfidenceMixedTags(t *testing.T) {
 		t.Fatalf("Couldn't create facility map %v", err)
 	}
 	for _, val := range tags {
-		fac, foundFacility := facilities[val.FacilityID]
-		if foundFacility {
-			facilityConf = tag.CalculateConfidence(fac.Coefficients.DailyInventoryPercentage,
-				fac.Coefficients.ProbUnreadToRead,
-				fac.Coefficients.ProbInStoreRead,
-				fac.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
+			}
 		} else {
-			facilityConf = tag.CalculateConfidence(dailyInvPercConfig,
-				probUnreadToReadConfig,
-				probInStoreConfig,
-				probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+
+			fac, foundFacility := facilities[val.FacilityID]
+			if foundFacility {
+				facilityConf = calculateConfidencePlugin(fac.Coefficients.DailyInventoryPercentage,
+					fac.Coefficients.ProbUnreadToRead,
+					fac.Coefficients.ProbInStoreRead,
+					fac.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+			} else {
+				facilityConf = calculateConfidencePlugin(dailyInvPercConfig,
+					probUnreadToReadConfig,
+					probInStoreConfig,
+					probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+			}
+			if val.Confidence != facilityConf {
+				t.Error("Confidence not set correctly when facility found")
+			}
 		}
 
-		if val.Confidence != facilityConf {
-			t.Error("Confidence not set correctly when facility found")
-		}
 	}
 }
 
@@ -430,60 +483,67 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 	}
 
 	for _, val := range tags {
-		fac, foundFacility := facilities[val.FacilityID]
-		if foundFacility {
-			facilityConf := tag.CalculateConfidence(
-				fac.Coefficients.DailyInventoryPercentage,
-				fac.Coefficients.ProbUnreadToRead,
-				fac.Coefficients.ProbInStoreRead,
-				fac.Coefficients.ProbExitError,
-				val.LastRead,
-				contraepc.IsContraEpc(val))
-
-			if val.Confidence == facilityConf {
-				t.Error("Confidence not set correctly when computed daily turn is present and facility is found")
-			}
-
-			expectedConf := tag.CalculateConfidence(
-				computedDailyTurn,
-				fac.Coefficients.ProbUnreadToRead,
-				fac.Coefficients.ProbInStoreRead,
-				fac.Coefficients.ProbExitError,
-				val.LastRead,
-				contraepc.IsContraEpc(val))
-
-			if val.Confidence != expectedConf {
-				t.Error("Confidence not set correctly when computed daily turn is present and facility is found")
+		if !isProbabilisticPluginFound {
+			if val.Confidence != 0 {
+				t.Errorf("Confidence not set correctly when probabilistic plugin doesn't exit")
 			}
 		} else {
-			dailyTurnConfidence := tag.CalculateConfidence(
-				computedDailyTurn,
-				probUnreadToReadConfig,
-				probInStoreConfig,
-				probExitErrorConfig,
-				val.LastRead,
-				contraepc.IsContraEpc(val))
+			fac, foundFacility := facilities[val.FacilityID]
+			if foundFacility {
+				facilityConf := calculateConfidencePlugin(
+					fac.Coefficients.DailyInventoryPercentage,
+					fac.Coefficients.ProbUnreadToRead,
+					fac.Coefficients.ProbInStoreRead,
+					fac.Coefficients.ProbExitError,
+					val.LastRead,
+					contraepc.IsContraEpc(val))
 
-			defaultConfidence := tag.CalculateConfidence(
-				dailyInvPercConfig,
-				probUnreadToReadConfig,
-				probInStoreConfig,
-				probExitErrorConfig,
-				val.LastRead,
-				contraepc.IsContraEpc(val))
+				if val.Confidence == facilityConf {
+					t.Error("Confidence not set correctly when computed daily turn is present and facility is found")
+				}
 
-			if defaultConfidence == dailyTurnConfidence {
-				t.Error("Daily turn confidence and default confidence are the same value. This should not happen and means the test is invalid")
-			}
+				expectedConf := calculateConfidencePlugin(
+					computedDailyTurn,
+					fac.Coefficients.ProbUnreadToRead,
+					fac.Coefficients.ProbInStoreRead,
+					fac.Coefficients.ProbExitError,
+					val.LastRead,
+					contraepc.IsContraEpc(val))
 
-			if val.ProductID == productId {
-				if val.Confidence != dailyTurnConfidence {
-					t.Error("Confidence not set correctly when computed daily turn is present and no facility found")
+				if val.Confidence != expectedConf {
+					t.Error("Confidence not set correctly when computed daily turn is present and facility is found")
 				}
 			} else {
-				if val.Confidence != defaultConfidence {
-					t.Error("Confidence not set correctly when no facility found and no computed daily turn is present")
+				dailyTurnConfidence := calculateConfidencePlugin(
+					computedDailyTurn,
+					probUnreadToReadConfig,
+					probInStoreConfig,
+					probExitErrorConfig,
+					val.LastRead,
+					contraepc.IsContraEpc(val))
+
+				defaultConfidence := calculateConfidencePlugin(
+					dailyInvPercConfig,
+					probUnreadToReadConfig,
+					probInStoreConfig,
+					probExitErrorConfig,
+					val.LastRead,
+					contraepc.IsContraEpc(val))
+
+				if defaultConfidence == dailyTurnConfidence {
+					t.Error("Daily turn confidence and default confidence are the same value. This should not happen and means the test is invalid")
 				}
+
+				if val.ProductID == productId {
+					if val.Confidence != dailyTurnConfidence {
+						t.Error("Confidence not set correctly when computed daily turn is present and no facility found")
+					}
+				} else {
+					if val.Confidence != defaultConfidence {
+						t.Error("Confidence not set correctly when no facility found and no computed daily turn is present")
+					}
+				}
+
 			}
 
 		}

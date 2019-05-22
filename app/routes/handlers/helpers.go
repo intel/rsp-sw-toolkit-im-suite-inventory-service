@@ -23,19 +23,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
 	"io"
 	"net/http"
+	"plugin"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
@@ -43,6 +44,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients
@@ -127,8 +129,20 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 
 		log.Debugf("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f", dailyInvPerc, probUnreadToRead, probInStore, probExitError)
 
-		confidence = tag.CalculateConfidence(
-			dailyInvPerc, probUnreadToRead, probInStore, probExitError,
+		// Load proprietary Intel probabilistic confidence algorithm
+		confidencePlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+		if err != nil {
+			log.Warn("Intel Probabilistic Algorithm plugin not found. Setting Confidence to 0.")
+			(*tags)[i].Confidence = 0
+			return nil
+		}
+
+		calculateConfidence, err := confidencePlugin.Lookup("CalculateConfidence")
+		if err != nil {
+			log.Errorf("Unable to find calculate confidence function")
+		}
+
+		confidence = calculateConfidence.(func(float64, float64, float64, float64, int64, bool) float64)(dailyInvPerc, probUnreadToRead, probInStore, probExitError,
 			lastRead, contraepc.IsContraEpc((*tags)[i]))
 
 		(*tags)[i].Confidence = confidence

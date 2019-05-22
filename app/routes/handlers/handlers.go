@@ -332,7 +332,7 @@ func (inve *Inventory) DeleteAllTags(ctx context.Context, writer http.ResponseWr
 	mSuccess.Update(1)
 	web.Respond(ctx, writer, nil, http.StatusNoContent)
 
-	log.Infof("DeleteAllTags completes at %v", time.Now())
+	log.Debugf("DeleteAllTags completes at %v", time.Now())
 
 	go func() {
 		completeMessage := new(alert.MessagePayload)
