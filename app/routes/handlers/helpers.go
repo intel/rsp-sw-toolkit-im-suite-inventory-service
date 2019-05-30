@@ -130,7 +130,7 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 		log.Debugf("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f", dailyInvPerc, probUnreadToRead, probInStore, probExitError)
 
 		// Load proprietary Intel probabilistic confidence algorithm
-		confidencePlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+		confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
 		if err != nil {
 			log.Warn("Intel Probabilistic Algorithm plugin not found. Setting Confidence to 0.")
 			(*tags)[i].Confidence = 0

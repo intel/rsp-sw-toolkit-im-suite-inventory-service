@@ -23,28 +23,29 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"plugin"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
-	"plugin"
+
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/pkg/errors"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -80,9 +81,9 @@ func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("handlers_test")
 
 	// Loading Inventory Probabilistic plugin
-	confidencePlugin, err := plugin.Open("/tmp/inventory-probabilistic-algo")
+	confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
 	if err != nil {
-		isProbabilisticPluginFound = false	
+		isProbabilisticPluginFound = false
 		log.Print("Inventory Probabilistic algorithm plugin not found. Confidence value will be 0")
 		os.Exit(m.Run())
 	}
@@ -96,8 +97,8 @@ func TestMain(m *testing.M) {
 	var ok bool
 	calculateConfidencePlugin, ok = symbol.(func(float64, float64, float64, float64, int64, bool) float64)
 	if ok {
-		isProbabilisticPluginFound = true	
-	}	
+		isProbabilisticPluginFound = true
+	}
 
 	os.Exit(m.Run())
 }
