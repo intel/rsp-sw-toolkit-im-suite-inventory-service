@@ -21,10 +21,11 @@ package encodingscheme
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 )
@@ -125,13 +126,13 @@ func GetCompanyPrefixByEpc(epc string) (int64, error) {
 func IsSGTINEncoded(epc string) bool {
 	// Only allow EPC values with an SGTIN-96 header value
 	if !strings.HasPrefix(epc, sgtin96Header) {
-		log.Error("EPC has wrong binary header for SGTIN-96")
+		log.Errorf("EPC %s has wrong binary header for SGTIN-96", epc)
 		return false
 	}
 
 	// Only allow 96 bit EPC values
 	if len(epc) != numEpcDigits {
-		log.Error("EPC wrong length for SGTIN-96 conversion")
+		log.Errorf("EPC %s wrong length for SGTIN-96 conversion", epc)
 		return false
 	}
 	return true

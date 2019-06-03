@@ -22,6 +22,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -298,31 +299,21 @@ func processShippingNotice(jsonBytes []byte, masterDB *db.DB, tagsGauge *metrics
 
 	log.Debugf("Received data:\n%s", string(jsonBytes))
 
-	// SAF says they're going to wrap the ASN in an object under the key "value".
-	// They come in an array, though, so there can be multiple that need to be
-	// processed together.
-	type ASNArrayWrapper struct {
-		AsnList []tag.AdvanceShippingNotice `json:"data"`
-	}
-	type SAFDataWrapper struct {
-		WrappedData ASNArrayWrapper `json:"value"`
-	}
-
-	var wrapper SAFDataWrapper
-	err := json.Unmarshal(jsonBytes, &wrapper)
+	var incomingDataSlice []tag.AdvanceShippingNotice
+	err := json.Unmarshal(jsonBytes, &incomingDataSlice)
 	if err != nil {
 		return errors.Wrap(err, "unable to unmarshal data")
 	}
 
 	copySession := masterDB.CopySession()
 	// do this before inserting the data into the database
-	dailyturn.ProcessIncomingASNList(copySession, wrapper.WrappedData.AsnList)
+	dailyturn.ProcessIncomingASNList(copySession, incomingDataSlice)
 	copySession.Close()
 
 	var tagData []tag.Tag
 	ttlTime := time.Now()
 
-	for _, asn := range wrapper.WrappedData.AsnList {
+	for _, asn := range incomingDataSlice {
 		if asn.ID == "" || asn.EventTime == "" || asn.SiteID == "" || asn.Items == nil {
 			return errors.New("ASN is missing data")
 		}
@@ -579,6 +570,7 @@ func receiveZmqEvents(masterDB *db.DB) {
 	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSHeartbeatReceived", nil)
 	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSAlertError", nil)
 	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZmqEvents.RRSResetEventReceived", nil)
+	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
 
 	go func() {
 		q, _ := zmq.NewSocket(zmq.SUB)
@@ -602,10 +594,38 @@ func receiveZmqEvents(masterDB *db.DB) {
 			for _, str := range msg {
 				event := parseEvent(str)
 
-				logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+				//logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+
 				for _, read := range event.Readings {
 
+					// Advance Shipping Notice data
+					if event.Device == "ASN_Data_Device" {
+						if read.Name == "ASN_data" {
+							logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
+							data, err := base64.StdEncoding.DecodeString(read.Value)
+							if err != nil {
+								log.WithFields(log.Fields{
+									"Method": "receiveZmqEvents",
+									"Action": "ASN data ingestion",
+									"Error":  err.Error(),
+								}).Error("error decoding base64 value")
+
+							}
+							if err := processShippingNotice(data, masterDB, &mRRSASNEpcs); err != nil {
+								log.WithFields(log.Fields{
+									"Method": "processShippingNotice",
+									"Action": "ASN data ingestion",
+									"Error":  err.Error(),
+								}).Error("error processing ASN data")
+							}
+							mRRSASNEpcs.Add(1)
+						}
+					}
+
+					// For all RFID data
 					if read.Name == "gwevent" {
+
+						logrus.Debugf(fmt.Sprintf("RFID data received: %s", event))
 
 						parsedReading := parseReadingValue(&read)
 

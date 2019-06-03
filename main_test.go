@@ -1155,9 +1155,8 @@ func TestProcessShippingNotice(t *testing.T) {
 	clearAllData(t, masterDb)
 
 	config.AppConfig.EpcFilters = []string{"303", "301"}
-	JSONShippingNotice := []byte(`{
-		"value": {
-			"data": [
+	JSONShippingNotice := []byte(`	
+		[
 			{
 				"asnId": "AS876422",
 				"eventTime": "2018-03-12T12: 34: 56.789Z",
@@ -1174,9 +1173,8 @@ func TestProcessShippingNotice(t *testing.T) {
 					}
 				]
 			}
-		]
-  }
-	}`)
+		]  
+	`)
 
 	// make sure the tag doesn't currently exist
 	gotTag, err := tag.FindByEpc(masterDb, "30343639F84191AD22900204")
@@ -1220,9 +1218,8 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	jsonShippingNotice := []byte(`{
-		"value": {
-			"data": [
+	jsonShippingNotice := []byte(`
+		[
 			{
 				"asnId": "AS876422",
 				"eventTime": "2018-03-12T12: 34: 56.789Z",
@@ -1237,9 +1234,8 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 					}
 				]
 			}
-		]
-		}
-	}`)
+		]		
+	`)
 
 	// Filter through only those starting with "30"
 	config.AppConfig.EpcFilters = []string{"30"}
@@ -1280,9 +1276,8 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	jsonShippingNotice := []byte(`{
-		"value": {
-			"data": [
+	jsonShippingNotice := []byte(`
+		[
 			{
 				"asnId": "AS876422",
 				"eventTime": "2018-03-12T12: 34: 56.789Z",
@@ -1298,8 +1293,7 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 				]
 			}
 		]
-		}
-	}`)
+	`)
 
 	// insert a known tag
 	existingTag := getTagData()[0]
