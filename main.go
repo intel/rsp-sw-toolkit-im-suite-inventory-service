@@ -599,27 +599,27 @@ func receiveZmqEvents(masterDB *db.DB) {
 				for _, read := range event.Readings {
 
 					// Advance Shipping Notice data
-					if event.Device == "ASN_Data_Device" {
-						if read.Name == "ASN_data" {
-							logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
-							data, err := base64.StdEncoding.DecodeString(read.Value)
-							if err != nil {
-								log.WithFields(log.Fields{
-									"Method": "receiveZmqEvents",
-									"Action": "ASN data ingestion",
-									"Error":  err.Error(),
-								}).Error("error decoding base64 value")
+					if event.Device == "ASN_Data_Device" && read.Name == "ASN_data" {
 
-							}
-							if err := processShippingNotice(data, masterDB, &mRRSASNEpcs); err != nil {
-								log.WithFields(log.Fields{
-									"Method": "processShippingNotice",
-									"Action": "ASN data ingestion",
-									"Error":  err.Error(),
-								}).Error("error processing ASN data")
-							}
-							mRRSASNEpcs.Add(1)
+						logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
+						data, err := base64.StdEncoding.DecodeString(read.Value)
+						if err != nil {
+							log.WithFields(log.Fields{
+								"Method": "receiveZmqEvents",
+								"Action": "ASN data ingestion",
+								"Error":  err.Error(),
+							}).Error("error decoding base64 value")
+
 						}
+						if err := processShippingNotice(data, masterDB, &mRRSASNEpcs); err != nil {
+							log.WithFields(log.Fields{
+								"Method": "processShippingNotice",
+								"Action": "ASN data ingestion",
+								"Error":  err.Error(),
+							}).Error("error processing ASN data")
+						}
+						mRRSASNEpcs.Add(1)
+
 					}
 
 					// For all RFID data
