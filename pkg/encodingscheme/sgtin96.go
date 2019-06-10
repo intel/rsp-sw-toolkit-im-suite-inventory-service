@@ -132,7 +132,7 @@ func IsSGTINEncoded(epc string) bool {
 
 	// Only allow 96 bit EPC values
 	if len(epc) != numEpcDigits {
-		log.Errorf("EPC %s wrong length for SGTIN-96 conversion", epc)
+		log.Errorf("EPC %s has wrong length for SGTIN-96 conversion", epc)
 		return false
 	}
 	return true
