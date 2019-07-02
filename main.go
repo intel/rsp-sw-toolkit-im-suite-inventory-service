@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"io/ioutil"
 	golog "log"
 	"net/http"
@@ -248,6 +249,20 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 
 	// Wait for the listener to report it is closed.
 	wg.Wait()
+}
+
+func processRawSensorData(jsonBytes []byte, masterDB *db.DB) error {
+	var data tagprocessor.PeriodicInventoryData
+	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(&data); err != nil {
+		return errors.Wrap(err, "Error decoding raw sensor data")
+	}
+
+	log.Tracef("Received raw sensor data: %s, %d, %d", data.DeviceId, data.SentOn, len(data.Data))
+
+	return tagprocessor.OnInventoryData(data)
 }
 
 func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
@@ -622,9 +637,17 @@ func receiveZmqEvents(masterDB *db.DB) {
 
 					}
 
-					// For all RFID data
-					if read.Name == "gwevent" {
+					if read.Name == "rawdata" {
+						// For all RFID sensor raw data
+						//logrus.Debugf(fmt.Sprintf("Raw sensor data received: %s", event))
 
+						parsedReading := parseReadingValue(&read)
+						// todo: create separate metrics
+						handleMessage("rawdata", &parsedReading.Params, &mRRSHeartbeatProcessingError,
+							func(jsonBytes []byte) error { return processRawSensorData(jsonBytes, masterDB) })
+
+					} else if read.Name == "gwevent" {
+						// For all RFID event data
 						logrus.Debugf(fmt.Sprintf("RFID data received: %s", event))
 
 						parsedReading := parseReadingValue(&read)

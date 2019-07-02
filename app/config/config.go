@@ -68,6 +68,11 @@ type (
 		UseComputedDailyTurnInConfidence                                                               bool
 		ProbabilisticAlgorithmPlugin                                                                   bool
 		TagDecoders                                                                                    []encodingscheme.TagDecoder
+
+		// todo: add code to parse these
+		PosReturnThresholdMillis, PosDepartedThresholdMillis, AggregateDepartedThresholdMillis int64
+		// todo: add code to parse these
+		AgeOutHours int
 	}
 )
 

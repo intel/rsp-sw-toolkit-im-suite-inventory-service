@@ -23,12 +23,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
@@ -70,7 +71,7 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 		var tagData []tag.Tag
 		var tagStateChangeList []tag.TagStateChange
 		// POC only implementation
-		currentTimeMillis := time.Now().UnixNano() / 1000000
+		currentTimeMillis := helper.UnixMilliNow()
 
 		numberOfTags := len(tags)
 
@@ -132,70 +133,27 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 		// If at least 1 tag passed the whitelist, then insert
 		if len(tagData) > 0 {
 			copySession := masterDB.CopySession()
+			defer copySession.Close()
+
 			if err := tag.Replace(copySession, &tagData); err != nil {
 				return errors.Wrap(err, "error replacing tags")
 			}
 
+			// todo: why is this computing the confidence???
 			if err := handlers.ApplyConfidence(copySession, &tagData, skuMapping.url); err != nil {
 				return err
 			}
-			copySession.Close()
 
 			handlers.UpdateForCycleCount(tagData)
 
 			if config.AppConfig.CloudConnectorUrl != "" {
-				gatewayID, ok := data["gateway_id"].(string)
-				if !ok {
-					return errors.New("Missing Gateway ID")
-				}
-
-				var payload event.DataPayload
-				gatewayEventBytes, err := json.Marshal(data)
-				if err != nil {
-					return err
-				}
-				err = json.Unmarshal(gatewayEventBytes, &payload)
-				if err != nil {
-					log.Errorf("Problem unmarshalling the data.")
-					return err
-				}
-
-				triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
-
-				if err := event.TriggerCloudConnector(gatewayID, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
-					// Must log here since in a go function, i.e. can't return the error.
-					log.WithFields(log.Fields{
-						"Method": "processTagData",
-						"Action": "Trigger Cloud Connector",
-						"Error":  err.Error(),
-					}).Error(err)
+				if err := sendToCloudConnector(data, tagData); err != nil {
+					return errors.Wrap(err, "error sending to cloud connector")
 				}
 			}
 
 			if config.AppConfig.RulesUrl != "" {
-				go func() {
-					if source == "handheld" || config.AppConfig.TriggerRulesOnFixedTags == false {
-						// Run only the StateChanged rule since handheld or not triggering on fixed tags
-						if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint+"?ruletype="+tag.StateChangeEvent, tagStateChangeList); err != nil {
-							// Must log here since in a go function, i.e. can't return the error.
-							log.WithFields(log.Fields{
-								"Method": "processTagData",
-								"Action": "Trigger state change rules",
-								"Error":  fmt.Sprintf("%+v", err),
-							}).Error(err)
-						}
-					} else {
-						// Run all rules
-						if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint, tagStateChangeList); err != nil {
-							// Must log here since in a go function, i.e. can't return the error.
-							log.WithFields(log.Fields{
-								"Method": "processTagData",
-								"Action": "Trigger rules",
-								"Error":  fmt.Sprintf("%+v", err),
-							}).Error(err)
-						}
-					}
-				}()
+				go applyRules(source, tagStateChangeList)
 			}
 		}
 	}
@@ -204,3 +162,59 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 
 	return nil
 }
+
+func sendToCloudConnector(data map[string]interface{}, tagData []tag.Tag) error {
+	gatewayID, ok := data["gateway_id"].(string)
+	if !ok {
+		return errors.New("Missing Gateway ID")
+	}
+
+	var payload event.DataPayload
+	gatewayEventBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(gatewayEventBytes, &payload)
+	if err != nil {
+		log.Errorf("Problem unmarshalling the data.")
+		return err
+	}
+
+	triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
+
+	if err := event.TriggerCloudConnector(gatewayID, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
+		// Must log here since in a go function, i.e. can't return the error.
+		log.WithFields(log.Fields{
+			"Method": "processTagData",
+			"Action": "Trigger Cloud Connector",
+			"Error":  err.Error(),
+		}).Error(err)
+	}
+
+	return nil
+}
+
+func applyRules(source string, tagStateChangeList []tag.TagStateChange) {
+	if source == "handheld" || config.AppConfig.TriggerRulesOnFixedTags == false {
+		// Run only the StateChanged rule since handheld or not triggering on fixed tags
+		if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint+"?ruletype="+tag.StateChangeEvent, tagStateChangeList); err != nil {
+			// Must log here since in a go function, i.e. can't return the error.
+			log.WithFields(log.Fields{
+				"Method": "processTagData",
+				"Action": "Trigger state change rules",
+				"Error":  fmt.Sprintf("%+v", err),
+			}).Error(err)
+		}
+	} else {
+		// Run all rules
+		if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint, tagStateChangeList); err != nil {
+			// Must log here since in a go function, i.e. can't return the error.
+			log.WithFields(log.Fields{
+				"Method": "processTagData",
+				"Action": "Trigger rules",
+				"Error":  fmt.Sprintf("%+v", err),
+			}).Error(err)
+		}
+	}
+}
+
