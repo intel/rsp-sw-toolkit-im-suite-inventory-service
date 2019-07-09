@@ -1344,8 +1344,8 @@ func getTagData() []tag.Tag {
 func getJSONCycleCountSample() []byte {
 	return []byte(`{			 
 				 "gateway_id": "rrpgw",
-         "total_event_segments": 1,
-         "event_segment_number": 1,
+				 "total_event_segments": 1,
+				 "event_segment_number": 1,
 				 "data": [
 							 {
 								 "epc_code": "301430A55C0AC40000000008",
@@ -1373,8 +1373,8 @@ func getJSONCycleCountSample() []byte {
 func getJSONDepartedSample() []byte {
 	return []byte(`{	
 				 "gateway_id": "rrpgw",
-         "total_event_segments": 1,
-         "event_segment_number": 1,
+				 "total_event_segments": 1,
+				 "event_segment_number": 1,
 				 "data": [
 							 {
 								 "epc_code": "30143639F84191AD22900204",
@@ -1498,7 +1498,11 @@ func TestParseReading(t *testing.T) {
 		Value:  "{\"jsonrpc\":\"2.0\",\"topic\":\"rfid/gw/heartbeat\",\"params\":{} }",
 	}
 
-	reading := parseReadingValue(&read)
+	reading, err := parseReadingValue(&read)
+
+	if err != nil {
+		t.Error("Error parsing Reading Value")
+	}
 
 	if reading.Topic != "rfid/gw/heartbeat" {
 		t.Error("Error parsing Reading Value")

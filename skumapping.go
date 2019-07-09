@@ -64,139 +64,140 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 		return errors.Wrap(err, "unable to Decode data")
 	}
 
-	if tags, ok := data["data"].([]interface{}); !ok { //nolint: golint
+	var tags []interface{}
+	var ok bool
+
+	if tags, ok = data["data"].([]interface{}); !ok { //nolint: golint
 		return errors.New("Missing Data Field")
-	} else {
-		var tagData []tag.Tag
-		var tagStateChangeList []tag.TagStateChange
+	}
+	var tagData []tag.Tag
+	var tagStateChangeList []tag.TagStateChange
+	// POC only implementation
+	currentTimeMillis := time.Now().UnixNano() / 1000000
+
+	numberOfTags := len(tags)
+
+	if tagsGauge != nil {
+		(*tagsGauge).Add(int64(numberOfTags))
+	}
+	log.Debugf("Processing %d Tags.\n", numberOfTags)
+	tagsFiltered := 0
+	for _, t := range tags {
+		tagRecordBytes, _ := json.Marshal(t)
+		tempTag := tag.TagEvent{}
+		if err := json.Unmarshal(tagRecordBytes, &tempTag); err != nil {
+			return errors.Wrap(err, "unable to unmarshal")
+		}
+
+		if len(config.AppConfig.EpcFilters) > 0 {
+			// ignore tags that don't match our filters
+			if !statemodel.IsTagWhitelisted(tempTag.EpcCode, config.AppConfig.EpcFilters) {
+				continue
+			}
+		}
+
 		// POC only implementation
-		currentTimeMillis := time.Now().UnixNano() / 1000000
+		markDepartedIfUnseen(&tempTag, config.AppConfig.AgeOuts, currentTimeMillis)
 
-		numberOfTags := len(tags)
-
-		if tagsGauge != nil {
-			(*tagsGauge).Add(int64(numberOfTags))
+		// Add source & event
+		if source == "handheld" {
+			tempTag.EventType = statemodel.ArrivalEvent
 		}
-		log.Debugf("Processing %d Tags.\n", numberOfTags)
-		tagsFiltered := 0
-		for _, t := range tags {
-			tagRecordBytes, _ := json.Marshal(t)
-			tempTag := tag.TagEvent{}
-			if err := json.Unmarshal(tagRecordBytes, &tempTag); err != nil {
-				return errors.Wrap(err, "unable to unmarshal")
+
+		// Note: If bottlenecks may need to redesign to eliminate large number
+		// of queries to DB currently this will make a call to the DB PER tag
+		tagFromDB, err := tag.FindByEpc(masterDB, tempTag.EpcCode)
+
+		if err != nil {
+			return errors.Wrap(err, "Error retrieving tag from database")
+		}
+
+		updatedTag := statemodel.UpdateTag(tagFromDB, tempTag, source)
+
+		tagData = append(tagData, updatedTag)
+
+		var tagStateChange tag.TagStateChange
+		tagStateChange.PreviousState = tagFromDB
+		tagStateChange.CurrentState = updatedTag
+
+		if tagStateChange.PreviousState.IsEqual(tag.Tag{}) != true &&
+			tagStateChange.CurrentState.IsEqual(tag.Tag{}) != true {
+			tagStateChangeList = append(tagStateChangeList, tagStateChange)
+		}
+
+		log.Debug("Previous and Current Tag State:\n")
+		log.Debug(tagStateChange)
+
+	}
+
+	log.Debugf("Filtered %d Tags.", tagsFiltered)
+	// If at least 1 tag passed the whitelist, then insert
+	if len(tagData) > 0 {
+		copySession := masterDB.CopySession()
+		if err := tag.Replace(copySession, &tagData); err != nil {
+			return errors.Wrap(err, "error replacing tags")
+		}
+
+		if err := handlers.ApplyConfidence(copySession, &tagData, skuMapping.url); err != nil {
+			return err
+		}
+		copySession.Close()
+
+		handlers.UpdateForCycleCount(tagData)
+
+		if config.AppConfig.CloudConnectorUrl != "" {
+			gatewayID, ok := data["gateway_id"].(string)
+			if !ok {
+				return errors.New("Missing Gateway ID")
 			}
 
-			if len(config.AppConfig.EpcFilters) > 0 {
-				// ignore tags that don't match our filters
-				if !statemodel.IsTagWhitelisted(tempTag.EpcCode, config.AppConfig.EpcFilters) {
-					continue
-				}
-			}
-
-			// POC only implementation
-			markDepartedIfUnseen(&tempTag, config.AppConfig.AgeOuts, currentTimeMillis)
-
-			// Add source & event
-			if source == "handheld" {
-				tempTag.EventType = statemodel.ArrivalEvent
-			}
-
-			// Note: If bottlenecks may need to redesign to eliminate large number
-			// of queries to DB currently this will make a call to the DB PER tag
-			tagFromDB, err := tag.FindByEpc(masterDB, tempTag.EpcCode)
-
+			var payload event.DataPayload
+			gatewayEventBytes, err := json.Marshal(data)
 			if err != nil {
-				return errors.Wrap(err, "Error retrieving tag from database")
-			} else {
-
-				updatedTag := statemodel.UpdateTag(tagFromDB, tempTag, source)
-
-				tagData = append(tagData, updatedTag)
-
-				var tagStateChange tag.TagStateChange
-				tagStateChange.PreviousState = tagFromDB
-				tagStateChange.CurrentState = updatedTag
-
-				if tagStateChange.PreviousState.IsEqual(tag.Tag{}) != true &&
-					tagStateChange.CurrentState.IsEqual(tag.Tag{}) != true {
-					tagStateChangeList = append(tagStateChangeList, tagStateChange)
-				}
-
-				log.Debug("Previous and Current Tag State:\n")
-				log.Debug(tagStateChange)
-
-			}
-		}
-
-		log.Debugf("Filtered %d Tags.", tagsFiltered)
-		// If at least 1 tag passed the whitelist, then insert
-		if len(tagData) > 0 {
-			copySession := masterDB.CopySession()
-			if err := tag.Replace(copySession, &tagData); err != nil {
-				return errors.Wrap(err, "error replacing tags")
-			}
-
-			if err := handlers.ApplyConfidence(copySession, &tagData, skuMapping.url); err != nil {
 				return err
 			}
-			copySession.Close()
-
-			handlers.UpdateForCycleCount(tagData)
-
-			if config.AppConfig.CloudConnectorUrl != "" {
-				gatewayID, ok := data["gateway_id"].(string)
-				if !ok {
-					return errors.New("Missing Gateway ID")
-				}
-
-				var payload event.DataPayload
-				gatewayEventBytes, err := json.Marshal(data)
-				if err != nil {
-					return err
-				}
-				err = json.Unmarshal(gatewayEventBytes, &payload)
-				if err != nil {
-					log.Errorf("Problem unmarshalling the data.")
-					return err
-				}
-
-				triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
-
-				if err := event.TriggerCloudConnector(gatewayID, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
-					// Must log here since in a go function, i.e. can't return the error.
-					log.WithFields(log.Fields{
-						"Method": "processTagData",
-						"Action": "Trigger Cloud Connector",
-						"Error":  err.Error(),
-					}).Error(err)
-				}
+			err = json.Unmarshal(gatewayEventBytes, &payload)
+			if err != nil {
+				log.Errorf("Problem unmarshalling the data.")
+				return err
 			}
 
-			if config.AppConfig.RulesUrl != "" {
-				go func() {
-					if source == "handheld" || config.AppConfig.TriggerRulesOnFixedTags == false {
-						// Run only the StateChanged rule since handheld or not triggering on fixed tags
-						if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint+"?ruletype="+tag.StateChangeEvent, tagStateChangeList); err != nil {
-							// Must log here since in a go function, i.e. can't return the error.
-							log.WithFields(log.Fields{
-								"Method": "processTagData",
-								"Action": "Trigger state change rules",
-								"Error":  fmt.Sprintf("%+v", err),
-							}).Error(err)
-						}
-					} else {
-						// Run all rules
-						if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint, tagStateChangeList); err != nil {
-							// Must log here since in a go function, i.e. can't return the error.
-							log.WithFields(log.Fields{
-								"Method": "processTagData",
-								"Action": "Trigger rules",
-								"Error":  fmt.Sprintf("%+v", err),
-							}).Error(err)
-						}
+			triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
+
+			if err := event.TriggerCloudConnector(gatewayID, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
+				// Must log here since in a go function, i.e. can't return the error.
+				log.WithFields(log.Fields{
+					"Method": "processTagData",
+					"Action": "Trigger Cloud Connector",
+					"Error":  err.Error(),
+				}).Error(err)
+			}
+		}
+
+		if config.AppConfig.RulesUrl != "" {
+			go func() {
+				if source == "handheld" || config.AppConfig.TriggerRulesOnFixedTags == false {
+					// Run only the StateChanged rule since handheld or not triggering on fixed tags
+					if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint+"?ruletype="+tag.StateChangeEvent, tagStateChangeList); err != nil {
+						// Must log here since in a go function, i.e. can't return the error.
+						log.WithFields(log.Fields{
+							"Method": "processTagData",
+							"Action": "Trigger state change rules",
+							"Error":  fmt.Sprintf("%+v", err),
+						}).Error(err)
 					}
-				}()
-			}
+				} else {
+					// Run all rules
+					if err := triggerRules(config.AppConfig.RulesUrl+config.AppConfig.TriggerRulesEndpoint, tagStateChangeList); err != nil {
+						// Must log here since in a go function, i.e. can't return the error.
+						log.WithFields(log.Fields{
+							"Method": "processTagData",
+							"Action": "Trigger rules",
+							"Error":  fmt.Sprintf("%+v", err),
+						}).Error(err)
+					}
+				}
+			}()
 		}
 	}
 
