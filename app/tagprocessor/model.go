@@ -7,39 +7,39 @@ const (
 type TagState string
 
 const (
-	Unknown      TagState = "U"
-	Present               = "P"
-	Exiting               = "E"
-	DepartedExit          = "DE"
-	DepartedPos           = "DP"
+	Unknown      TagState = "Unknown"
+	Present      TagState = "Present"
+	Exiting      TagState = "Exiting"
+	DepartedExit TagState = "DepartedExit"
+	DepartedPos  TagState = "DepartedPos"
 )
 
-type TagDirection int
+type TagDirection string
 
 const (
-	Stationary TagDirection = 0
-	Toward                  = 1 << iota
-	Away
+	Stationary TagDirection = "Stationary"
+	Toward     TagDirection = "Toward"
+	Away       TagDirection = "Away"
 )
 
-type Personality int
+type Personality string
 
 const (
-	NoPersonality Personality = 0
-	Exit                      = 1 << iota
-	POS
-	FittingRoom
+	NoPersonality Personality = "None"
+	Exit          Personality = "Exit"
+	POS           Personality = "POS"
+	FittingRoom   Personality = "FittingRoom"
 )
 
 type TagEvent string
 
 const (
 	NoEvent    TagEvent = "none"
-	Arrival             = "arrival"
-	Moved               = "moved"
-	Departed            = "departed"
-	Returned            = "returned"
-	CycleCount          = "cycle_count"
+	Arrival    TagEvent = "arrival"
+	Moved      TagEvent = "moved"
+	Departed   TagEvent = "departed"
+	Returned   TagEvent = "returned"
+	CycleCount TagEvent = "cycle_count"
 )
 
 type RfidSensor struct {

@@ -8,6 +8,7 @@ import (
 
 const (
 	// floatPrecision is the largest difference allowed for comparing floating point numbers in this test file
+	//   we are not using epsilon due to precision loss in the rssi conversions
 	floatPrecision = 1e-12
 )
 
@@ -18,6 +19,7 @@ func TestRssiConversions(t *testing.T) {
 		t.Run(fmt.Sprintf("Rssi %v", sampleRssi), func(t *testing.T) {
 			mw := rssiToMilliwatts(sampleRssi)
 			rssi := milliwattsToRssi(mw)
+
 			if math.Abs(sampleRssi - rssi) > floatPrecision {
 				t.Errorf("Converting rssi to mw and back resulted in a different value %v dBm -> %v mw -> %v dBm, Diff: %v",
 					sampleRssi, mw, rssi, math.Abs(sampleRssi - rssi))
