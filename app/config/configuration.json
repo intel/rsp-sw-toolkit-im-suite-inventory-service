@@ -1,6 +1,6 @@
 {
   "serviceName": "Inventory Service",
-  "connectionString": "mongodb://127.0.0.1:27017",
+  "connectionString": "mongodb://127.0.0.1:27018",
   "databaseName": "inventory",
   "loggingLevel": "debug",
   "zeroMQ": "127.0.0.1:5563",
@@ -28,7 +28,7 @@
   "contraEpcPartition": 5,
   "telemetryEndpoint": "",
   "telemetryDataStoreName": "",
-  "port": "8080",
+  "port": "8081",
   "rfidAlertURL": "http://rfid-alert:8080",
   "rfidAlertMessageEndpoint": "/rfid-alert/alertmessage",
   "eventDestination": "",
@@ -51,5 +51,5 @@
   "proprietaryTagBitBoundary": "8.44.44",
   "tagURIAuthorityName" :"example.com",
   "tagURIAuthorityDate" :"2018-01-31",
-  "probabilisticAlgorithmPlugin": true
+  "probabilisticAlgorithmPlugin": false
 }
