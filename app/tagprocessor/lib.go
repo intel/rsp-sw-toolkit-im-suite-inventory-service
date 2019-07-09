@@ -20,6 +20,7 @@ const (
 	unknown = "UNKNOWN"
 )
 
+// OnInventoryData todo: desc
 func OnInventoryData(data PeriodicInventoryData) error {
 	// todo: synchronize inventory
 

@@ -35,7 +35,6 @@ func (tag *Tag) update(sensor *RfidSensor, read *TagRead, weighter *rssiAdjuster
 		tag.Tid = read.Tid
 	}
 
-	//logrus.Debugf("%v", tag.deviceStatsMap)
 	curStats, found := tag.deviceStatsMap[srcAlias]
 	if !found {
 		curStats = NewTagStats()
@@ -75,15 +74,12 @@ func (tag *Tag) update(sensor *RfidSensor, read *TagRead, weighter *rssiAdjuster
 }
 
 func (stats *TagStats) update(read *TagRead) {
-	//logrus.Debugf("%v", stats)
 	if stats.LastRead != -1 {
 		stats.readInterval.addValue(float64(read.LastReadOn - stats.LastRead))
 	}
 	stats.LastRead = read.LastReadOn
 	mw := rssiToMilliwatts(float64(read.Rssi) / 10.0)
-	//logrus.Debugf("Before: %v", stats.rssiMw)
 	stats.rssiMw.addValue(mw)
-	//logrus.Debugf("After: %v", stats.rssiMw)
 }
 
 func (stats *TagStats) getRssiMeanDBM() float64 {
