@@ -20,13 +20,18 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"plugin"
+	"time"
 
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/healthcheck"
+	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
@@ -58,5 +63,71 @@ func healthCheck(port string) {
 		status := healthcheck.Healthcheck(port)
 		os.Exit(status)
 	}
+
+}
+
+func handleMessage(dataType string, data *map[string]interface{}, errGauge *metrics.Gauge, handler func([]byte) error) {
+	if data == nil {
+		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
+			errors.New("ItemData was nil"), errGauge)
+		return
+	}
+
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
+			err, errGauge)
+		return
+	}
+
+	if err := handler(jsonBytes); err != nil {
+		errorHandler(fmt.Sprintf("error processing %s data", dataType),
+			err, errGauge)
+	}
+}
+
+func verifyProbabilisticPlugin() {
+	retry := 1
+	pluginFound := false
+
+	for retry < 10 {
+
+		log.Infof("Loading proprietary Intel Probabilistic Algorithm plugin (Retry %d)", retry)
+		probPlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
+		if err == nil {
+			pluginFound = true
+			checkIA, err := probPlugin.Lookup("CheckIA")
+			if err != nil {
+				log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
+				break
+			}
+
+			if err := checkIA.(func() error)(); err != nil {
+				log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
+				break
+			}
+
+			log.Info("Intel Probabilistic Algorithm plugin loaded.")
+			break
+		}
+		log.Warn(err)
+		time.Sleep(1 * time.Second)
+		retry++
+	}
+
+	if !pluginFound {
+		log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
+	}
+}
+
+func parseReadingValue(read *models.Reading) (*reading, error) {
+
+	readingObj := reading{}
+
+	if err := json.Unmarshal([]byte(read.Value), &readingObj); err != nil {
+		return nil, err
+	}
+
+	return &readingObj, nil
 
 }

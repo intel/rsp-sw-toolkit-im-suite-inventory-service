@@ -1508,18 +1508,3 @@ func TestParseReading(t *testing.T) {
 		t.Error("Error parsing Reading Value")
 	}
 }
-
-func TestParseEvent(t *testing.T) {
-
-	eventStr := `{"origin":1471806386919,
-	"device":"rrs-gateway",
-	"readings":[ {"name" : "gwevent", "value": " " } ] 
-   }`
-
-	event := parseEvent(eventStr)
-
-	if event.Device != "rrs-gateway" || event.Origin != 1471806386919 {
-		t.Error("Error parsing edgex event")
-	}
-
-}
