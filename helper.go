@@ -57,7 +57,7 @@ func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 func healthCheck(port string) {
 
 	isHealthyPtr := flag.Bool("isHealthy", false, "a bool, runs a healthcheck")
-	flag.Parse()
+	// flag.Parse() is being handled by EdgeX apps function SDK
 
 	if *isHealthyPtr {
 		status := healthcheck.Healthcheck(port)

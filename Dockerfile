@@ -24,9 +24,10 @@ COPY --from=builder /lib/libsmartcols.so.1 /lib
 COPY --from=builder /usr/bin/lscpu /usr/bin/
 
 ADD inventory-service /
+ADD res/docker/ /res
 HEALTHCHECK --interval=5s --timeout=3s CMD ["/inventory-service","-isHealthy"]
 
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT
 
-ENTRYPOINT ["/inventory-service"]
+CMD ["/inventory-service","--profile=docker","--confdir=/res"]

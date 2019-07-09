@@ -5,7 +5,7 @@ LogLevel = 'INFO'
 BootTimeout = 30000
 ClientMonitor = 15000
 CheckInterval = '10s'
-Host = 'localhost'
+Host = 'inventory-service'
 Port = 48095
 Protocol = 'http'
 ReadMaxLimit = 100
@@ -13,20 +13,20 @@ StartupMsg = 'Inventory Service'
 Timeout = 5000
 
 [Registry]
-Host = 'localhost'
+Host = 'edgex-core-consul'
 Port = 8500
 Type = 'consul'
   
 [MessageBus]
 Type = 'zero'
     [MessageBus.SubscribeHost]
-        Host = 'localhost'
+        Host = 'edgex-core-data'
         Port = 5563
         Protocol = 'tcp'
 
 [Logging]
 EnableRemote = false
-File = ""
+File = ''
 
 [Binding]
  Type="messagebus"
