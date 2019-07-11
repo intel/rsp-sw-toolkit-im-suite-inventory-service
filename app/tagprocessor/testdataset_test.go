@@ -95,11 +95,28 @@ func (ds *testDataset) verifyTag(tagIndex int, expectedState TagState, expectedS
 	if tag == nil {
 		read := ds.tagReads[tagIndex]
 		return fmt.Errorf("Expected tag index %d to not be nil! read object: %v\n\tinventory: %#v", tagIndex, read, inventory)
-	} else if tag.state != expectedState {
+	}
+
+	if tag.state != expectedState {
 		return fmt.Errorf("tag index %d (%s): state %v does not match expected state %v\n\t%#v", tagIndex, tag.Epc, tag.state, expectedState, tag)
-	} else if tag.Location != expectedSensor.getAntennaAlias(0) {
+	}
+
+	// if expectedSensor is nil, we do not care to validate that field
+	if expectedSensor!= nil && tag.Location != expectedSensor.getAntennaAlias(0) {
 		return fmt.Errorf("tag index %d (%s): location %v does not match expected location %v\n\t%#v", tagIndex, tag.Epc, tag.Location, expectedSensor.getAntennaAlias(0), tag)
 	}
 
 	return nil
+}
+
+func (ds *testDataset) verifyStateOf(expectedState TagState, tagIndex int) error {
+	return ds.verifyTag(tagIndex, expectedState, nil)
+}
+
+func (ds *testDataset) verifyState(tagIndex int, expectedState TagState) error {
+	return ds.verifyTag(tagIndex, expectedState, nil)
+}
+
+func (ds *testDataset) verifyStateAll(expectedState TagState) error {
+	return ds.verifyAll(expectedState, nil)
 }

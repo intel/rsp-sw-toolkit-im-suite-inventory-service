@@ -51,5 +51,9 @@
   "proprietaryTagBitBoundary": "8.44.44",
   "tagURIAuthorityName" :"example.com",
   "tagURIAuthorityDate" :"2018-01-31",
-  "probabilisticAlgorithmPlugin": false
+  "probabilisticAlgorithmPlugin": false,
+  "posDepartedThresholdMillis": 3600000,
+  "posReturnThresholdMillis": 86400000,
+  "aggregateDepartedThresholdMillis": 30000,
+  "ageOutHours": 336
 }

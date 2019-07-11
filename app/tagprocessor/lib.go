@@ -25,8 +25,6 @@ const (
 
 // OnInventoryData todo: desc
 func OnInventoryData(data PeriodicInventoryData) error {
-	// todo: synchronize inventory??
-
 	sensor := lookupSensor(data.DeviceId)
 	if sensor.FacilityId != data.FacilityId {
 		logrus.Debugf("Updating sensor %s facilityId to %s", sensor.DeviceId, data.FacilityId)

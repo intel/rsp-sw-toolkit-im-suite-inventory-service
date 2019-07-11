@@ -27,13 +27,18 @@ func (tag *Tag) asPreviousTag() previousTag {
 }
 
 func (tag *Tag) update(sensor *RfidSensor, read *TagRead, weighter *rssiAdjuster) {
-	// todo: implement
+	// todo: double check the implementation on this code
+	// todo: it may not be complete
 
 	srcAlias := sensor.getAntennaAlias(read.AntennaId)
 
+	// only set Tid if it is present
 	if read.Tid != "" {
 		tag.Tid = read.Tid
 	}
+
+	// update timestamp
+	tag.LastRead = read.LastReadOn
 
 	curStats, found := tag.deviceStatsMap[srcAlias]
 	if !found {
@@ -46,8 +51,6 @@ func (tag *Tag) update(sensor *RfidSensor, read *TagRead, weighter *rssiAdjuster
 		// nothing to do
 		return
 	}
-
-	// todo:: continue here!!!
 
 	locationStats, found := tag.deviceStatsMap[tag.Location]
 	if !found {
