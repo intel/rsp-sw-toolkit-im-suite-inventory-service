@@ -1,29 +1,32 @@
 package tagprocessor
 
 import (
+	"errors"
+	"fmt"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
-	"testing"
+	"strings"
 )
 
 type testDataset struct {
-	t            *testing.T
 	tagReads     []*TagRead
 	tags         []*Tag
 	readTimeOrig int64
 }
 
-func newTestDataset(t *testing.T) testDataset {
-	return testDataset{t: t}
+func newTestDataset(tagCount int) testDataset {
+	ds := testDataset{}
+	ds.initialize(tagCount)
+	return ds
 }
 
 // will generate tagread objects but NOT ingest them yet
-func (ds *testDataset) initialize(tagCount int, initialRssi int) {
+func (ds *testDataset) initialize(tagCount int) {
 	ds.tagReads = make([]*TagRead, tagCount)
 	ds.tags = make([]*Tag, tagCount)
 	ds.readTimeOrig = helper.UnixMilliNow()
 
 	for i := 0; i < tagCount; i++ {
-		ds.tagReads[i] = generateReadData(ds.readTimeOrig, initialRssi)
+		ds.tagReads[i] = generateReadData(ds.readTimeOrig)
 	}
 
 	// resetEvents()
@@ -60,7 +63,7 @@ func (ds *testDataset) readTag(tagIndex int, sensor *RfidSensor, rssi int, times
 	}
 }
 
-func (ds *testDataset) readAllTags(sensor *RfidSensor, rssi int, times int) {
+func (ds *testDataset) readAll(sensor *RfidSensor, rssi int, times int) {
 	for tagIndex := range ds.tagReads {
 		ds.readTag(tagIndex, sensor, rssi, times)
 	}
@@ -70,20 +73,33 @@ func (ds *testDataset) size() int {
 	return len(ds.tagReads)
 }
 
-func (ds *testDataset) checkAllTags(expectedState TagState, expectedSensor *RfidSensor) {
+func (ds *testDataset) verifyAll(expectedState TagState, expectedSensor *RfidSensor) error {
+	ds.updateTagRefs()
+
+	var errs []string
 	for i := range ds.tags {
-		ds.checkTag(i, expectedState, expectedSensor)
+		if err := ds.verifyTag(i, expectedState, expectedSensor); err != nil {
+			errs = append(errs, err.Error())
+		}
 	}
+
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "\n"))
+	}
+	return nil
 }
 
-func (ds *testDataset) checkTag(tagIndex int, expectedState TagState, expectedSensor *RfidSensor) {
+func (ds *testDataset) verifyTag(tagIndex int, expectedState TagState, expectedSensor *RfidSensor) error {
 	tag := ds.tags[tagIndex]
 
 	if tag == nil {
-		ds.t.Errorf("Expected tag index %d to not be nil!", tagIndex)
+		read := ds.tagReads[tagIndex]
+		return fmt.Errorf("Expected tag index %d to not be nil! read object: %v\ninventory: %v", tagIndex, read, inventory)
 	} else if tag.state != expectedState {
-		ds.t.Errorf("tag state %v does not match expected state %v for tag %v", tag.state, expectedState, tag)
+		return fmt.Errorf("tag state %v does not match expected state %v for tag index %d\n%v", tag.state, expectedState, tagIndex, tag)
 	} else if tag.DeviceLocation != expectedSensor.DeviceId {
-		ds.t.Errorf("tag location %v does not match expected sensor %v for tag %v", tag.DeviceLocation, expectedSensor.DeviceId, tag)
+		return fmt.Errorf("tag location %v does not match expected sensor %v for tag index %d\n%v", tag.DeviceLocation, expectedSensor.DeviceId, tagIndex, tag)
 	}
+
+	return nil
 }
