@@ -90,7 +90,7 @@ func TestCircularBufferGetMean(t *testing.T) {
 		},
 		{
 			name:     "Basic 2",
-			window:   10,
+			window:   100,
 			data:     []float64{10, 20},
 			expected: 15,
 		},

@@ -4,6 +4,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"sync"
 	"time"
 )
 
@@ -14,6 +15,8 @@ var (
 	rfidSensors = make(map[string]*RfidSensor)
 
 	weighter = NewRssiAdjuster()
+
+	inventoryMutex = &sync.Mutex{}
 )
 
 const (
@@ -22,7 +25,7 @@ const (
 
 // OnInventoryData todo: desc
 func OnInventoryData(data PeriodicInventoryData) error {
-	// todo: synchronize inventory
+	// todo: synchronize inventory??
 
 	sensor := lookupSensor(data.DeviceId)
 	if sensor.FacilityId != data.FacilityId {
@@ -53,6 +56,8 @@ func processReadData(read *TagRead, sensor *RfidSensor) {
 	if sensor.minRssiDbm10X != 0 && read.Rssi < sensor.minRssiDbm10X {
 		return
 	}
+
+	inventoryMutex.Lock()
 
 	tag, exists := inventory[read.Epc]
 	if !exists {
@@ -122,6 +127,8 @@ func processReadData(read *TagRead, sensor *RfidSensor) {
 		}
 		break
 	}
+
+	inventoryMutex.Unlock()
 }
 
 func checkDepartPOS(tag *Tag) bool {
@@ -159,7 +166,7 @@ func checkExiting(sensor *RfidSensor, tag *Tag) {
 }
 
 func clearExiting() {
-	// todo: synchronize exitingTags
+	inventoryMutex.Lock()
 	for _, tags := range exitingTags {
 		for _, tag := range tags {
 			// test just to be sure, this should not be necessary but belt and suspenders
@@ -169,11 +176,10 @@ func clearExiting() {
 		}
 	}
 	exitingTags = make(map[string][]*Tag)
+	inventoryMutex.Unlock()
 }
 
 func addExiting(facilityId string, tag *Tag) {
-	// todo: synchronize exitingTags
-
 	tag.setState(Exiting)
 
 	tags, found := exitingTags[facilityId]
@@ -198,7 +204,7 @@ func ageout() int {
 	expiration := helper.UnixMilli(time.Now().Add(
 		time.Hour * time.Duration(-config.AppConfig.AgeOutHours)))
 
-	// todo synchronize inventory
+	inventoryMutex.Lock()
 
 	// it is safe to remove from map while iterating in golang
 	var numRemoved int
@@ -209,6 +215,8 @@ func ageout() int {
 		}
 	}
 
+	inventoryMutex.Unlock()
+
 	logrus.Infof("inventory ageout removed %d tags", numRemoved)
 	return numRemoved
 }
@@ -218,7 +226,7 @@ func doAggregateDepartedTask() {
 	now := helper.UnixMilliNow()
 	expiration := now - config.AppConfig.AggregateDepartedThresholdMillis
 
-	// todo: synchonize inventory
+	inventoryMutex.Lock()
 
 	for _, tags := range exitingTags {
 		keepIndex := 0
@@ -243,6 +251,8 @@ func doAggregateDepartedTask() {
 		// shrink to fit actual size
 		tags = tags[:keepIndex]
 	}
+
+	inventoryMutex.Unlock()
 }
 
 func sendEvent(tag *Tag, event TagEvent) {

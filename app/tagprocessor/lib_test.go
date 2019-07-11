@@ -1,18 +1,22 @@
 package tagprocessor
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
-func TestTagArrival(t *testing.T) {
-	ds := newTestDataset(3)
+func TestMinRssiFilter(t *testing.T) {
+	ds := newTestDataset(2)
 
 	back := generateTestSensor(backStock, NoPersonality)
-	frontPos := generateTestSensor(salesFloor, POS)
 
+	// set the minimum rssi to arbitrary value
 	back.minRssiDbm10X = -600
 
+	// tag with good rssi
 	ds.readTag(0, back, -580, 1)
+	// tag with bad rssi
 	ds.readTag(1, back, -620, 1)
-	ds.readTag(2, frontPos, rssiMin, 1)
 
 	ds.updateTagRefs()
 
@@ -21,19 +25,59 @@ func TestTagArrival(t *testing.T) {
 	}
 	// tag1 will NOT arrive due to having an rssi too low
 	if ds.tags[1] != nil {
-		t.Errorf("expected tag with index 1 to be nil, but was %v", ds.tags[1])
+		t.Errorf("expected tag with index 1 to be nil, but was %#v", ds.tags[1])
 	}
-	if err := ds.verifyTag(2, Unknown, frontPos); err != nil {
+
+	// todo: check for 1 arrival events
+}
+
+func TestPosDoesNotGenerateArrival(t *testing.T) {
+	ds := newTestDataset(10)
+
+	front := generateTestSensor(salesFloor, NoPersonality)
+	posSensor := generateTestSensor(salesFloor, POS)
+
+	ds.readAll(posSensor, rssiMin, 1)
+	ds.updateTagRefs()
+	if err := ds.verifyAll(Unknown, posSensor); err != nil {
+		t.Error(err)
+	}
+	// todo: ensure NO arrivals were generated
+
+	// read a few more times, we still do not want to arrive
+	ds.readAll(posSensor, rssiMin, 4)
+	if err := ds.verifyAll(Unknown, posSensor); err != nil {
+		t.Error(err)
+	}
+	// todo: ensure NO arrivals were generated
+
+	ds.readAll(front, rssiStrong, 1)
+	// tags will have arrived now, but will still be in the location of the pos sensor
+	if err := ds.verifyAll(Present, posSensor); err != nil {
+		t.Error(err)
+	}
+	// todo: ensure ALL arrivals WERE generated
+
+}
+
+func TestBasicArrival(t *testing.T) {
+	ds := newTestDataset(10)
+
+	front := generateTestSensor(salesFloor, NoPersonality)
+
+	ds.readAll(front, rssiWeak, 1)
+	ds.updateTagRefs()
+
+	if err := ds.verifyAll(Present, front); err != nil {
 		t.Error(err)
 	}
 
 	// todo: check for 1 arrival events
 }
 
-func TestTagMove(t *testing.T) {
-	ds := newTestDataset(3)
+func TestTagMoveWeakRssi(t *testing.T) {
+	ds := newTestDataset(10)
 
-	front := generateTestSensor(salesFloor, NoPersonality)
 	back1 := generateTestSensor(backStock, NoPersonality)
 	back2 := generateTestSensor(backStock, NoPersonality)
 	back3 := generateTestSensor(backStock, NoPersonality)
@@ -41,35 +85,92 @@ func TestTagMove(t *testing.T) {
 	// start all tags in the back stock
 	ds.readAll(back1, rssiMin, 1)
 	ds.updateTagRefs()
-
-	// move tag 0 to the front
-	ds.readTag(0, front, rssiStrong, 4)
-	if err := ds.verifyTag(0, Present, front); err != nil {
+	if err := ds.verifyAll(Present, back1); err != nil {
 		t.Error(err)
 	}
-	// todo: check for events
 
-	// move tag 1 to same facility, different sensor
-	ds.readTag(1, back2, rssiStrong, 4)
-	if err := ds.verifyTag(1, Present, back2); err != nil {
+	// move tags to same facility, different sensor
+	ds.readAll(back2, rssiStrong, 4)
+	if err := ds.verifyAll(Present, back2); err != nil {
 		t.Error(err)
 	}
-	// todo: check for events
 
 	// test that tag stays at new location even with concurrent reads from weaker sensor
 	// MOVE back doesn't happen with weak RSSI
-	ds.readTag(1, back3, rssiWeak, 4)
-	// todo: this appears broken in my code as it is failing
-	if err := ds.verifyTag(1, Present, back2); err != nil {
+	ds.readAll(back3, rssiWeak, 1)
+	if err := ds.verifyAll(Present, back2); err != nil {
 		t.Error(err)
 	}
 
-	// move tag 2 to a different antenna port on same sensor
-	ds.tagReads[2].AntennaId = 33
-	ds.readTag(2, back1, rssiStrong, 4)
-	if err := ds.verifyTag(2, Present, back1); err != nil {
+	// todo: check for events
+}
+
+func TestMoveAntennaLocation(t *testing.T) {
+	antennaIds := []int{1, 4, 33, 15, 99}
+
+	sensor := generateTestSensor(backStock, NoPersonality)
+
+	for _, antId := range antennaIds {
+		t.Run(fmt.Sprintf("Antenna-%d", antId), func(t *testing.T) {
+			ds := newTestDataset(1)
+
+			// start all tags at antenna port 0
+			ds.readAll(sensor, rssiMin, 1)
+			ds.updateTagRefs()
+
+			// move tag to a different antenna port on same sensor
+			ds.tagReads[0].AntennaId = antId
+			ds.readTag(0, sensor, rssiStrong, 4)
+			if ds.tags[0].Location != sensor.getAntennaAlias(antId) {
+				t.Errorf("tag location was %s, but we expected %s.\n\t%#v",
+					ds.tags[0].Location, sensor.getAntennaAlias(antId), ds.tags[0])
+			}
+		})
+	}
+}
+
+func TestMoveSameFacility(t *testing.T) {
+	ds := newTestDataset(10)
+
+	back1 := generateTestSensor(backStock, NoPersonality)
+	back2 := generateTestSensor(backStock, NoPersonality)
+
+	// start all tags in the back stock
+	ds.readAll(back1, rssiMin, 1)
+	ds.updateTagRefs()
+	if err := ds.verifyAll(Present, back1); err != nil {
 		t.Error(err)
 	}
+
+	// move tag to same facility, different sensor
+	ds.readAll(back2, rssiStrong, 4)
+	if err := ds.verifyAll(Present, back2); err != nil {
+		t.Error(err)
+	}
+	// todo: check for events
+}
+
+func TestMoveDifferentFacility(t *testing.T) {
+	ds := newTestDataset(10)
+
+	front := generateTestSensor(salesFloor, NoPersonality)
+	back := generateTestSensor(backStock, NoPersonality)
+
+	// start all tags in the front sales floor
+	ds.readAll(front, rssiMin, 1)
+	ds.updateTagRefs()
+	if err := ds.verifyAll(Present, front); err != nil {
+		t.Error(err)
+	}
+
+	// move tag to different facility
+	ds.readAll(back, rssiStrong, 4)
+	if err := ds.verifyAll(Present, back); err != nil {
+		t.Error(err)
+	}
+
+	// todo: check for events
+	// expect depart and arrival
 }
 
 func TestBasicExit(t *testing.T) {

@@ -86,8 +86,8 @@ type TagStats struct {
 	// todo: implement
 }
 
-func NewTagStats() TagStats {
-	return TagStats{
+func NewTagStats() *TagStats {
+	return &TagStats{
 		readInterval: NewCircularBuffer(defaultWindowSize),
 		rssiMw:       NewCircularBuffer(defaultWindowSize),
 	}
@@ -107,9 +107,9 @@ type Tag struct {
 
 	state     TagState
 	Direction TagDirection
-	History   []TagHistory
+	History   []*TagHistory
 
-	deviceStatsMap map[string]TagStats // todo: TreeMap??
+	deviceStatsMap map[string]*TagStats // todo: TreeMap??
 }
 
 func NewTag(epc string) *Tag {
@@ -119,7 +119,7 @@ func NewTag(epc string) *Tag {
 		DeviceLocation: unknown,
 		Direction:      Stationary,
 		state:          Unknown,
-		deviceStatsMap: make(map[string]TagStats),
+		deviceStatsMap: make(map[string]*TagStats),
 		Epc:            epc,
 	}
 }
