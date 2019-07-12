@@ -23,6 +23,14 @@ const (
 	unknown = "UNKNOWN"
 )
 
+
+// TODO: Clear exiting tags on run state change notification from the gateway?
+//public void onScheduleRunState(ScheduleRunState _current, SchedulerSummary _summary) {
+//log.info("onScheduleRunState: {}", _current);
+//clearExiting();
+//scheduleRunState = _current;
+//}
+
 // OnInventoryData todo: desc
 func OnInventoryData(data PeriodicInventoryData) error {
 	sensor := lookupSensor(data.DeviceId)

@@ -17,44 +17,10 @@ func assertBufferSize(t *testing.T, buff *CircularBuffer, expectedSize int) {
 	}
 }
 
-func TestSensorGetAntennaAlias(t *testing.T) {
-	tests := []struct {
-		deviceId string
-		antennaId int
-		expected string
-	}{
-		{
-			deviceId: "RSP-3F7DAC",
-			antennaId: 0,
-			expected: "RSP-3F7DAC-0",
-		},
-		{
-			deviceId: "RSP-150000",
-			antennaId: 10,
-			expected: "RSP-150000-10",
-		},
-		{
-			deviceId: "RSP-999999",
-			antennaId: 3,
-			expected: "RSP-999999-3",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.expected, func(t *testing.T) {
-			sensor := NewRfidSensor(test.deviceId)
-			alias := sensor.getAntennaAlias(test.antennaId)
-			if alias != test.expected {
-				t.Errorf("Expected alias of %s, but got %s", test.expected, alias)
-			}
-		})
-	}
-}
-
 func TestCircularBufferAddValue(t *testing.T) {
-	tests := []int{1, 5, 10, 20, 100, 999}
+	windowSizes := []int{1, 5, 10, 20, 100, 999}
 
-	for _, window := range tests {
+	for _, window := range windowSizes {
 		t.Run(fmt.Sprintf("WindowOf%d", window), func(t *testing.T) {
 			buff := NewCircularBuffer(window)
 
@@ -122,15 +88,3 @@ func TestCircularBufferGetMean(t *testing.T) {
 		})
 	}
 }
-
-func TestNewMobilityProfile(t *testing.T) {
-	// check that default is asset tracking
-	mp := NewMobilityProfile()
-	if mp.M >= 0.0 {
-		t.Errorf("mobility profile: M is %v, which is >= 0.0.\n\t%#v", mp.M, mp)
-	}
-	if mp.T != mp.B {
-		t.Errorf("mobility profile: T of %v is NOT equal to B of %v, but they should be equal.\n\t%#v", mp.T, mp.B, mp)
-	}
-}
-

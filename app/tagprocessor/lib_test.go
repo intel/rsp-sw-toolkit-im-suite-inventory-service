@@ -267,6 +267,33 @@ func TestExitingArrivalDepartures(t *testing.T) {
 }
 
 func TestTagDepartAndReturnFromExit(t *testing.T) {
+	ds := newTestDataset(4)
+
+	back := generateTestSensor(backStock, NoPersonality)
+	frontExit := generateTestSensor(salesFloor, Exit)
+	front1 := generateTestSensor(salesFloor, NoPersonality)
+	//front2 := generateTestSensor(salesFloor, NoPersonality)
+	//front3 := generateTestSensor(salesFloor, NoPersonality)
+
+	// todo: why is this back and not front1?
+	ds.readAll(back, rssiMin, 1)
+	ds.updateTagRefs()
+
+	// dampen the rssi from the current sensor
+	ds.readAll(front1, rssiWeak, 20)
+	if err := ds.verifyAll(Present, front1); err != nil {
+		t.Error(err)
+	}
+
+	// move to the exit sensor
+	ds.readAll(frontExit, rssiMax, 20)
+	if err := ds.verifyAll(Exiting, frontExit); err != nil {
+		t.Error(err)
+	}
+
+	// exit personalities do not trigger exiting tags when scheduler
+	// is DYNAMIC and not in MOBILITY which is the default scheduler state
+	// so even though the tag moved to the exit, it is not in the exiting table
 
 }
 

@@ -20,6 +20,7 @@
 package config
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -401,15 +402,24 @@ func InitConfig() error {
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
+	if AppConfig.PosDepartedThresholdMillis < 0 {
+		return fmt.Errorf("PosDepartedThresholdMillis should not be negative! PosDepartedThresholdMillis: %d", AppConfig.PosDepartedThresholdMillis)
+	}
 
 	AppConfig.PosReturnThresholdMillis, err = config.GetInt("posReturnThresholdMillis")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
+	if AppConfig.PosReturnThresholdMillis < 0 {
+		return fmt.Errorf("PosReturnThresholdMillis should not be negative! PosReturnThresholdMillis: %d", AppConfig.PosReturnThresholdMillis)
+	}
 
 	AppConfig.AggregateDepartedThresholdMillis, err = config.GetInt("aggregateDepartedThresholdMillis")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+	if AppConfig.AggregateDepartedThresholdMillis <= 0 {
+		return fmt.Errorf("AggregateDepartedThresholdMillis should be greater than 0! AggregateDepartedThresholdMillis: %d", AppConfig.AggregateDepartedThresholdMillis)
 	}
 
 	AppConfig.AgeOutHours, err = config.GetInt("ageOutHours")
