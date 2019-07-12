@@ -561,13 +561,18 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
 	event := params[0].(models.Event)
+
+	if len(event.Readings) < 1 {
+		return false, nil
+	}
+
 	parsedReading, err := parseReadingValue(&event.Readings[0])
 	if err != nil {
 		log.WithFields(log.Fields{"Method": "parseReadingValue"}).Error(err.Error())
 		return false, nil
 	}
 
-	if event.Device == "ASN_Data_Device" {
+	if event.Readings[0].Name == "ASN_data" {
 
 		logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
 		data, err := base64.StdEncoding.DecodeString(event.Readings[0].Value)
