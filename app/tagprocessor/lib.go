@@ -119,7 +119,7 @@ func processReadData(read *TagRead, sensor *RfidSensor) {
 
 		// Such a tag must remain in the DEPARTED state for
 		// a configurable amount of time (i.e. 1 day)
-		if tag.LastDeparted < (tag.LastRead - config.AppConfig.PosReturnThresholdMillis) {
+		if tag.LastDeparted < (tag.LastRead - int64(config.AppConfig.PosReturnThresholdMillis)) {
 			doTagReturn(tag, &prev)
 			checkExiting(sensor, tag)
 		}
@@ -132,7 +132,7 @@ func processReadData(read *TagRead, sensor *RfidSensor) {
 func checkDepartPOS(tag *Tag) bool {
 	// if tag is ever read by a POS, it immediately generates a departed event
 	// as long as it has been seen by our system for a minimum period of time first
-	expiration := tag.LastRead - config.AppConfig.PosDepartedThresholdMillis
+	expiration := tag.LastRead - int64(config.AppConfig.PosDepartedThresholdMillis)
 
 	if tag.LastArrived < expiration {
 		tag.setState(DepartedPos)
@@ -222,7 +222,7 @@ func ageout() int {
 // todo: when to call this? on schedule?
 func doAggregateDepartedTask() {
 	now := helper.UnixMilliNow()
-	expiration := now - config.AppConfig.AggregateDepartedThresholdMillis
+	expiration := now - int64(config.AppConfig.AggregateDepartedThresholdMillis)
 
 	inventoryMutex.Lock()
 

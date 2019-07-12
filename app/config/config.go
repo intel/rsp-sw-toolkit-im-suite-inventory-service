@@ -69,9 +69,9 @@ type (
 		ProbabilisticAlgorithmPlugin                                                                   bool
 		TagDecoders                                                                                    []encodingscheme.TagDecoder
 
-		// todo: add code to parse these
-		PosDepartedThresholdMillis, PosReturnThresholdMillis, AggregateDepartedThresholdMillis int64
-		// todo: add code to parse these
+
+		// todo: these should be int64, but that is NOT SUPPORTED by the config library
+		PosDepartedThresholdMillis, PosReturnThresholdMillis, AggregateDepartedThresholdMillis int
 		// todo: how does this relate to AgeOuts property above
 		AgeOutHours int
 	}
@@ -397,19 +397,19 @@ func InitConfig() error {
 		AppConfig.ProbabilisticAlgorithmPlugin = true
 	}
 
-	AppConfig.PosDepartedThresholdMillis, err = getInt64(config, "posDepartedThresholdMillis")
+	AppConfig.PosDepartedThresholdMillis, err = config.GetInt("posDepartedThresholdMillis")
 	if err != nil {
-		return errors.Wrapf(err, "Unable to parse PosDepartedThresholdMillis: %s", err.Error())
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
-	AppConfig.PosReturnThresholdMillis, err = getInt64(config, "posReturnThresholdMillis")
+	AppConfig.PosReturnThresholdMillis, err = config.GetInt("posReturnThresholdMillis")
 	if err != nil {
-		return errors.Wrapf(err, "Unable to parse PosReturnThresholdMillis: %s", err.Error())
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
-	AppConfig.AggregateDepartedThresholdMillis, err = getInt64(config, "aggregateDepartedThresholdMillis")
+	AppConfig.AggregateDepartedThresholdMillis, err = config.GetInt("aggregateDepartedThresholdMillis")
 	if err != nil {
-		return errors.Wrapf(err, "Unable to parse AggregateDepartedThresholdMillis: %s", err.Error())
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
 	AppConfig.AgeOutHours, err = config.GetInt("ageOutHours")
@@ -418,14 +418,6 @@ func InitConfig() error {
 	}
 
 	return nil
-}
-
-func getInt64(config *configuration.Configuration, path string) (int64, error) {
-	if stringVal, err := config.GetString(path); err != nil {
-		return 0, err
-	} else {
-		return strconv.ParseInt(stringVal, 10, 64)
-	}
 }
 
 func getTagDecoders(config *configuration.Configuration) ([]encodingscheme.TagDecoder, error) {

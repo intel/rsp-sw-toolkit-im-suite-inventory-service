@@ -3,8 +3,17 @@ package tagprocessor
 import (
 	"fmt"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"log"
+	"os"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	if err := config.InitConfig(); err != nil {
+		log.Fatal(err)
+	}
+	os.Exit(m.Run())
+}
 
 func TestMinRssiFilter(t *testing.T) {
 	ds := newTestDataset(2)
@@ -275,14 +284,14 @@ func TestTagDepartAndReturnPOS(t *testing.T) {
 	ds.updateTagRefs()
 
 	// read by the front POS. should still be Present in the back stock
-	ds.setLastReadOnAll(ds.readTimeOrig + (config.AppConfig.PosDepartedThresholdMillis / 2))
+	ds.setLastReadOnAll(ds.readTimeOrig + (int64(config.AppConfig.PosDepartedThresholdMillis) / 2))
 	ds.readAll(frontPos, rssiWeak, 1)
 	if err := ds.verifyAll(Present, back); err != nil {
 		t.Error(err)
 	}
 
 	// read the tag shortly AFTER the pos DEPART threshold
-	ds.setLastReadOnAll(ds.readTimeOrig + config.AppConfig.PosDepartedThresholdMillis + 250)
+	ds.setLastReadOnAll(ds.readTimeOrig + int64(config.AppConfig.PosDepartedThresholdMillis) + 250)
 	ds.readAll(frontPos, rssiWeak, 1)
 	if err := ds.verifyStateAll(DepartedPos); err != nil {
 		t.Error(err)
@@ -290,21 +299,24 @@ func TestTagDepartAndReturnPOS(t *testing.T) {
 	// todo: check for departed events being generated
 
 	// and it should stay gone for a while (but not long enough to return)
-	ds.setLastReadOnAll(ds.readTimeOrig + (config.AppConfig.PosReturnThresholdMillis / 2))
+	ds.setLastReadOnAll(ds.readTimeOrig + int64(config.AppConfig.PosReturnThresholdMillis / 2))
 	ds.readAll(front1, rssiWeak, 20)
 	if err := ds.verifyStateAll(DepartedPos); err != nil {
 		t.Error(err)
 	}
 
+	// keep track of when the tags were departed, because that is what the return threshold is based on
+	lastDeparted := ds.tags[0].LastDeparted
+
 	// read it by another sensor shortly BEFORE pos RETURN threshold
-	ds.setLastReadOnAll(ds.readTimeOrig + config.AppConfig.PosReturnThresholdMillis - 500)
+	ds.setLastReadOnAll(lastDeparted + int64(config.AppConfig.PosReturnThresholdMillis) - 500)
 	ds.readAll(front2, rssiStrong, 20)
 	if err := ds.verifyStateAll(DepartedPos); err != nil {
 		t.Error(err)
 	}
 
 	// read a few tags by the POS sensor shortly AFTER pos RETURN threshold but they should NOT return
-	ds.setLastReadOnAll(ds.readTimeOrig + config.AppConfig.PosReturnThresholdMillis + 300)
+	ds.setLastReadOnAll(lastDeparted + int64(config.AppConfig.PosReturnThresholdMillis) + 300)
 	ds.readTag(0, frontPos, rssiWeak, 20)
 	ds.readTag(1, frontPos, rssiWeak, 20)
 	if err := ds.verifyState(0, DepartedPos); err != nil {
@@ -315,7 +327,7 @@ func TestTagDepartAndReturnPOS(t *testing.T) {
 	}
 
 	// read it by another sensor shortly AFTER pos RETURN threshold
-	ds.setLastReadOnAll(ds.readTimeOrig + config.AppConfig.PosReturnThresholdMillis + 1500)
+	ds.setLastReadOnAll(lastDeparted + int64(config.AppConfig.PosReturnThresholdMillis) + 1500)
 	ds.readAll(front3, rssiWeak, 20)
 	// note that location is still front2 NOT front3 because it was read stronger by front2
 	if err := ds.verifyAll(Present, front2); err != nil {
@@ -323,8 +335,11 @@ func TestTagDepartAndReturnPOS(t *testing.T) {
 	}
 	// todo: check for arrival/returned events being generated
 
+	// keep track of when the tags were departed, because that is what the return threshold is based on
+	lastArrived := ds.tags[0].LastArrived
+
 	// read it by POS sensor again, and it should depart again
-	ds.setLastReadOnAll(ds.readTimeOrig + config.AppConfig.PosReturnThresholdMillis + 9999)
+	ds.setLastReadOnAll(lastArrived + int64(config.AppConfig.PosDepartedThresholdMillis) + 9999)
 	ds.readAll(frontPos, rssiWeak, 20)
 	if err := ds.verifyStateAll(DepartedPos); err != nil {
 		t.Error(err)
