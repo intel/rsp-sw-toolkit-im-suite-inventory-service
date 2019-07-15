@@ -4,12 +4,11 @@ import "github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 
 type rssiAdjuster struct {
 	mobilityProfile MobilityProfile
-	//todo
 }
 
-func NewRssiAdjuster() rssiAdjuster {
+func newRssiAdjuster() rssiAdjuster {
 	return rssiAdjuster{
-		mobilityProfile: NewMobilityProfile(),
+		mobilityProfile: GetDefaultMobilityProfile(),
 	}
 }
 
@@ -17,15 +16,14 @@ func (weighter *rssiAdjuster) getWeight(lastRead int64, sensor *RfidSensor) floa
 	profile := weighter.mobilityProfile
 
 	if sensor.isInDeepScan {
-		return profile.T
+		return profile.Threshold
 	}
 
-	// todo: is it safe to convert int64 to float64?
-	weight := (profile.M * float64(helper.UnixMilliNow()-lastRead)) + profile.B
+	weight := (profile.Slope * float64(helper.UnixMilliNow()-lastRead)) + profile.YIntercept
 
 	// check if weight needs to be capped at threshold ceiling
-	if weight > profile.T {
-		weight = profile.T
+	if weight > profile.Threshold {
+		weight = profile.Threshold
 	}
 
 	return weight

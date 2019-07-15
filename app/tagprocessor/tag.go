@@ -77,7 +77,7 @@ func (tag *Tag) update(sensor *RfidSensor, read *TagRead, weighter *rssiAdjuster
 		tag.DeviceLocation = sensor.DeviceId
 		tag.FacilityId = sensor.FacilityId
 		tag.addHistory(sensor, read.LastReadOn)
-	} else if curStats.getN() > 2 {
+	} else if curStats.getCount() > 2 {
 		weight := 0.0
 		if weighter != nil {
 			weight = weighter.getWeight(locationStats.LastRead, sensor)

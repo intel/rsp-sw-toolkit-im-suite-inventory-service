@@ -12,8 +12,8 @@ var (
 )
 
 func assertBufferSize(t *testing.T, buff *CircularBuffer, expectedSize int) {
-	if buff.getN() != expectedSize {
-		t.Errorf("expected buffer size of %d, but was %d", buff.getN(), expectedSize)
+	if buff.GetCount() != expectedSize {
+		t.Errorf("expected buffer size of %d, but was %d", buff.GetCount(), expectedSize)
 	}
 }
 
@@ -27,13 +27,13 @@ func TestCircularBufferAddValue(t *testing.T) {
 			assertBufferSize(t, buff, 0)
 			// fill up the buffer
 			for i := 0; i < window; i++ {
-				buff.addValue(float64(i))
+				buff.AddValue(float64(i))
 			}
 			assertBufferSize(t, buff, window)
 
 			// attempt to overflow
 			for i := 0; i < window*5; i++ {
-				buff.addValue(float64(i))
+				buff.AddValue(float64(i))
 				// make sure does not overflow
 				assertBufferSize(t, buff, window)
 			}
@@ -78,10 +78,10 @@ func TestCircularBufferGetMean(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			buff := NewCircularBuffer(test.window)
 			for _, val := range test.data {
-				buff.addValue(val)
+				buff.AddValue(val)
 			}
 
-			mean := buff.getMean()
+			mean := buff.GetMean()
 			if math.Abs(mean-test.expected) > epsilon {
 				t.Errorf("expected mean of %v, but got %v", test.expected, mean)
 			}

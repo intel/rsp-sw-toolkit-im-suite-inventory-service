@@ -1,43 +1,76 @@
 package tagprocessor
 
+import (
+	"fmt"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+)
+
+var (
+	assetTrackingDefault = MobilityProfile{
+		Id:            "asset_tracking_default",
+		Slope:         -0.008,
+		Threshold:     6.0,
+		HoldoffMillis: 0.0,
+	}
+
+	retailGarmentDefault = MobilityProfile{
+		Id:            "retail_garment_default",
+		Slope:         -0.0005,
+		Threshold:     6.0,
+		HoldoffMillis: 60000.0,
+	}
+
+	defaultProfileId = assetTrackingDefault.Id
+
+	mobilityProfiles = map[string]MobilityProfile{
+		assetTrackingDefault.Id: assetTrackingDefault,
+		retailGarmentDefault.Id: retailGarmentDefault,
+	}
+)
+
 type MobilityProfile struct {
 	Id string `json:"id"`
 	// using general slope forumla y = m(x) + b
 	// where m is slope in dBm per millisecond
-	M float64 `json:"m"`
+	Slope float64 `json:"m"`
 	// dBm change threshold
-	T float64 `json:"t"`
+	Threshold float64 `json:"t"`
 	// milliseconds of holdoff
-	A float64 `json:"a"`
-	// find b such that at 60 seconds, y = 3.0
+	HoldoffMillis float64 `json:"a"`
 	// b = y - (m*x)
-	B float64 `json:"b"`
+	YIntercept float64 `json:"b"`
 }
 
-/*
-  "id": "asset_tracking_default",
-  "a": 0.0,
-  "m": -.008,
-  "t": 6.0
+// b = y - (m*x)
+func (profile *MobilityProfile) calculateYIntercept() {
+	profile.YIntercept = profile.Threshold - (profile.Slope * profile.HoldoffMillis)
+}
 
-  "id": "retail_garment_default",
-  "a": 60000.0,
-  "m": -.0005,
-  "t": 6.0
-*/
-func NewMobilityProfile() MobilityProfile {
-	profile := MobilityProfile{
-		Id: "asset_tracking_default",
-		M:  -0.008,
-		T:  6.0,
-		A:  0.0,
+func GetDefaultMobilityProfile() MobilityProfile {
+	profile, err := GetMobilityProfile(defaultProfileId)
+
+	// default should always exist
+	if err != nil {
+		err = errors.Wrapf(err, "default mobility profile with id %s does not exist!", defaultProfileId)
+		logrus.Error(err)
+		panic(err)
 	}
-	profile.calcB()
+
 	return profile
 }
 
-// find b such that at 60 seconds, y = 3.0
-// b = y - (m*x)
-func (profile *MobilityProfile) calcB() {
-	profile.B = profile.T - (profile.M * profile.A)
+func GetMobilityProfile(id string) (MobilityProfile, error) {
+	profile, ok := mobilityProfiles[id]
+	if !ok {
+		return MobilityProfile{}, fmt.Errorf("unable to find mobility profile with id: %s", id)
+	}
+
+	// check if y-intercept has been computed yet
+	if profile.YIntercept == 0 {
+		profile.calculateYIntercept()
+		mobilityProfiles[profile.Id] = profile
+	}
+
+	return profile, nil
 }

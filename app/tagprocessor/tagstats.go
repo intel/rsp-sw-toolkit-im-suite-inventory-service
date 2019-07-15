@@ -4,7 +4,6 @@ type TagStats struct {
 	LastRead     int64
 	readInterval *CircularBuffer
 	rssiMw       *CircularBuffer
-	// todo: implement
 }
 
 func NewTagStats() *TagStats {
@@ -15,18 +14,19 @@ func NewTagStats() *TagStats {
 }
 
 func (stats *TagStats) update(read *TagRead) {
-	if stats.LastRead != -1 {
-		stats.readInterval.addValue(float64(read.LastReadOn - stats.LastRead))
+	if stats.LastRead != 0 {
+		stats.readInterval.AddValue(float64(read.LastReadOn - stats.LastRead))
 	}
 	stats.LastRead = read.LastReadOn
+
 	mw := rssiToMilliwatts(float64(read.Rssi) / 10.0)
-	stats.rssiMw.addValue(mw)
+	stats.rssiMw.AddValue(mw)
 }
 
 func (stats *TagStats) getRssiMeanDBM() float64 {
-	return milliwattsToRssi(stats.rssiMw.getMean())
+	return milliwattsToRssi(stats.rssiMw.GetMean())
 }
 
-func (stats *TagStats) getN() int {
-	return stats.rssiMw.getN()
+func (stats *TagStats) getCount() int {
+	return stats.rssiMw.GetCount()
 }

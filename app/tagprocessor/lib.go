@@ -14,7 +14,7 @@ var (
 
 	rfidSensors = make(map[string]*RfidSensor)
 
-	weighter = NewRssiAdjuster()
+	weighter = newRssiAdjuster()
 
 	inventoryMutex = &sync.Mutex{}
 )
