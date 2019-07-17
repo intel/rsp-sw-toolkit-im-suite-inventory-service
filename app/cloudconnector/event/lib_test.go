@@ -30,9 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 func TestMain(m *testing.M) {
@@ -154,7 +154,6 @@ func TestCloudConnector_BadRequest(t *testing.T) {
 
 	defer testServer.Close()
 
-
 	eOrig := config.AppConfig.EndpointConnectionTimedOutSeconds
 	cOrig := config.AppConfig.CloudConnectorRetrySeconds
 	config.AppConfig.EndpointConnectionTimedOutSeconds = 1
@@ -174,7 +173,6 @@ func TestTriggerCloudConnector_TimedOut(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test with long timeout")
 	}
-
 
 	eOrig := config.AppConfig.EndpointConnectionTimedOutSeconds
 	cOrig := config.AppConfig.CloudConnectorRetrySeconds

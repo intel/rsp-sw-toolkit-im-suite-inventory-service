@@ -31,15 +31,16 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 var existingTagTime = time.Now()
 var newEventTagTime = existingTagTime.AddDate(0, 0, 1)
 
 var dbHost integrationtest.DBHost
+
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("statemodel_test")
 	os.Exit(m.Run())

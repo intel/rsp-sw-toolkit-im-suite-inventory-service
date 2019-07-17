@@ -20,9 +20,9 @@
 package contraepc
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (

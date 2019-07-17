@@ -454,7 +454,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		t.Error("Unable to replace tags", err.Error())
 	}
 
-	JSONSample := []byte(`{			 
+	JSONSample := &models.Reading{Value: `{			 
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -479,7 +479,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
@@ -601,7 +601,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		t.Error("Unable to replace tags", err.Error())
 	}
 
-	JSONSample1 := []byte(`{			 
+	JSONSample1 := &models.Reading{Value: `{			 
 				 "gateway_id": "rrpgw",
 				 "event_segment_number": 1,
 				 "total_event_segments": 2,
@@ -626,8 +626,8 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
-	JSONSample2 := []byte(`{			 
+   }`}
+	JSONSample2 := &models.Reading{Value: `{			 
 				 "gateway_id": "rrpgw",
 				 "event_segment_number": 2,
 				 "total_event_segments": 2,
@@ -652,7 +652,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample1, masterDb, "fixed", nil); err != nil {
@@ -770,7 +770,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 		t.Errorf("Unable to replace tags: %+v", err)
 	}
 
-	JSONSample := []byte(`{			 
+	JSONSample := &models.Reading{Value: `{			 
 				 "gateway_id": "rrpgw",
          "total_event_segments": 1,
          "event_segment_number": 1,
@@ -795,7 +795,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
@@ -958,7 +958,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := []byte(`{			 
+	JSONSample := &models.Reading{Value: `{			 
 				 "gateway_id": "rrpgw",
 				 "data": [
 							 {
@@ -981,7 +981,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
@@ -1028,7 +1028,7 @@ func TestProcessHeartBeat(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := []byte(`{
+	JSONSample := &models.Reading{Value: `{
 		   "gateway_id": "rrpgw",
 		   "device_id": "rrpgw",
 		   "facilities": [
@@ -1041,7 +1041,7 @@ func TestProcessHeartBeat(t *testing.T) {
 		   "schedule_cfg": "UNKNOWN",
 		   "schedule_groups_cfg": null,
 		   "sent_on": 1503700192960		 
-	   }`)
+	   }`}
 
 	if err := processHeartBeat(JSONSample, masterDb); err != nil {
 		t.Errorf("error processing hearbeat data %s", err.Error())
@@ -1155,7 +1155,7 @@ func TestProcessShippingNotice(t *testing.T) {
 	clearAllData(t, masterDb)
 
 	config.AppConfig.EpcFilters = []string{"303", "301"}
-	JSONShippingNotice := []byte(`	
+	JSONShippingNotice := &models.Reading{Value: `	
 		[
 			{
 				"asnId": "AS876422",
@@ -1174,7 +1174,7 @@ func TestProcessShippingNotice(t *testing.T) {
 				]
 			}
 		]  
-	`)
+	`}
 
 	// make sure the tag doesn't currently exist
 	gotTag, err := tag.FindByEpc(masterDb, "30343639F84191AD22900204")
@@ -1218,7 +1218,7 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	jsonShippingNotice := []byte(`
+	jsonShippingNotice := &models.Reading{Value: `
 		[
 			{
 				"asnId": "AS876422",
@@ -1235,7 +1235,7 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 				]
 			}
 		]		
-	`)
+	`}
 
 	// Filter through only those starting with "30"
 	config.AppConfig.EpcFilters = []string{"30"}
@@ -1276,7 +1276,7 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	jsonShippingNotice := []byte(`
+	jsonShippingNotice := &models.Reading{Value: `
 		[
 			{
 				"asnId": "AS876422",
@@ -1293,7 +1293,7 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 				]
 			}
 		]
-	`)
+	`}
 
 	// insert a known tag
 	existingTag := getTagData()[0]
@@ -1341,8 +1341,9 @@ func getTagData() []tag.Tag {
 	}
 }
 
-func getJSONCycleCountSample() []byte {
-	return []byte(`{			 
+func getJSONCycleCountSample() *models.Reading {
+	return &models.Reading{
+		Value: `{			 
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -1367,11 +1368,11 @@ func getJSONCycleCountSample() []byte {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 }
 
-func getJSONDepartedSample() []byte {
-	return []byte(`{	
+func getJSONDepartedSample() *models.Reading {
+	return &models.Reading{Value: `{	
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -1387,12 +1388,12 @@ func getJSONDepartedSample() []byte {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 }
 
 // gateway_id is empty for handheld data
-func getJSONSampleHandheld() []byte {
-	return []byte(`{			 
+func getJSONSampleHandheld() *models.Reading {
+	return &models.Reading{Value: `{			 
 				 "gateway_id": "",
 				 "data": [
 							 {
@@ -1415,7 +1416,7 @@ func getJSONSampleHandheld() []byte {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+   }`}
 }
 
 func checkASNContext(t *testing.T, asn *tag.ASNContext) {
@@ -1450,7 +1451,7 @@ func clearAllData(t *testing.T, mydb *db.DB) {
 }
 
 func getMappingSkuSample() []byte {
-	JSONSample := []byte(`{
+	return []byte(`{
   "results": [
     {
       "_id": "5bd105f16136e8cf3f152ea7",
@@ -1488,23 +1489,4 @@ func getMappingSkuSample() []byte {
     }
   ]
 }`)
-	return JSONSample
-}
-
-func TestParseReading(t *testing.T) {
-	read := models.Reading{
-		Device: "rrs-gateway",
-		Origin: 1471806386919,
-		Value:  "{\"jsonrpc\":\"2.0\",\"topic\":\"rfid/gw/heartbeat\",\"params\":{} }",
-	}
-
-	reading, err := parseReadingValue(&read)
-
-	if err != nil {
-		t.Error("Error parsing Reading Value")
-	}
-
-	if reading.Topic != "rfid/gw/heartbeat" {
-		t.Error("Error parsing Reading Value")
-	}
 }

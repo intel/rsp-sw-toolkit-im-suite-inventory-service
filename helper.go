@@ -20,7 +20,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -28,11 +27,12 @@ import (
 	"time"
 
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/healthcheck"
-	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
+
+type messageHandler func(*models.Reading) error
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
@@ -66,24 +66,12 @@ func healthCheck(port string) {
 
 }
 
-func handleMessage(dataType string, data *map[string]interface{}, errGauge *metrics.Gauge, handler func([]byte) error) {
-	if data == nil {
-		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
-			errors.New("ItemData was nil"), errGauge)
-		return
-	}
-
-	jsonBytes, err := json.Marshal(data)
+func handleMessage(dataType string, reading *models.Reading, errGauge *metrics.Gauge, handler messageHandler) error {
+	err := handler(reading)
 	if err != nil {
-		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
-			err, errGauge)
-		return
+		errorHandler(fmt.Sprintf("error processing %s data", dataType), err, errGauge)
 	}
-
-	if err := handler(jsonBytes); err != nil {
-		errorHandler(fmt.Sprintf("error processing %s data", dataType),
-			err, errGauge)
-	}
+	return err
 }
 
 func verifyProbabilisticPlugin() {
@@ -118,16 +106,4 @@ func verifyProbabilisticPlugin() {
 	if !pluginFound {
 		log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
 	}
-}
-
-func parseReadingValue(read *models.Reading) (*reading, error) {
-
-	readingObj := reading{}
-
-	if err := json.Unmarshal([]byte(read.Value), &readingObj); err != nil {
-		return nil, err
-	}
-
-	return &readingObj, nil
-
 }

@@ -20,24 +20,19 @@
 package alert
 
 import (
-	"bytes"
 	"encoding/json"
-
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"strings"
 )
 
-// RRSAlert deals with RRS type of alerts
-type RRSAlert []byte
-
-// NewRRSAlert instantiates RRSAlert object for processing RRS type of alerts
-func NewRRSAlert(jsonBytes []byte) RRSAlert {
-	return RRSAlert(jsonBytes)
+type RRSAlert struct {
+	AlertNumber int
 }
 
 // ProcessAlert is to process the RRS Alert JSON payload
-func (rrsAlert RRSAlert) ProcessAlert() error {
+func ProcessAlert(reading *models.Reading) (RRSAlert, error) {
 	mRRSAlertReceived := metrics.GetOrRegisterGaugeCollection("Inventory.ProcessRRSAlert.RRSAlertReceived", nil)
 	mRRSAlertDetails := metrics.GetOrRegisterGaugeCollection("Inventory.ProcessRRSAlert.RRSAlertDetails", nil)
 
@@ -45,20 +40,24 @@ func (rrsAlert RRSAlert) ProcessAlert() error {
 
 	var data map[string]interface{}
 
-	decoder := json.NewDecoder(bytes.NewBuffer(rrsAlert))
+	// todo
+	var alert RRSAlert
+
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
 	if err := decoder.Decode(&data); err != nil {
-		return errors.Wrap(err, "unable to Decode data")
+		return RRSAlert{}, errors.Wrap(err, "unable to Decode data")
 	}
 
 	deviceID, ok := data["device_id"].(string)
 	if !ok { //nolint:golint
-		return errors.New("Missing device_id Field")
+		return RRSAlert{}, errors.New("Missing device_id Field")
 	}
 
 	alertNumber, ok := data["alert_number"].(float64)
 	if !ok { //nolint:golint
-		return errors.New("Missing alert_number Field")
+		return RRSAlert{}, errors.New("Missing alert_number Field")
 	}
+	alert.AlertNumber = int(alertNumber)
 
 	tag := metrics.Tag{
 		Name:  "DeviceId",
@@ -67,28 +66,12 @@ func (rrsAlert RRSAlert) ProcessAlert() error {
 	// Use tag version to flag the Alert with more details
 	mRRSAlertDetails.AddWithTag(int64(alertNumber), tag)
 
-	return nil
+	// todo
+	return alert, nil
 }
 
 // IsInventoryUnloadAlert parses out the payload JSON bytes and check if the alert number is for INENTORY_UNLOAD,
 // which is 260, or not. Return true if it is; false otherwise
 func (rrsAlert RRSAlert) IsInventoryUnloadAlert() bool {
-	// TODO: this is silly; we don't need to deseralize the message twice
-	// TODO: just unmarshal it once, into a type that has the relevant info
-	log.Debugf("alert:\n%s", string(rrsAlert))
-
-	var data map[string]interface{}
-
-	if err := json.Unmarshal(rrsAlert, &data); err != nil {
-		return false
-	}
-
-	alertNumFromJSON, ok := data["alert_number"].(float64)
-	if !ok {
-		return false
-	}
-
-	alertNumber := int(alertNumFromJSON)
-
-	return alertNumber == InventoryUnload
+	return rrsAlert.AlertNumber == InventoryUnload
 }

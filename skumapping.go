@@ -20,9 +20,10 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -50,16 +51,16 @@ func NewSkuMapping(url string) SkuMapping {
 
 // processTagData inserts data from context sensing broker into database
 //nolint :gocyclo
-func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
+func (skuMapping SkuMapping) processTagData(reading *models.Reading, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
 
 	mProcessTagLatency := metrics.GetOrRegisterTimer(`Inventory.ProcessTagData-Latency`, nil)
 	processTagTimer := time.Now()
 
-	log.Debugf("Received data:\n%s", string(jsonBytes))
+	log.Debugf("Received data:\n%s", reading.Value)
 
 	var data map[string]interface{}
 
-	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
 	if err := decoder.Decode(&data); err != nil {
 		return errors.Wrap(err, "unable to Decode data")
 	}

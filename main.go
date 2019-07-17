@@ -22,7 +22,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -60,15 +59,11 @@ const (
 )
 
 const (
-	eventTopic     = "rfid/gw/events"
-	alertTopic     = "rfid/gw/alerts"
-	heartBeatTopic = "rfid/gw/heartbeat"
+	asnData     = "ASN_data"
+	gwEvent     = "gw_events"
+	gwAlert     = "gw_alert"
+	gwHeartbeat = "gw_heartbeat"
 )
-
-type reading struct {
-	Topic  string                 `json:"topic"`
-	Params map[string]interface{} `json:"params"`
-}
 
 type myDB struct {
 	masterDB *db.DB
@@ -199,12 +194,12 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 	wg.Wait()
 }
 
-func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
+func processHeartBeat(reading *models.Reading, masterDB *db.DB) error {
 
-	log.Debugf("Received Heartbeat:\n%s", string(jsonBytes))
+	log.Debugf("Received Heartbeat:\n%s", reading.Value)
 
 	var data map[string]interface{}
-	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
 	decoder.UseNumber()
 
 	if err := decoder.Decode(&data); err != nil {
@@ -247,14 +242,14 @@ func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
 // a ttl of now, and epc context of the designated value to identify it as a shipping notice
 // config.AppConfig.AdvancedShippingNotice.  If the epc does exist, then only epc context value is updated
 // with config.AppConfig.AdvancedShippingNotice
-func processShippingNotice(jsonBytes []byte, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
+func processShippingNotice(reading *models.Reading, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
 
-	log.Debugf("Received data:\n%s", string(jsonBytes))
+	log.Debugf("Received data:\n%s", reading.Value)
 
 	var incomingDataSlice []tag.AdvanceShippingNotice
-	err := json.Unmarshal(jsonBytes, &incomingDataSlice)
-	if err != nil {
-		return errors.Wrap(err, "unable to unmarshal data")
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
+	if err := decoder.Decode(&incomingDataSlice); err != nil {
+		return errors.Wrap(err, "unable to Decode data")
 	}
 
 	copySession := masterDB.CopySession()
@@ -528,7 +523,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		}
 
 		// Filter data by value descriptors
-		valueDescriptors := []string{"ASN_data", "gwevent"}
+		valueDescriptors := []string{"ASN_data", "gw_event", "gw_alert", "gw_heartbeat"}
 
 		edgexSdk.SetFunctionsPipeline(
 			edgexSdk.ValueDescriptorFilter(valueDescriptors),
@@ -545,6 +540,14 @@ func receiveZMQEvents(masterDB *db.DB) {
 }
 
 func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
+	if len(params) < 1 {
+		return false, nil
+	}
+
+	event := params[0].(models.Event)
+	if len(event.Readings) < 1 {
+		return false, nil
+	}
 
 	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatReceived", nil)
 	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatError", nil)
@@ -554,89 +557,87 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSResetEventReceived", nil)
 	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
 
-	if len(params) < 1 {
-		return false, nil
-	}
-
 	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
-	event := params[0].(models.Event)
+	for _, reading := range event.Readings {
+		switch reading.Name {
 
-	if len(event.Readings) < 1 {
-		return false, nil
-	}
+		case asnData:
+			logrus.Debugf(fmt.Sprintf("ASN data received: %#v", event))
 
-	parsedReading, err := parseReadingValue(&event.Readings[0])
-	if err != nil {
-		log.WithFields(log.Fields{"Method": "parseReadingValue"}).Error(err.Error())
-		return false, nil
-	}
+			// todo: why is it decoding base64?????
 
-	if event.Readings[0].Name == "ASN_data" {
+			//data, err := base64.StdEncoding.DecodeString(reading.Value)
+			//if err != nil {
+			//	log.WithFields(log.Fields{
+			//		"Method": "receiveZMQEvents",
+			//		"Action": "ASN data ingestion",
+			//		"Error":  err.Error(),
+			//	}).Error("error decoding base64 value")
+			//	return false, err
+			//}
+			// todo: &reading appropriate here?
+			if err := processShippingNotice(&reading, db.masterDB, &mRRSASNEpcs); err != nil {
+				log.WithFields(log.Fields{
+					"Method": "processShippingNotice",
+					"Action": "ASN data ingestion",
+					"Error":  err.Error(),
+				}).Error("error processing ASN data")
+				return false, err
+			}
+			mRRSASNEpcs.Add(1)
 
-		logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
-		data, err := base64.StdEncoding.DecodeString(event.Readings[0].Value)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"Method": "receiveZMQEvents",
-				"Action": "ASN data ingestion",
-				"Error":  err.Error(),
-			}).Error("error decoding base64 value")
-			return false, nil
-		}
-		if err := processShippingNotice(data, db.masterDB, &mRRSASNEpcs); err != nil {
-			log.WithFields(log.Fields{
-				"Method": "processShippingNotice",
-				"Action": "ASN data ingestion",
-				"Error":  err.Error(),
-			}).Error("error processing ASN data")
-			return false, nil
-		}
-		mRRSASNEpcs.Add(1)
+			break
 
-		return false, nil
-	}
+		case gwHeartbeat:
+			mRRSHeartbeatReceived.Update(1)
+			if err := handleMessage("heartbeat", &reading, &mRRSHeartbeatProcessingError,
+				func(reading *models.Reading) error {
+					return processHeartBeat(reading, db.masterDB)
+				}); err != nil {
+				return false, err
+			}
+			break
 
-	switch parsedReading.Topic {
-	case heartBeatTopic:
-		mRRSHeartbeatReceived.Update(1)
-		handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
-			func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, db.masterDB) })
-	case eventTopic:
-		go func(params *reading) {
-			handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
-				func(jsonBytes []byte) error {
-					return skuMapping.processTagData(jsonBytes, db.masterDB,
-						"fixed", &mRRSEventsTags)
-				})
-		}(parsedReading)
-	case alertTopic:
-		handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
-			func(jsonBytes []byte) error {
-				rrsAlert := alert.NewRRSAlert(jsonBytes)
-				err := rrsAlert.ProcessAlert()
-				if err != nil {
-					return err
-				}
+		case gwEvent:
+			go func(reading *models.Reading) {
+				_ = handleMessage("fixed", reading, &mRRSEventsProcessingError,
+					func(reading *models.Reading) error {
+						return skuMapping.processTagData(reading, db.masterDB, "fixed", &mRRSEventsTags)
+					})
+			}(&reading)
+			break
 
-				if rrsAlert.IsInventoryUnloadAlert() {
-					mRRSResetEventReceived.Add(1)
-					go func() {
-						err := callDeleteTagCollection(db.masterDB)
-						errorHandler("error calling delete tag collection",
-							err, &mRRSEventsProcessingError)
+		case gwAlert:
+			if err := handleMessage("RRS Alert data", &reading, &mRRSAlertError,
+				func(reading *models.Reading) error {
+					rrsAlert, err := alert.ProcessAlert(reading)
+					if err != nil {
+						return err
+					}
 
-						if err == nil {
-							alertMessage := new(alert.MessagePayload)
-							if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-								errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+					if rrsAlert.IsInventoryUnloadAlert() {
+						mRRSResetEventReceived.Add(1)
+						go func() {
+							err := callDeleteTagCollection(db.masterDB)
+							errorHandler("error calling delete tag collection",
+								err, &mRRSEventsProcessingError)
+
+							if err == nil {
+								alertMessage := new(alert.MessagePayload)
+								if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
+									errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+								}
 							}
-						}
-					}()
-				}
+						}()
+					}
 
-				return nil
-			})
+					return nil
+				}); err != nil {
+				return false, err
+			}
+			break
+		}
 	}
 
 	return false, nil
