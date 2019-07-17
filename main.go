@@ -576,6 +576,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			//	}).Error("error decoding base64 value")
 			//	return false, err
 			//}
+
 			// todo: &reading appropriate here?
 			if err := processShippingNotice(&reading, db.masterDB, &mRRSASNEpcs); err != nil {
 				log.WithFields(log.Fields{
@@ -591,51 +592,47 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 		case gwHeartbeat:
 			mRRSHeartbeatReceived.Update(1)
-			if err := handleMessage("heartbeat", &reading, &mRRSHeartbeatProcessingError,
-				func(reading *models.Reading) error {
-					return processHeartBeat(reading, db.masterDB)
-				}); err != nil {
+
+			err := processHeartBeat(&reading, db.masterDB)
+			if err != nil {
+				errorHandler("error processing heartbeat data", err, &mRRSHeartbeatProcessingError)
 				return false, err
 			}
+
 			break
 
 		case gwEvent:
 			go func(reading *models.Reading) {
-				_ = handleMessage("fixed", reading, &mRRSEventsProcessingError,
-					func(reading *models.Reading) error {
-						return skuMapping.processTagData(reading, db.masterDB, "fixed", &mRRSEventsTags)
-					})
+				err := skuMapping.processTagData(reading, db.masterDB, "fixed", &mRRSEventsTags)
+				if err != nil {
+					errorHandler("error processing event data", err, &mRRSEventsProcessingError)
+				}
 			}(&reading)
 			break
 
 		case gwAlert:
-			if err := handleMessage("RRS Alert data", &reading, &mRRSAlertError,
-				func(reading *models.Reading) error {
-					rrsAlert, err := alert.ProcessAlert(reading)
-					if err != nil {
-						return err
-					}
-
-					if rrsAlert.IsInventoryUnloadAlert() {
-						mRRSResetEventReceived.Add(1)
-						go func() {
-							err := callDeleteTagCollection(db.masterDB)
-							errorHandler("error calling delete tag collection",
-								err, &mRRSEventsProcessingError)
-
-							if err == nil {
-								alertMessage := new(alert.MessagePayload)
-								if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-									errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
-								}
-							}
-						}()
-					}
-
-					return nil
-				}); err != nil {
+			rrsAlert, err := alert.ProcessAlert(&reading)
+			if err != nil {
+				errorHandler("error processing gw alert data", err, &mRRSAlertError)
 				return false, err
 			}
+
+			if rrsAlert.IsInventoryUnloadAlert() {
+				mRRSResetEventReceived.Add(1)
+				go func() {
+					err := callDeleteTagCollection(db.masterDB)
+					errorHandler("error calling delete tag collection",
+						err, &mRRSEventsProcessingError)
+
+					if err == nil {
+						alertMessage := new(alert.MessagePayload)
+						if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
+							errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+						}
+					}
+				}()
+			}
+
 			break
 		}
 	}

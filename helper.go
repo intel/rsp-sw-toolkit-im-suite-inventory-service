@@ -26,13 +26,10 @@ import (
 	"plugin"
 	"time"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	log "github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/healthcheck"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
-
-type messageHandler func(*models.Reading) error
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
@@ -64,14 +61,6 @@ func healthCheck(port string) {
 		os.Exit(status)
 	}
 
-}
-
-func handleMessage(dataType string, reading *models.Reading, errGauge *metrics.Gauge, handler messageHandler) error {
-	err := handler(reading)
-	if err != nil {
-		errorHandler(fmt.Sprintf("error processing %s data", dataType), err, errGauge)
-	}
-	return err
 }
 
 func verifyProbabilisticPlugin() {
