@@ -21,16 +21,13 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
-	"os"
 	"plugin"
 	"time"
 
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/healthcheck"
 	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
@@ -52,18 +49,6 @@ func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 			"Error":  fmt.Sprintf("%+v", err),
 		}).Fatal(message)
 	}
-}
-
-func healthCheck(port string) {
-
-	isHealthyPtr := flag.Bool("isHealthy", false, "a bool, runs a healthcheck")
-	// flag.Parse() is being handled by EdgeX apps function SDK
-
-	if *isHealthyPtr {
-		status := healthcheck.Healthcheck(port)
-		os.Exit(status)
-	}
-
 }
 
 func handleMessage(dataType string, data *map[string]interface{}, errGauge *metrics.Gauge, handler func([]byte) error) {
