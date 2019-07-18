@@ -39,7 +39,7 @@ COPY --from=builder /rootfs/curl /
 
 ADD inventory-service /
 ADD res/docker/ /res
-HEALTHCHECK --interval=5s --timeout=3s CMD ["/inventory-service","-isHealthy"]
+HEALTHCHECK CMD curl --fail http://localhost:8080/ || exit 1
 
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT
