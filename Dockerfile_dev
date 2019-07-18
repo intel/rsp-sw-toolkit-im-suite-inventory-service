@@ -60,7 +60,7 @@ COPY --from=builder /lib/libsmartcols.so.1 /lib
 COPY --from=builder /usr/bin/lscpu /usr/bin/
 
 # CURL libraries
-COPY --from=builder /usr/bin/curl /usr/bin
+COPY --from=builder /usr/bin/curl /usr/bin/
 COPY --from=builder /rootfs/curl /
 
 COPY --from=gobuilder /go/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service/inventory-service /
