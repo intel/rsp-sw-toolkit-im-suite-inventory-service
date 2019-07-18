@@ -34,12 +34,11 @@ COPY --from=builder /lib/libsmartcols.so.1 /lib
 COPY --from=builder /usr/bin/lscpu /usr/bin/
 
 # CURL libraries
-COPY --from=builder /usr/bin/curl /usr/bin
+COPY --from=builder /usr/bin/curl /usr/bin/
 COPY --from=builder /rootfs/curl /
 
 ADD inventory-service /
 ADD res/docker/ /res
-HEALTHCHECK CMD curl --fail http://localhost:8080/ || exit 1
 
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT

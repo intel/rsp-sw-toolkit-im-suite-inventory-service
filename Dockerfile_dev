@@ -66,8 +66,6 @@ COPY --from=builder /rootfs/curl /
 COPY --from=gobuilder /go/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service/inventory-service /
 COPY --from=gobuilder /go/src/github.impcloud.net/RSP-Inventory-Suite/inventory-service/res/docker/ /res/docker
 
-HEALTHCHECK CMD curl --fail http://localhost:8080/ || exit 1
-
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT
 
