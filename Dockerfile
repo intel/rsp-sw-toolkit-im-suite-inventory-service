@@ -44,4 +44,4 @@ HEALTHCHECK CMD curl --fail http://localhost:8080/ || exit 1
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT
 
-CMD ["/inventory-service","--profile=docker","--confdir=/res"]
+CMD ["/inventory-service","-r","--profile=docker","--confdir=/res"]
