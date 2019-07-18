@@ -3,7 +3,17 @@ FROM alpine:3.7 as builder
 RUN echo http://nl.alpinelinux.org/alpine/v3.7/main > /etc/apk/repositories; \
     echo http://nl.alpinelinux.org/alpine/v3.7/community >> /etc/apk/repositories
     
-RUN apk --no-cache add zeromq util-linux
+RUN apk --no-cache add zeromq util-linux curl
+
+RUN mkdir -p /rootfs/curl
+
+RUN for filename in $( \
+        ldd /usr/bin/curl \
+        # extract unqiue names
+        | grep -oE "/[^:]*" | awk '{print $1}' | sort -u); \        
+    do \
+      cp -duv $filename `realpath $filename` --parents /rootfs/curl/; \
+    done
 
 
 FROM busybox:1.30.1
@@ -22,6 +32,10 @@ COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
 # Adding lscpu (required by Probabilistic plugin)
 COPY --from=builder /lib/libsmartcols.so.1 /lib
 COPY --from=builder /usr/bin/lscpu /usr/bin/
+
+# CURL libraries
+COPY --from=builder /usr/bin/curl /usr/bin
+COPY --from=builder /rootfs/curl /
 
 ADD inventory-service /
 ADD res/docker/ /res
