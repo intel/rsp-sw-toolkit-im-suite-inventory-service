@@ -20,10 +20,13 @@ package main
 
 import (
 	"encoding/json"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,7 +69,7 @@ func TestMarkDepartedIfUnseen(t *testing.T) {
 	timestamp := 1500583263000 // Thursday, July 20, 2017 1:41:03 PM
 	minutesBeforeAgeOut := 10
 
-	tagEvent := tag.TagEvent{
+	tagEvent := jsonrpc.TagEvent{
 		EventType:  "cycle_count",
 		FacilityID: "testFacility",
 		Timestamp:  int64(timestamp),
@@ -89,7 +92,7 @@ func TestNotYetDeparted(t *testing.T) {
 	timestamp := 1500583263000 // Thursday, July 20, 2017 1:41:03 PM
 	minutesBeforeAgeOut := 10
 
-	tagEvent := tag.TagEvent{
+	tagEvent := jsonrpc.TagEvent{
 		EventType:  "cycle_count",
 		FacilityID: "testFacility",
 		Timestamp:  int64(timestamp),
@@ -112,7 +115,7 @@ func TestNotACycleCount(t *testing.T) {
 	timestamp := 1500583263000 // Thursday, July 20, 2017 1:41:03 PM
 	minutesBeforeAgeOut := 10
 
-	tagEvent := tag.TagEvent{
+	tagEvent := jsonrpc.TagEvent{
 		EventType:  "arrival",
 		FacilityID: "testFacility",
 		Timestamp:  int64(timestamp),
@@ -136,7 +139,7 @@ func TestUnknownFacility(t *testing.T) {
 	timestamp := 1500583263000 // Thursday, July 20, 2017 1:41:03 PM
 	minutesBeforeAgeOut := 10
 
-	tagEvent := tag.TagEvent{
+	tagEvent := jsonrpc.TagEvent{
 		EventType:  "cycle_count",
 		FacilityID: "testFacility",
 		Timestamp:  int64(timestamp),
@@ -158,7 +161,7 @@ func TestUnknownFacility(t *testing.T) {
 
 //nolint:dupl
 func TestFilter(t *testing.T) {
-	testTag := tag.TagEvent{
+	testTag := jsonrpc.TagEvent{
 		EpcCode: "302103201",
 	}
 
@@ -173,7 +176,7 @@ func TestFilter(t *testing.T) {
 
 //nolint:dupl
 func TestFilterNotPresent(t *testing.T) {
-	testTag := tag.TagEvent{
+	testTag := jsonrpc.TagEvent{
 		EpcCode: "402103201",
 	}
 
@@ -186,7 +189,7 @@ func TestFilterNotPresent(t *testing.T) {
 }
 
 func TestFilterNoTags(t *testing.T) {
-	testTag := tag.TagEvent{
+	testTag := jsonrpc.TagEvent{
 		EpcCode: "402103201",
 	}
 
@@ -228,7 +231,7 @@ func TestDataProcessHandheld(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := getJSONSampleHandheld()
+	JSONSample := getJSONSampleHandheld(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	config.AppConfig.CloudConnectorUrl = testServer.URL
 
@@ -282,7 +285,7 @@ func TestDataProcessFixedAllRulesTriggered(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := getJSONDepartedSample()
+	JSONSample := getJSONDepartedSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
@@ -355,7 +358,7 @@ func TestDataProcessFixedNoOoSRulesTriggered(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := getJSONDepartedSample()
+	JSONSample := getJSONDepartedSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
@@ -454,7 +457,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		t.Error("Unable to replace tags", err.Error())
 	}
 
-	JSONSample := &models.Reading{Value: `{			 
+	JSONSample := createInventoryEvent(t, `{			 
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -479,7 +482,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
@@ -601,7 +604,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		t.Error("Unable to replace tags", err.Error())
 	}
 
-	JSONSample1 := &models.Reading{Value: `{			 
+	JSONSample1 := createInventoryEvent(t, `{			 
 				 "gateway_id": "rrpgw",
 				 "event_segment_number": 1,
 				 "total_event_segments": 2,
@@ -626,8 +629,8 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
-	JSONSample2 := &models.Reading{Value: `{			 
+   }`)
+	JSONSample2 := createInventoryEvent(t, `{			 
 				 "gateway_id": "rrpgw",
 				 "event_segment_number": 2,
 				 "total_event_segments": 2,
@@ -652,7 +655,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample1, masterDb, "fixed", nil); err != nil {
@@ -770,7 +773,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 		t.Errorf("Unable to replace tags: %+v", err)
 	}
 
-	JSONSample := &models.Reading{Value: `{			 
+	JSONSample := createInventoryEvent(t, `{			 
 				 "gateway_id": "rrpgw",
          "total_event_segments": 1,
          "event_segment_number": 1,
@@ -795,7 +798,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
@@ -896,7 +899,7 @@ func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := getJSONCycleCountSample()
+	JSONSample := getJSONCycleCountSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
@@ -958,7 +961,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := &models.Reading{Value: `{			 
+	JSONSample := createInventoryEvent(t, `{			 
 				 "gateway_id": "rrpgw",
 				 "data": [
 							 {
@@ -981,7 +984,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
 	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
@@ -1028,7 +1031,7 @@ func TestProcessHeartBeat(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	JSONSample := &models.Reading{Value: `{
+	JSONSample := createHeartbeat(t, `{
 		   "gateway_id": "rrpgw",
 		   "device_id": "rrpgw",
 		   "facilities": [
@@ -1041,9 +1044,9 @@ func TestProcessHeartBeat(t *testing.T) {
 		   "schedule_cfg": "UNKNOWN",
 		   "schedule_groups_cfg": null,
 		   "sent_on": 1503700192960		 
-	   }`}
+	   }`)
 
-	if err := processHeartBeat(JSONSample, masterDb); err != nil {
+	if err := heartbeat.ProcessHeartbeat(JSONSample, masterDb); err != nil {
 		t.Errorf("error processing hearbeat data %s", err.Error())
 	}
 }
@@ -1341,9 +1344,8 @@ func getTagData() []tag.Tag {
 	}
 }
 
-func getJSONCycleCountSample() *models.Reading {
-	return &models.Reading{
-		Value: `{			 
+func getJSONCycleCountSample(t *testing.T) *jsonrpc.InventoryEvent {
+	return createInventoryEvent(t, `{			 
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -1368,11 +1370,11 @@ func getJSONCycleCountSample() *models.Reading {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
 }
 
-func getJSONDepartedSample() *models.Reading {
-	return &models.Reading{Value: `{	
+func getJSONDepartedSample(t *testing.T) *jsonrpc.InventoryEvent {
+	return createInventoryEvent(t, `{	
 				 "gateway_id": "rrpgw",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
@@ -1388,12 +1390,12 @@ func getJSONDepartedSample() *models.Reading {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
 }
 
 // gateway_id is empty for handheld data
-func getJSONSampleHandheld() *models.Reading {
-	return &models.Reading{Value: `{			 
+func getJSONSampleHandheld(t *testing.T) *jsonrpc.InventoryEvent {
+	return createInventoryEvent(t, `{			 
 				 "gateway_id": "",
 				 "data": [
 							 {
@@ -1416,7 +1418,37 @@ func getJSONSampleHandheld() *models.Reading {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`}
+   }`)
+}
+
+func wrapJsonrpcParams(method string, params string) string {
+	sb := strings.Builder{}
+	sb.WriteString(`{"jsonrpc":"2.0","method":"`)
+	sb.WriteString(method)
+	sb.WriteString(`","params":`)
+	sb.WriteString(params)
+	sb.WriteString(`}`)
+	return sb.String()
+}
+
+func createHeartbeat(t *testing.T, data string) *jsonrpc.Heartbeat {
+	data = wrapJsonrpcParams("heartbeat", data)
+	reading := &models.Reading{Value: data}
+	js := new(jsonrpc.Heartbeat)
+	if err := decodeJsonRpc(reading, js, nil); err != nil {
+		t.Error(errors.Wrap(err, data))
+	}
+	return js
+}
+
+func createInventoryEvent(t *testing.T, data string) *jsonrpc.InventoryEvent {
+	data = wrapJsonrpcParams("inventory_event", data)
+	reading := &models.Reading{Value: data}
+	js := new(jsonrpc.InventoryEvent)
+	if err := decodeJsonRpc(reading, js, nil); err != nil {
+		t.Error(errors.Wrap(err, data))
+	}
+	return js
 }
 
 func checkASNContext(t *testing.T, asn *tag.ASNContext) {

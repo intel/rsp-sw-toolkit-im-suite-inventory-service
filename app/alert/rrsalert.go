@@ -28,50 +28,43 @@ import (
 )
 
 type RRSAlert struct {
-	AlertNumber int
+	Alert           // embed
+	DeviceId string `json:"device_id"`
 }
 
 // ProcessAlert is to process the RRS Alert JSON payload
 func ProcessAlert(reading *models.Reading) (RRSAlert, error) {
-	mRRSAlertReceived := metrics.GetOrRegisterGaugeCollection("Inventory.ProcessRRSAlert.RRSAlertReceived", nil)
-	mRRSAlertDetails := metrics.GetOrRegisterGaugeCollection("Inventory.ProcessRRSAlert.RRSAlertDetails", nil)
+	mAlertReceived := metrics.GetOrRegisterGaugeCollection("Inventory.ProcessAlert.AlertReceived", nil)
+	mAlertDetails := metrics.GetOrRegisterGaugeCollection("Inventory.ProcessAlert.AlertDetails", nil)
 
-	mRRSAlertReceived.Add(1) // Have to let metrics system know an alert occurred even if we can't provide details below
+	mAlertReceived.Add(1) // Have to let metrics system know an alert occurred even if we can't provide details below
 
-	var data map[string]interface{}
-
-	// todo
-	var alert RRSAlert
+	alert := RRSAlert{}
 
 	decoder := json.NewDecoder(strings.NewReader(reading.Value))
-	if err := decoder.Decode(&data); err != nil {
+	if err := decoder.Decode(&alert); err != nil {
 		return RRSAlert{}, errors.Wrap(err, "unable to Decode data")
 	}
 
-	deviceID, ok := data["device_id"].(string)
-	if !ok { //nolint:golint
+	if alert.DeviceId == "" {
 		return RRSAlert{}, errors.New("Missing device_id Field")
 	}
-
-	alertNumber, ok := data["alert_number"].(float64)
-	if !ok { //nolint:golint
+	if alert.Number == 0 {
 		return RRSAlert{}, errors.New("Missing alert_number Field")
 	}
-	alert.AlertNumber = int(alertNumber)
 
 	tag := metrics.Tag{
 		Name:  "DeviceId",
-		Value: deviceID,
+		Value: alert.DeviceId,
 	}
 	// Use tag version to flag the Alert with more details
-	mRRSAlertDetails.AddWithTag(int64(alertNumber), tag)
+	mAlertDetails.AddWithTag(int64(alert.Number), tag)
 
-	// todo
 	return alert, nil
 }
 
 // IsInventoryUnloadAlert parses out the payload JSON bytes and check if the alert number is for INENTORY_UNLOAD,
 // which is 260, or not. Return true if it is; false otherwise
-func (rrsAlert RRSAlert) IsInventoryUnloadAlert() bool {
-	return rrsAlert.AlertNumber == InventoryUnload
+func (alert Alert) IsInventoryUnloadAlert() bool {
+	return alert.Number == InventoryUnload
 }

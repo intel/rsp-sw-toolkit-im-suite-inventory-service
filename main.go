@@ -24,8 +24,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
-	golog "log"
+
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,7 +47,6 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
@@ -192,49 +193,6 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 
 	// Wait for the listener to report it is closed.
 	wg.Wait()
-}
-
-func processHeartBeat(reading *models.Reading, masterDB *db.DB) error {
-
-	log.Debugf("Received Heartbeat:\n%s", reading.Value)
-
-	var data map[string]interface{}
-	decoder := json.NewDecoder(strings.NewReader(reading.Value))
-	decoder.UseNumber()
-
-	if err := decoder.Decode(&data); err != nil {
-		return errors.Wrap(err, "Error decoding HeartBeat")
-	}
-
-	facilities, ok := data["facilities"].([]interface{})
-	if !ok {
-		return errors.New("Not able to cast heartbeat data")
-	}
-	//noinspection GoPreferNilSlice
-	facilityData := []facility.Facility{}
-
-	for _, f := range facilities {
-		name := f.(string)
-		facilityData = append(facilityData, facility.Facility{Name: name})
-	}
-
-	copySession := masterDB.CopySession()
-
-	// Default coefficients
-	var coefficients facility.Coefficients
-	coefficients.DailyInventoryPercentage = config.AppConfig.DailyInventoryPercentage
-	coefficients.ProbUnreadToRead = config.AppConfig.ProbUnreadToRead
-	coefficients.ProbInStoreRead = config.AppConfig.ProbInStoreRead
-	coefficients.ProbExitError = config.AppConfig.ProbExitError
-
-	// Insert facilities to database and set default coefficients if new facility is inserted
-	if err := facility.Insert(copySession, &facilityData, coefficients); err != nil {
-		copySession.Close()
-		return errors.Wrap(err, "Error replacing facilities")
-	}
-	copySession.Close()
-
-	return nil
 }
 
 // processShippingNotice processes the list of epcs (shipping notice).  If the epc does not exist in the DB
@@ -484,7 +442,7 @@ func triggerRules(triggerRulesEndpoint string, data interface{}) error {
 }
 
 // POC only implementation
-func markDepartedIfUnseen(tag *tag.TagEvent, ageOuts map[string]int, currentTimeMillis int64) {
+func markDepartedIfUnseen(tag *jsonrpc.TagEvent, ageOuts map[string]int, currentTimeMillis int64) {
 	if tag.EventType == "cycle_count" {
 		if minutes, ok := ageOuts[tag.FacilityID]; ok {
 			if tag.Timestamp+int64(minutes*60*1000) <= currentTimeMillis {
@@ -523,7 +481,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		}
 
 		// Filter data by value descriptors
-		valueDescriptors := []string{"ASN_data", "gw_event", "gw_alert", "gw_heartbeat"}
+		valueDescriptors := []string{asnData, gwEvent, gwAlert, gwHeartbeat}
 
 		edgexSdk.SetFunctionsPipeline(
 			edgexSdk.ValueDescriptorFilter(valueDescriptors),
@@ -593,8 +551,14 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 		case gwHeartbeat:
 			mRRSHeartbeatReceived.Update(1)
 
-			err := processHeartBeat(&reading, db.masterDB)
-			if err != nil {
+			logrus.Debugf("Received Heartbeat:\n%s", reading.Value)
+
+			hb := new(jsonrpc.Heartbeat)
+			if err := decodeJsonRpc(&reading, hb, &mRRSHeartbeatProcessingError); err != nil {
+				return false, nil
+			}
+
+			if err := heartbeat.ProcessHeartbeat(hb, db.masterDB); err != nil {
 				errorHandler("error processing heartbeat data", err, &mRRSHeartbeatProcessingError)
 				return false, err
 			}
@@ -602,12 +566,21 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			break
 
 		case gwEvent:
-			go func(reading *models.Reading) {
-				err := skuMapping.processTagData(reading, db.masterDB, "fixed", &mRRSEventsTags)
-				if err != nil {
-					errorHandler("error processing event data", err, &mRRSEventsProcessingError)
+			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
+
+				log.Debugf("Received tag event data:\n%s", reading.Value)
+
+				invEvent := new(jsonrpc.InventoryEvent)
+				if err := decodeJsonRpc(reading, invEvent, errorGauge); err != nil {
+					return
 				}
-			}(&reading)
+
+				err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
+				if err != nil {
+					errorHandler("error processing event data", err, errorGauge)
+				}
+
+			}(&reading, &mRRSEventsProcessingError, &mRRSEventsTags)
 			break
 
 		case gwAlert:
@@ -619,18 +592,18 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			if rrsAlert.IsInventoryUnloadAlert() {
 				mRRSResetEventReceived.Add(1)
-				go func() {
+				go func(errorGauge *metrics.Gauge) {
 					err := callDeleteTagCollection(db.masterDB)
-					errorHandler("error calling delete tag collection",
-						err, &mRRSEventsProcessingError)
-
-					if err == nil {
-						alertMessage := new(alert.MessagePayload)
-						if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-							errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
-						}
+					if err != nil {
+						errorHandler("error calling delete tag collection", err, errorGauge)
+						return
 					}
-				}()
+
+					alertMessage := new(alert.MessagePayload)
+					if err := alertMessage.SendDeleteTagCompletionAlertMessage(); err != nil {
+						errorHandler("error sending alert message for delete tag collection", err, errorGauge)
+					}
+				}(&mRRSEventsProcessingError)
 			}
 
 			break
@@ -638,22 +611,4 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	}
 
 	return false, nil
-}
-
-func setLoggingLevel(loggingLevel string) {
-	switch strings.ToLower(loggingLevel) {
-	case "error":
-		log.SetLevel(log.ErrorLevel)
-	case "warn":
-		log.SetLevel(log.WarnLevel)
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-	default:
-		log.SetLevel(log.InfoLevel)
-	}
-
-	// Not using filtered func (Info, etc ) so that message is always logged
-	golog.Printf("Logging level set to %s\n", loggingLevel)
 }

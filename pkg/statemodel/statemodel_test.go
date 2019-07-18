@@ -21,6 +21,7 @@ package statemodel
 
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"testing"
 	"time"
 
@@ -1293,9 +1294,9 @@ func getHelperTag() tag.Tag {
 		TTL:             time.Unix(helper.UnixMilli(existingTagTime)/1000, 0)}
 }
 
-func getHelperTagEvent() tag.TagEvent {
+func getHelperTagEvent() jsonrpc.TagEvent {
 
-	return tag.TagEvent{
+	return jsonrpc.TagEvent{
 		EpcEncodeFormat: "tbd",
 		EpcCode:         "303402662C3A5F904C19939E",
 		EventType:       "arrival",

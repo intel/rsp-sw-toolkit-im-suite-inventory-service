@@ -30,7 +30,7 @@ import (
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/mongo"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
-	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 const facilityCollection = "facilities"

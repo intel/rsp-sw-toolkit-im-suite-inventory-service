@@ -20,10 +20,15 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	golog "log"
 	"os"
 	"plugin"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -33,7 +38,9 @@ import (
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
-		(*errorGauge).Update(1)
+		if errorGauge != nil {
+			(*errorGauge).Update(1)
+		}
 		log.WithFields(log.Fields{
 			"Method": "main",
 			"Error":  fmt.Sprintf("%+v", err),
@@ -43,7 +50,9 @@ func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 
 func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
-		(*errorGauge).Update(1)
+		if errorGauge != nil {
+			(*errorGauge).Update(1)
+		}
 		log.WithFields(log.Fields{
 			"Method": "main",
 			"Error":  fmt.Sprintf("%+v", err),
@@ -95,4 +104,39 @@ func verifyProbabilisticPlugin() {
 	if !pluginFound {
 		log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
 	}
+}
+
+func decodeJsonRpc(reading *models.Reading, js jsonrpc.Message, errorGauge *metrics.Gauge) error {
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(js); err != nil {
+		errorHandler("error decoding jsonrpc messaage", err, errorGauge)
+		return err
+	}
+
+	if err := js.Validate(); err != nil {
+		errorHandler("error validating jsonrpc messaage", err, errorGauge)
+		return err
+	}
+
+	return nil
+}
+
+func setLoggingLevel(loggingLevel string) {
+	switch strings.ToLower(loggingLevel) {
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+
+	// Not using filtered func (Info, etc ) so that message is always logged
+	golog.Printf("Logging level set to %s\n", loggingLevel)
 }

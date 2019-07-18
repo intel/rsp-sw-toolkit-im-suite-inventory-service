@@ -119,8 +119,8 @@ func TestGenerateSendEventFailedAlertMessagePayload(t *testing.T) {
 	if err := json.Unmarshal(payloadBytes, &alertMsgPayload); err != nil {
 		t.Fatalf("incorrect payload bytes generated: %s", string(payloadBytes))
 	}
-	if alertMsgPayload.Value.AlertNumber != SendEventFailed {
-		t.Fatalf("expecting alert number to be %d but found %d", SendEventFailed, alertMsgPayload.Value.AlertNumber)
+	if alertMsgPayload.Value.Number != SendEventFailed {
+		t.Fatalf("expecting alert number to be %d but found %d", SendEventFailed, alertMsgPayload.Value.Number)
 	}
 	if alertMsgPayload.Value.Severity != "critical" {
 		t.Fatalf("expecting critical severity but found %s", alertMsgPayload.Value.Severity)
