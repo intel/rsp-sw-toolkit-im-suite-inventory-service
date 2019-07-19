@@ -12,6 +12,17 @@ ReadMaxLimit = 100
 StartupMsg = 'Inventory Service'
 Timeout = 5000
 
+[Clients]
+  [Clients.CoreData]
+  Protocol = 'http'
+  Host = 'localhost'
+  Port = 48080
+
+  [Clients.Logging]
+  Protocol = "http"
+  Host = "localhost"
+  Port = 48061
+
 [Registry]
 Host = 'localhost'
 Port = 8500

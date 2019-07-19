@@ -3,7 +3,7 @@ module github.impcloud.net/RSP-Inventory-Suite/inventory-service
 go 1.12
 
 require (
-	github.com/edgexfoundry/app-functions-sdk-go v0.0.0-20190709232209-37e756b47e0b
+	github.com/edgexfoundry/app-functions-sdk-go v0.2.0-dev.8
 	github.com/edgexfoundry/go-mod-core-contracts v0.1.5
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
 	github.com/gorilla/mux v1.7.2
