@@ -37,7 +37,6 @@ Type = 'zero'
 
 [Logging]
 EnableRemote = true
-File = ''
 
 [Binding]
  Type="messagebus"
