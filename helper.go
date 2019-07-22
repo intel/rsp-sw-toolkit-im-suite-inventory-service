@@ -21,18 +21,15 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	golog "log"
-	"os"
 	"plugin"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/healthcheck"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
@@ -58,18 +55,6 @@ func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 			"Error":  fmt.Sprintf("%+v", err),
 		}).Fatal(message)
 	}
-}
-
-func healthCheck(port string) {
-
-	isHealthyPtr := flag.Bool("isHealthy", false, "a bool, runs a healthcheck")
-	// flag.Parse() is being handled by EdgeX apps function SDK
-
-	if *isHealthyPtr {
-		status := healthcheck.Healthcheck(port)
-		os.Exit(status)
-	}
-
 }
 
 func verifyProbabilisticPlugin() {

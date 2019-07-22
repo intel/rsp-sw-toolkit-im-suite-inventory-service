@@ -86,9 +86,6 @@ func main() {
 	err := config.InitConfig()
 	fatalErrorHandler("unable to load configuration variables", err, &mConfigurationError)
 
-	// Start healthCheck
-	healthCheck(config.AppConfig.Port)
-
 	// Initialize metrics reporting
 	initMetrics()
 
