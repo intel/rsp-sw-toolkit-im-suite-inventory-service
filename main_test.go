@@ -1158,7 +1158,7 @@ func TestProcessShippingNotice(t *testing.T) {
 	clearAllData(t, masterDb)
 
 	config.AppConfig.EpcFilters = []string{"303", "301"}
-	JSONShippingNotice := &models.Reading{Value: `	
+	JSONShippingNotice := []byte(`	
 		[
 			{
 				"asnId": "AS876422",
@@ -1177,7 +1177,7 @@ func TestProcessShippingNotice(t *testing.T) {
 				]
 			}
 		]  
-	`}
+	`)
 
 	// make sure the tag doesn't currently exist
 	gotTag, err := tag.FindByEpc(masterDb, "30343639F84191AD22900204")
@@ -1221,7 +1221,7 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	jsonShippingNotice := &models.Reading{Value: `
+	jsonShippingNotice := []byte(`
 		[
 			{
 				"asnId": "AS876422",
@@ -1238,7 +1238,7 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 				]
 			}
 		]		
-	`}
+	`)
 
 	// Filter through only those starting with "30"
 	config.AppConfig.EpcFilters = []string{"30"}
@@ -1279,7 +1279,7 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
 
-	jsonShippingNotice := &models.Reading{Value: `
+	jsonShippingNotice := []byte(`
 		[
 			{
 				"asnId": "AS876422",
@@ -1296,7 +1296,7 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 				]
 			}
 		]
-	`}
+	`)
 
 	// insert a known tag
 	existingTag := getTagData()[0]

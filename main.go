@@ -22,6 +22,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
@@ -31,7 +32,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"time"
 
@@ -60,10 +60,10 @@ const (
 )
 
 const (
-	asnData     = "ASN_data"
-	gwEvent     = "gw_events"
-	gwAlert     = "gw_alert"
-	gwHeartbeat = "gw_heartbeat"
+	asnData          = "ASN_data"
+	inventoryEvent   = "inventory_event"
+	deviceAlert      = "device_alert"
+	gatewayHeartbeat = "gateway_heartbeat"
 )
 
 type myDB struct {
@@ -197,12 +197,10 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 // a ttl of now, and epc context of the designated value to identify it as a shipping notice
 // config.AppConfig.AdvancedShippingNotice.  If the epc does exist, then only epc context value is updated
 // with config.AppConfig.AdvancedShippingNotice
-func processShippingNotice(reading *models.Reading, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
-
-	log.Debugf("Received data:\n%s", reading.Value)
+func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
 
 	var incomingDataSlice []tag.AdvanceShippingNotice
-	decoder := json.NewDecoder(strings.NewReader(reading.Value))
+	decoder := json.NewDecoder(bytes.NewBuffer(data))
 	if err := decoder.Decode(&incomingDataSlice); err != nil {
 		return errors.Wrap(err, "unable to Decode data")
 	}
@@ -478,7 +476,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		}
 
 		// Filter data by value descriptors
-		valueDescriptors := []string{asnData, gwEvent, gwAlert, gwHeartbeat}
+		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, gatewayHeartbeat}
 
 		edgexSdk.SetFunctionsPipeline(
 			edgexSdk.ValueDescriptorFilter(valueDescriptors),
@@ -518,22 +516,19 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 		switch reading.Name {
 
 		case asnData:
-			logrus.Debugf(fmt.Sprintf("ASN data received: %#v", event))
+			data, err := base64.StdEncoding.DecodeString(reading.Value)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Method": "receiveZMQEvents",
+					"Action": "ASN data ingestion",
+					"Error":  err.Error(),
+				}).Error("error decoding base64 value")
+				return false, err
+			}
 
-			// todo: why is it decoding base64?????
+			logrus.Debugf("ASN data received: %s", string(data))
 
-			//data, err := base64.StdEncoding.DecodeString(reading.Value)
-			//if err != nil {
-			//	log.WithFields(log.Fields{
-			//		"Method": "receiveZMQEvents",
-			//		"Action": "ASN data ingestion",
-			//		"Error":  err.Error(),
-			//	}).Error("error decoding base64 value")
-			//	return false, err
-			//}
-
-			// todo: &reading appropriate here?
-			if err := processShippingNotice(&reading, db.masterDB, &mRRSASNEpcs); err != nil {
+			if err := processShippingNotice(data, db.masterDB, &mRRSASNEpcs); err != nil {
 				log.WithFields(log.Fields{
 					"Method": "processShippingNotice",
 					"Action": "ASN data ingestion",
@@ -545,7 +540,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
-		case gwHeartbeat:
+		case gatewayHeartbeat:
 			mRRSHeartbeatReceived.Update(1)
 
 			logrus.Debugf("Received Heartbeat:\n%s", reading.Value)
@@ -562,7 +557,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
-		case gwEvent:
+		case inventoryEvent:
 			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
 
 				log.Debugf("Received tag event data:\n%s", reading.Value)
@@ -580,10 +575,10 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}(&reading, &mRRSEventsProcessingError, &mRRSEventsTags)
 			break
 
-		case gwAlert:
+		case deviceAlert:
 			rrsAlert, err := alert.ProcessAlert(&reading)
 			if err != nil {
-				errorHandler("error processing gw alert data", err, &mRRSAlertError)
+				errorHandler("error processing device alert data", err, &mRRSAlertError)
 				return false, err
 			}
 
