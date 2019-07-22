@@ -1,8 +1,8 @@
 package jsonrpc
 
 type InventoryEvent struct {
-	Notification // embed
-	Params InventoryEventParams `json:"params"`
+	Notification                      // embed
+	Params       InventoryEventParams `json:"params"`
 }
 
 type InventoryEventParams struct {

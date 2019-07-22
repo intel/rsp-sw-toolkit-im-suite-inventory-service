@@ -15,7 +15,7 @@ var (
 	ErrMissingId = errors.New("missing or empty id field")
 )
 
-type Message interface{
+type Message interface {
 	Validate() error
 }
 

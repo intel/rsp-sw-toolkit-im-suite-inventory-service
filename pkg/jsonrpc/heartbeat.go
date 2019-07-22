@@ -8,7 +8,7 @@ type Heartbeat struct {
 }
 
 type HeartbeatParams struct {
-	SentOn   int64 `json:"sent_on"`
+	SentOn   int64  `json:"sent_on"`
 	DeviceId string `json:"device_id"`
 }
 

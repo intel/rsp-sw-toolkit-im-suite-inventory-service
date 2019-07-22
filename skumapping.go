@@ -131,7 +131,7 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 		if config.AppConfig.CloudConnectorUrl != "" {
 			// todo: what else to put in here? seems like an old SAF bus artifact??
 			payload := event.DataPayload{
-				TagEvent:tagData,
+				TagEvent: tagData,
 			}
 			triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
 
