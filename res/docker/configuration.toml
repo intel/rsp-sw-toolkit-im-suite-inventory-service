@@ -1,0 +1,43 @@
+[Writable]
+LogLevel = 'INFO'
+
+[Service]
+BootTimeout = 30000
+ClientMonitor = 15000
+CheckInterval = '10s'
+Host = 'inventory-service'
+Port = 48095
+Protocol = 'http'
+ReadMaxLimit = 100
+StartupMsg = 'Inventory Service'
+Timeout = 5000
+
+[Clients]
+  [Clients.CoreData]
+  Protocol = 'http'
+  Host = 'edgex-core-data'
+  Port = 48080
+
+  [Clients.Logging]
+  Protocol = "http"
+  Host = "edgex-support-logging"
+  Port = 48061
+
+[Registry]
+Host = 'edgex-core-consul'
+Port = 8500
+Type = 'consul'
+  
+[MessageBus]
+Type = 'zero'
+    [MessageBus.SubscribeHost]
+        Host = 'edgex-core-data'
+        Port = 5563
+        Protocol = 'tcp'
+
+[Logging]
+EnableRemote = true
+
+[Binding]
+ Type="messagebus"
+ SubscribeTopic=""

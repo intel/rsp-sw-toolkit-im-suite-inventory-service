@@ -3,9 +3,6 @@
   "connectionString": "mongodb://127.0.0.1:27017",
   "databaseName": "inventory",
   "loggingLevel": "debug",
-  "zeroMQ": "127.0.0.1:5563",
-  "secureMode" : false,
-  "skipCertVerify" : false,
   "ageOuts": "front:10,back:60",
   "epcFilters": [],
   "dailyInventoryPercentage": "0.01",
@@ -51,5 +48,5 @@
   "proprietaryTagBitBoundary": "8.44.44",
   "tagURIAuthorityName" :"example.com",
   "tagURIAuthorityDate" :"2018-01-31",
-  "probabilisticAlgorithmPlugin": true
+  "probabilisticAlgorithmPlugin": false
 }

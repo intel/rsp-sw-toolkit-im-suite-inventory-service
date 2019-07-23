@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"plugin"
 	"strings"
 	"sync"
 	"time"
@@ -41,7 +40,8 @@ import (
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 
-	zmq "github.com/pebbe/zmq4"
+	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
+	"github.com/edgexfoundry/app-functions-sdk-go/appsdk"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
@@ -56,27 +56,26 @@ import (
 
 const (
 	jsonApplication = "application/json;charset=utf-8"
+	serviceKey      = "inventory-service"
 )
 
 const (
 	eventTopic     = "rfid/gw/events"
 	alertTopic     = "rfid/gw/alerts"
 	heartBeatTopic = "rfid/gw/heartbeat"
-	name           = "gwevent"
 )
-
-// ZeroMQ implementation of the event publisher
-type zeroMQEventPublisher struct {
-	publisher *zmq.Socket
-	mux       sync.Mutex
-}
 
 type reading struct {
 	Topic  string                 `json:"topic"`
 	Params map[string]interface{} `json:"params"`
 }
 
+type myDB struct {
+	masterDB *db.DB
+}
+
 func main() {
+
 	mDBIndexesError := metrics.GetOrRegisterGauge("Inventory.Main.DBIndexesError", nil)
 	mConfigurationError := metrics.GetOrRegisterGauge("Inventory.Main.ConfigurationError", nil)
 	mDatabaseRegisterError := metrics.GetOrRegisterGauge("Inventory.Main.DatabaseRegisterError", nil)
@@ -91,9 +90,6 @@ func main() {
 	err := config.InitConfig()
 	fatalErrorHandler("unable to load configuration variables", err, &mConfigurationError)
 
-	// Start healthCheck
-	healthCheck(config.AppConfig.Port)
-
 	// Initialize metrics reporting
 	initMetrics()
 
@@ -102,7 +98,7 @@ func main() {
 	log.WithFields(log.Fields{
 		"Method": "main",
 		"Action": "Start",
-	}).Info("Starting inventory management application...")
+	}).Info("Starting inventory service...")
 
 	dbName := config.AppConfig.DatabaseName
 	dbHost := config.AppConfig.ConnectionString + "/" + dbName
@@ -126,66 +122,16 @@ func main() {
 
 	// Verify IA when using Probabilistic Algorithm plugin
 	if config.AppConfig.ProbabilisticAlgorithmPlugin {
-
-		retry := 1
-		pluginFound := false
-
-		for retry < 10 {
-
-			log.Infof("Loading proprietary Intel Probabilistic Algorithm plugin (Retry %d)", retry)
-			probPlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
-			if err == nil {
-				pluginFound = true
-				checkIA, err := probPlugin.Lookup("CheckIA")
-				if err != nil {
-					log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
-					break
-				}
-
-				if err := checkIA.(func() error)(); err != nil {
-					log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
-					break
-				}
-
-				log.Info("Intel Probabilistic Algorithm plugin loaded.")
-				break
-			}
-			log.Warn(err)
-			time.Sleep(1 * time.Second)
-			retry++
-		}
-
-		if !pluginFound {
-			log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
-		}
+		verifyProbabilisticPlugin()
 	}
+
 	// Connect to EdgeX zeroMQ bus
-	receiveZmqEvents(masterDB)
+	receiveZMQEvents(masterDB)
 
 	// Initiate webserver and routes
 	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
 
 	log.WithField("Method", "main").Info("Completed.")
-}
-
-func handleMessage(dataType string, data *map[string]interface{}, errGauge *metrics.Gauge, handler func([]byte) error) {
-	if data == nil {
-		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
-			errors.New("ItemData was nil"), errGauge)
-		return
-	}
-
-	jsonBytes, err := json.Marshal(data)
-	if err != nil {
-		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
-			err, errGauge)
-		return
-	}
-
-	if err := handler(jsonBytes); err != nil {
-		errorHandler(fmt.Sprintf("error processing %s data", dataType),
-			err, errGauge)
-	}
 }
 
 func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName string) {
@@ -262,7 +208,10 @@ func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
 		return errors.Wrap(err, "Error decoding HeartBeat")
 	}
 
-	facilities := data["facilities"].([]interface{})
+	facilities, ok := data["facilities"].([]interface{})
+	if !ok {
+		return errors.New("Not able to cast heartbeat data")
+	}
 	//noinspection GoPreferNilSlice
 	facilityData := []facility.Facility{}
 
@@ -562,146 +511,132 @@ func initMetrics() {
 	}
 }
 
-func receiveZmqEvents(masterDB *db.DB) {
+func receiveZMQEvents(masterDB *db.DB) {
 
-	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSEventsError", nil)
-	mRRSEventsTags := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZmqEvents.RRSTags", nil)
-	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSHeartbeatError", nil)
-	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSHeartbeatReceived", nil)
-	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZmqEvents.RRSAlertError", nil)
-	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZmqEvents.RRSResetEventReceived", nil)
-	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
+	db := myDB{masterDB: masterDB}
 
 	go func() {
-		q, _ := zmq.NewSocket(zmq.SUB)
-		defer q.Close()
-		uri := fmt.Sprintf("%s://%s", "tcp", config.AppConfig.ZeroMQ)
-		if err := q.Connect(uri); err != nil {
-			logrus.Error(err)
+
+		//Initialized EdgeX apps functionSDK
+		edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
+		if err := edgexSdk.Initialize(); err != nil {
+			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v\n", err))
+			os.Exit(-1)
 		}
-		logrus.Infof("Connected to 0MQ at %s", uri)
-		// Edgex Delhi release uses no topic for all sensor data
-		q.SetSubscribe("")
 
-		skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
-		for {
-			msg, err := q.RecvMessage(0)
-			if err != nil {
-				id, _ := q.GetIdentity()
-				logrus.Error(fmt.Sprintf("Error getting message %s", id))
-				continue
-			}
-			for _, str := range msg {
-				event := parseEvent(str)
+		// Filter data by value descriptors
+		valueDescriptors := []string{"ASN_data", "gwevent"}
 
-				//logrus.Debugf(fmt.Sprintf("Event received: %s", event))
+		edgexSdk.SetFunctionsPipeline(
+			edgexSdk.ValueDescriptorFilter(valueDescriptors),
+			db.processEvents,
+		)
 
-				for _, read := range event.Readings {
-
-					// Advance Shipping Notice data
-					if event.Device == "ASN_Data_Device" && read.Name == "ASN_data" {
-
-						logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
-						data, err := base64.StdEncoding.DecodeString(read.Value)
-						if err != nil {
-							log.WithFields(log.Fields{
-								"Method": "receiveZmqEvents",
-								"Action": "ASN data ingestion",
-								"Error":  err.Error(),
-							}).Error("error decoding base64 value")
-
-						}
-						if err := processShippingNotice(data, masterDB, &mRRSASNEpcs); err != nil {
-							log.WithFields(log.Fields{
-								"Method": "processShippingNotice",
-								"Action": "ASN data ingestion",
-								"Error":  err.Error(),
-							}).Error("error processing ASN data")
-						}
-						mRRSASNEpcs.Add(1)
-
-					}
-
-					// For all RFID data
-					if read.Name == "gwevent" {
-
-						logrus.Debugf(fmt.Sprintf("RFID data received: %s", event))
-
-						parsedReading := parseReadingValue(&read)
-
-						switch parsedReading.Topic {
-						case heartBeatTopic:
-							mRRSHeartbeatReceived.Update(1)
-							handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
-								func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, masterDB) })
-						case eventTopic:
-							go func(params *reading) {
-								handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
-									func(jsonBytes []byte) error {
-										return skuMapping.processTagData(jsonBytes, masterDB,
-											"fixed", &mRRSEventsTags)
-									})
-							}(parsedReading)
-						case alertTopic:
-							handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
-								func(jsonBytes []byte) error {
-									rrsAlert := alert.NewRRSAlert(jsonBytes)
-									err := rrsAlert.ProcessAlert()
-									if err != nil {
-										return err
-									}
-
-									if rrsAlert.IsInventoryUnloadAlert() {
-										mRRSResetEventReceived.Add(1)
-										go func() {
-											err := callDeleteTagCollection(masterDB)
-											errorHandler("error calling delete tag collection",
-												err, &mRRSEventsProcessingError)
-
-											if err == nil {
-												alertMessage := new(alert.MessagePayload)
-												if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-													errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
-												}
-											}
-										}()
-									}
-
-									return nil
-								})
-						}
-					}
-				}
-
-			}
-
+		err := edgexSdk.MakeItRun()
+		if err != nil {
+			edgexSdk.LoggingClient.Error("MakeItRun returned error: ", err.Error())
+			os.Exit(-1)
 		}
+
 	}()
 }
 
-func parseReadingValue(read *models.Reading) *reading {
+func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
 
-	readingObj := reading{}
+	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatReceived", nil)
+	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatError", nil)
+	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSEventsError", nil)
+	mRRSEventsTags := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSTags", nil)
+	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSAlertError", nil)
+	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSResetEventReceived", nil)
+	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
 
-	if err := json.Unmarshal([]byte(read.Value), &readingObj); err != nil {
-		logrus.Error(err.Error())
-		logrus.Warn("Failed to parse reading")
-		return nil
+	if len(params) < 1 {
+		return false, nil
 	}
 
-	return &readingObj
+	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
-}
+	event := params[0].(models.Event)
 
-func parseEvent(str string) *models.Event {
-	event := models.Event{}
-
-	if err := json.Unmarshal([]byte(str), &event); err != nil {
-		logrus.Error(err.Error())
-		logrus.Warn("Failed to parse event")
-		return nil
+	if len(event.Readings) < 1 {
+		return false, nil
 	}
-	return &event
+
+	parsedReading, err := parseReadingValue(&event.Readings[0])
+	if err != nil {
+		log.WithFields(log.Fields{"Method": "parseReadingValue"}).Error(err.Error())
+		return false, nil
+	}
+
+	if event.Readings[0].Name == "ASN_data" {
+
+		logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
+		data, err := base64.StdEncoding.DecodeString(event.Readings[0].Value)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Method": "receiveZMQEvents",
+				"Action": "ASN data ingestion",
+				"Error":  err.Error(),
+			}).Error("error decoding base64 value")
+			return false, nil
+		}
+		if err := processShippingNotice(data, db.masterDB, &mRRSASNEpcs); err != nil {
+			log.WithFields(log.Fields{
+				"Method": "processShippingNotice",
+				"Action": "ASN data ingestion",
+				"Error":  err.Error(),
+			}).Error("error processing ASN data")
+			return false, nil
+		}
+		mRRSASNEpcs.Add(1)
+
+		return false, nil
+	}
+
+	switch parsedReading.Topic {
+	case heartBeatTopic:
+		mRRSHeartbeatReceived.Update(1)
+		handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
+			func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, db.masterDB) })
+	case eventTopic:
+		go func(params *reading) {
+			handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
+				func(jsonBytes []byte) error {
+					return skuMapping.processTagData(jsonBytes, db.masterDB,
+						"fixed", &mRRSEventsTags)
+				})
+		}(parsedReading)
+	case alertTopic:
+		handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
+			func(jsonBytes []byte) error {
+				rrsAlert := alert.NewRRSAlert(jsonBytes)
+				err := rrsAlert.ProcessAlert()
+				if err != nil {
+					return err
+				}
+
+				if rrsAlert.IsInventoryUnloadAlert() {
+					mRRSResetEventReceived.Add(1)
+					go func() {
+						err := callDeleteTagCollection(db.masterDB)
+						errorHandler("error calling delete tag collection",
+							err, &mRRSEventsProcessingError)
+
+						if err == nil {
+							alertMessage := new(alert.MessagePayload)
+							if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
+								errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
+							}
+						}
+					}()
+				}
+
+				return nil
+			})
+	}
+
+	return false, nil
 }
 
 func setLoggingLevel(loggingLevel string) {
