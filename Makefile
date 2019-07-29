@@ -5,19 +5,40 @@ PROJECT_NAME ?= inventory-service
 
 default: build
 
-build::
+scale=docker service scale $(STACK_NAME)_$(SERVICE_NAME)=$1 $2
+
+wait_for_service=	@printf "Waiting for $(SERVICE_NAME) service to$1..."; \
+					while [  $2 -z `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1` ]; \
+                 	do \
+                 		printf "."; \
+                 		sleep 0.3;\
+                 	done; \
+                 	printf "\n";
+
+log=docker logs $1$2 `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1` 2>&1
+
+build:
 	$(MAKE) -C .. $(PROJECT_NAME)
 
-iterate::
-	docker service scale $(STACK_NAME)_$(SERVICE_NAME)=0 -d
+iterate:
+	$(call scale,0,-d)
 	$(MAKE) build
-	docker service scale $(STACK_NAME)_$(SERVICE_NAME)=1 -d
-	while [ -z `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1` ]; \
-	do \
-		echo "Waiting for $(SERVICE_NAME) to start..."; \
-		sleep 1;\
-	done
+	$(call scale,1,-d)
+	$(call wait_for_service, start)
 	$(MAKE) tail
 
-tail::
-	docker logs -f `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1`
+restart:
+	$(call scale,0,-d)
+	$(call wait_for_service, stop, !)
+	$(call scale,1,-d)
+	$(call wait_for_service, start)
+
+tail:
+	$(call log,-f,$(args))
+
+scale:
+	$(call scale,$(n),$(args))
+
+fmt:
+	go fmt ./...
+

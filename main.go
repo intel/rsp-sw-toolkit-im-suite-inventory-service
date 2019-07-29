@@ -576,6 +576,8 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			break
 
 		case deviceAlert:
+			log.Debugf("Received device alert data:\n%s", reading.Value)
+
 			rrsAlert, err := alert.ProcessAlert(&reading)
 			if err != nil {
 				errorHandler("error processing device alert data", err, &mRRSAlertError)
