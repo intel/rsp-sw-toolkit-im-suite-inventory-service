@@ -25,8 +25,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
 
@@ -63,7 +63,7 @@ const (
 const (
 	asnData          = "ASN_data"
 	inventoryEvent   = "inventory_event"
-	inventoryData = "inventory_data"
+	inventoryData    = "inventory_data"
 	deviceAlert      = "device_alert"
 	gatewayHeartbeat = "gateway_heartbeat"
 )

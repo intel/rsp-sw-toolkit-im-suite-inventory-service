@@ -6,24 +6,24 @@ import (
 
 func TestSensorGetAntennaAlias(t *testing.T) {
 	tests := []struct {
-		deviceId string
+		deviceId  string
 		antennaId int
-		expected string
+		expected  string
 	}{
 		{
-			deviceId: "RSP-3F7DAC",
+			deviceId:  "RSP-3F7DAC",
 			antennaId: 0,
-			expected: "RSP-3F7DAC-0",
+			expected:  "RSP-3F7DAC-0",
 		},
 		{
-			deviceId: "RSP-150000",
+			deviceId:  "RSP-150000",
 			antennaId: 10,
-			expected: "RSP-150000-10",
+			expected:  "RSP-150000-10",
 		},
 		{
-			deviceId: "RSP-999999",
+			deviceId:  "RSP-999999",
 			antennaId: 3,
-			expected: "RSP-999999-3",
+			expected:  "RSP-999999-3",
 		},
 	}
 

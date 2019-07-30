@@ -103,7 +103,7 @@ func (ds *testDataset) verifyTag(tagIndex int, expectedState TagState, expectedS
 	}
 
 	// if expectedSensor is nil, we do not care to validate that field
-	if expectedSensor!= nil && tag.Location != expectedSensor.getAntennaAlias(0) {
+	if expectedSensor != nil && tag.Location != expectedSensor.getAntennaAlias(0) {
 		return fmt.Errorf("tag index %d (%s): location %v does not match expected location %v\n\t%#v", tagIndex, tag.Epc, tag.Location, expectedSensor.getAntennaAlias(0), tag)
 	}
 

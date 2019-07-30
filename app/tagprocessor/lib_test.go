@@ -326,7 +326,7 @@ func TestTagDepartAndReturnPOS(t *testing.T) {
 	// todo: check for departed events being generated
 
 	// and it should stay gone for a while (but not long enough to return)
-	ds.setLastReadOnAll(ds.readTimeOrig + int64(config.AppConfig.PosReturnThresholdMillis / 2))
+	ds.setLastReadOnAll(ds.readTimeOrig + int64(config.AppConfig.PosReturnThresholdMillis/2))
 	ds.readAll(front1, rssiWeak, 20)
 	if err := ds.verifyStateAll(DepartedPos); err != nil {
 		t.Error(err)

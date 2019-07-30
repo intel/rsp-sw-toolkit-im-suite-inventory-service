@@ -20,9 +20,9 @@ func TestRssiConversions(t *testing.T) {
 			mw := rssiToMilliwatts(sampleRssi)
 			rssi := milliwattsToRssi(mw)
 
-			if math.Abs(sampleRssi - rssi) > floatPrecision {
+			if math.Abs(sampleRssi-rssi) > floatPrecision {
 				t.Errorf("Converting rssi to mw and back resulted in a different value %v dBm -> %v mw -> %v dBm, Diff: %v",
-					sampleRssi, mw, rssi, math.Abs(sampleRssi - rssi))
+					sampleRssi, mw, rssi, math.Abs(sampleRssi-rssi))
 			}
 		})
 	}

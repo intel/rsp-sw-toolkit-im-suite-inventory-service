@@ -68,7 +68,6 @@ type (
 		ProbabilisticAlgorithmPlugin                                                                   bool
 		TagDecoders                                                                                    []encodingscheme.TagDecoder
 
-
 		// todo: these should be int64, but that is NOT SUPPORTED by the config library
 		PosDepartedThresholdMillis, PosReturnThresholdMillis, AggregateDepartedThresholdMillis int
 		// todo: how does this relate to AgeOuts property above
