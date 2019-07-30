@@ -3,6 +3,7 @@ package tagprocessor
 import (
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"sync"
 	"time"
@@ -31,15 +32,17 @@ const (
 //scheduleRunState = _current;
 //}
 
-// OnInventoryData todo: desc
-func OnInventoryData(data PeriodicInventoryData) error {
-	sensor := lookupSensor(data.DeviceId)
-	if sensor.FacilityId != data.FacilityId {
-		logrus.Debugf("Updating sensor %s facilityId to %s", sensor.DeviceId, data.FacilityId)
-		sensor.FacilityId = data.FacilityId
+// ProcessInventoryData todo: desc
+func ProcessInventoryData(invData *jsonrpc.InventoryData) error {
+	sensor := lookupSensor(invData.Params.DeviceId)
+	facId := invData.Params.FacilityId
+
+	if sensor.FacilityId != facId {
+		logrus.Debugf("Updating sensor %s facilityId to %s", sensor.DeviceId, facId)
+		sensor.FacilityId = facId
 	}
 
-	for _, read := range data.Data {
+	for _, read := range invData.Params.Data {
 		// todo: handle error?
 		processReadData(&read, sensor)
 	}
@@ -58,7 +61,7 @@ func lookupSensor(deviceId string) *RfidSensor {
 	return sensor
 }
 
-func processReadData(read *TagRead, sensor *RfidSensor) {
+func processReadData(read *jsonrpc.TagRead, sensor *RfidSensor) {
 	if sensor.minRssiDbm10X != 0 && read.Rssi < sensor.minRssiDbm10X {
 		return
 	}

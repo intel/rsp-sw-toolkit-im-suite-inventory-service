@@ -21,6 +21,7 @@ package statemodel
 
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ func IsTagWhitelisted(epc string, whiteList []string) bool {
 //Sets certain fields based on current tag values and the
 //qualified events state model
 //nolint :gocyclo
-func UpdateTag(currentState tag.Tag, newTagEvent tag.TagEvent, source string) tag.Tag {
+func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string) tag.Tag {
 
 	isNewTag := currentState.IsEmpty() || currentState.IsShippingNoticeEntry()
 

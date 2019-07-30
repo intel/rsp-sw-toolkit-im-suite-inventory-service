@@ -21,6 +21,7 @@ package statemodel
 
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"testing"
 	"time"
 
@@ -31,15 +32,16 @@ import (
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 var existingTagTime = time.Now()
 var newEventTagTime = existingTagTime.AddDate(0, 0, 1)
 
 var dbHost integrationtest.DBHost
+
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("statemodel_test")
 	os.Exit(m.Run())
@@ -1292,9 +1294,9 @@ func getHelperTag() tag.Tag {
 		TTL:             time.Unix(helper.UnixMilli(existingTagTime)/1000, 0)}
 }
 
-func getHelperTagEvent() tag.TagEvent {
+func getHelperTagEvent() jsonrpc.TagEvent {
 
-	return tag.TagEvent{
+	return jsonrpc.TagEvent{
 		EpcEncodeFormat: "tbd",
 		EpcCode:         "303402662C3A5F904C19939E",
 		EventType:       "arrival",

@@ -76,18 +76,6 @@ type LocationHistory struct {
 	Source    string `json:"source"`
 }
 
-// TagEvent is the model of the tag event received from gateway
-type TagEvent struct {
-	//nolint :golint
-	EpcCode         string `json:"epc_code"`
-	Tid             string `json:"tid"`
-	EpcEncodeFormat string `json:"epc_encode_format"`
-	FacilityID      string `json:"facility_id"`
-	Location        string `json:"location"`
-	EventType       string `json:"event_type,omitempty"`
-	Timestamp       int64  `json:"timestamp"`
-}
-
 // IsEqual compares 2 tag structures
 // nolint :gocyclo
 func (source Tag) IsEqual(target Tag) bool {

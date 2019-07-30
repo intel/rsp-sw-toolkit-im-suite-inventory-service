@@ -25,10 +25,10 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"reflect"
 	"time"
 )

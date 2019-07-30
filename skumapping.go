@@ -20,21 +20,19 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
-	"time"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"time"
 )
 
 // SkuMapping struct for the sku-mapping service
@@ -51,110 +49,91 @@ func NewSkuMapping(url string) SkuMapping {
 
 // processTagData inserts data from context sensing broker into database
 //nolint :gocyclo
-func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
+func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
 
 	mProcessTagLatency := metrics.GetOrRegisterTimer(`Inventory.ProcessTagData-Latency`, nil)
 	processTagTimer := time.Now()
 
-	log.Debugf("Received data:\n%s", string(jsonBytes))
+	var tagData []tag.Tag
+	var tagStateChangeList []tag.TagStateChange
 
-	var data map[string]interface{}
+	// todo: is below comment still valid?
+	// POC only implementation
+	currentTimeMillis := helper.UnixMilliNow()
 
-	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
-	if err := decoder.Decode(&data); err != nil {
-		return errors.Wrap(err, "unable to Decode data")
+	numberOfTags := len(invEvent.Params.Data)
+
+	if tagsGauge != nil {
+		(*tagsGauge).Add(int64(numberOfTags))
+	}
+	log.Debugf("Processing %d Tags.\n", numberOfTags)
+	tagsFiltered := 0
+	for _, tempTag := range invEvent.Params.Data {
+		if len(config.AppConfig.EpcFilters) > 0 {
+			// ignore tags that don't match our filters
+			if !statemodel.IsTagWhitelisted(tempTag.EpcCode, config.AppConfig.EpcFilters) {
+				continue
+			}
+		}
+
+		// todo: is below comment still valid?
+		// POC only implementation
+		markDepartedIfUnseen(&tempTag, config.AppConfig.AgeOuts, currentTimeMillis)
+
+		// Add source & event
+		if source == "handheld" {
+			tempTag.EventType = statemodel.ArrivalEvent
+		}
+
+		// Note: If bottlenecks may need to redesign to eliminate large number
+		// of queries to DB currently this will make a call to the DB PER tag
+		tagFromDB, err := tag.FindByEpc(masterDB, tempTag.EpcCode)
+
+		if err != nil {
+			return errors.Wrap(err, "Error retrieving tag from database")
+		}
+
+		updatedTag := statemodel.UpdateTag(tagFromDB, tempTag, source)
+
+		tagData = append(tagData, updatedTag)
+
+		var tagStateChange tag.TagStateChange
+		tagStateChange.PreviousState = tagFromDB
+		tagStateChange.CurrentState = updatedTag
+
+		if tagStateChange.PreviousState.IsEqual(tag.Tag{}) != true &&
+			tagStateChange.CurrentState.IsEqual(tag.Tag{}) != true {
+			tagStateChangeList = append(tagStateChangeList, tagStateChange)
+		}
+
+		log.Debug("Previous and Current Tag State:\n")
+		log.Debug(tagStateChange)
+
 	}
 
-	if tags, ok := data["data"].([]interface{}); !ok { //nolint: golint
-		return errors.New("Missing Data Field")
-	} else {
-		var tagData []tag.Tag
-		var tagStateChangeList []tag.TagStateChange
-		// POC only implementation
-		currentTimeMillis := helper.UnixMilliNow()
+	log.Debugf("Filtered %d Tags.", tagsFiltered)
 
-		numberOfTags := len(tags)
+	// If at least 1 tag passed the whitelist, then insert
+	if len(tagData) > 0 {
+		copySession := masterDB.CopySession()
+		defer copySession.Close()
 
-		if tagsGauge != nil {
-			(*tagsGauge).Add(int64(numberOfTags))
-		}
-		log.Debugf("Processing %d Tags.\n", numberOfTags)
-		tagsFiltered := 0
-		for _, t := range tags {
-			tagRecordBytes, _ := json.Marshal(t)
-			tempTag := tag.TagEvent{}
-			if err := json.Unmarshal(tagRecordBytes, &tempTag); err != nil {
-				return errors.Wrap(err, "unable to unmarshal")
-			}
-
-			if len(config.AppConfig.EpcFilters) > 0 {
-				// ignore tags that don't match our filters
-				if !statemodel.IsTagWhitelisted(tempTag.EpcCode, config.AppConfig.EpcFilters) {
-					continue
-				}
-			}
-
-			// POC only implementation
-			markDepartedIfUnseen(&tempTag, config.AppConfig.AgeOuts, currentTimeMillis)
-
-			// Add source & event
-			if source == "handheld" {
-				tempTag.EventType = statemodel.ArrivalEvent
-			}
-
-			// Note: If bottlenecks may need to redesign to eliminate large number
-			// of queries to DB currently this will make a call to the DB PER tag
-			tagFromDB, err := tag.FindByEpc(masterDB, tempTag.EpcCode)
-
-			if err != nil {
-				return errors.Wrap(err, "Error retrieving tag from database")
-			} else {
-
-				updatedTag := statemodel.UpdateTag(tagFromDB, tempTag, source)
-
-				tagData = append(tagData, updatedTag)
-
-				var tagStateChange tag.TagStateChange
-				tagStateChange.PreviousState = tagFromDB
-				tagStateChange.CurrentState = updatedTag
-
-				if tagStateChange.PreviousState.IsEqual(tag.Tag{}) != true &&
-					tagStateChange.CurrentState.IsEqual(tag.Tag{}) != true {
-					tagStateChangeList = append(tagStateChangeList, tagStateChange)
-				}
-
-				log.Debug("Previous and Current Tag State:\n")
-				log.Debug(tagStateChange)
-
-			}
+		if err := tag.Replace(copySession, &tagData); err != nil {
+			return errors.Wrap(err, "error replacing tags")
 		}
 
-		log.Debugf("Filtered %d Tags.", tagsFiltered)
-		// If at least 1 tag passed the whitelist, then insert
-		if len(tagData) > 0 {
-			copySession := masterDB.CopySession()
-			defer copySession.Close()
+		if err := handlers.ApplyConfidence(copySession, &tagData, skuMapping.url); err != nil {
+			return err
+		}
 
-			if err := tag.Replace(copySession, &tagData); err != nil {
-				return errors.Wrap(err, "error replacing tags")
-			}
+		handlers.UpdateForCycleCount(tagData)
 
-			// todo: why is this computing the confidence???
-			if err := handlers.ApplyConfidence(copySession, &tagData, skuMapping.url); err != nil {
-				return err
-			}
+		if config.AppConfig.CloudConnectorUrl != "" {
+			go sendToCloudConnector(invEvent, tagData)
+		}
 
-			handlers.UpdateForCycleCount(tagData)
-
-			if config.AppConfig.CloudConnectorUrl != "" {
-				if err := sendToCloudConnector(data, tagData); err != nil {
-					return errors.Wrap(err, "error sending to cloud connector")
-				}
-			}
-
-			if config.AppConfig.RulesUrl != "" {
-				go applyRules(source, tagStateChangeList)
-			}
+		if config.AppConfig.RulesUrl != "" {
+			go applyRules(source, tagStateChangeList)
 		}
 	}
 
@@ -163,26 +142,14 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 	return nil
 }
 
-func sendToCloudConnector(data map[string]interface{}, tagData []tag.Tag) error {
-	gatewayID, ok := data["gateway_id"].(string)
-	if !ok {
-		return errors.New("Missing Gateway ID")
+func sendToCloudConnector(invEvent *jsonrpc.InventoryEvent, tagData []tag.Tag) {
+	// todo: what else to put in here? seems like an old SAF bus artifact??
+	payload := event.DataPayload{
+		TagEvent: tagData,
 	}
-
-	var payload event.DataPayload
-	gatewayEventBytes, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	err = json.Unmarshal(gatewayEventBytes, &payload)
-	if err != nil {
-		log.Errorf("Problem unmarshalling the data.")
-		return err
-	}
-
 	triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
 
-	if err := event.TriggerCloudConnector(gatewayID, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
+	if err := event.TriggerCloudConnector(invEvent.Params.GatewayId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
 		// Must log here since in a go function, i.e. can't return the error.
 		log.WithFields(log.Fields{
 			"Method": "processTagData",
@@ -190,8 +157,6 @@ func sendToCloudConnector(data map[string]interface{}, tagData []tag.Tag) error 
 			"Error":  err.Error(),
 		}).Error(err)
 	}
-
-	return nil
 }
 
 func applyRules(source string, tagStateChangeList []tag.TagStateChange) {
@@ -217,4 +182,3 @@ func applyRules(source string, tagStateChangeList []tag.TagStateChange) {
 		}
 	}
 }
-

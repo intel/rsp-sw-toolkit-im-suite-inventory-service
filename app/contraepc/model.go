@@ -20,9 +20,10 @@
 package contraepc
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -60,7 +61,7 @@ type CreateContraEpcItem struct {
 // AsNewTag converts a contra-epc request item to a Tag object
 // by passing it through to the inventory state matrix
 func (item CreateContraEpcItem) AsNewTag() tag.Tag {
-	tagEvent := tag.TagEvent{
+	tagEvent := jsonrpc.TagEvent{
 		EpcCode:         item.Epc,
 		FacilityID:      item.FacilityID,
 		EpcEncodeFormat: EncodeFormat,

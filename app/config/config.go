@@ -39,7 +39,7 @@ const (
 
 type (
 	variables struct {
-		ServiceName, ConnectionString, DatabaseName, LoggingLevel, ZeroMQ, Port                        string
+		ServiceName, ConnectionString, DatabaseName, LoggingLevel, Port                                string
 		TelemetryEndpoint, TelemetryDataStoreName                                                      string
 		DailyInventoryPercentage, ProbUnreadToRead, ProbInStoreRead, ProbExitError                     float64 // Coefficients
 		EndpointConnectionTimedOutSeconds                                                              int
@@ -53,8 +53,6 @@ type (
 		ServerReadTimeOutSeconds                                                                       int
 		ServerWriteTimeOutSeconds                                                                      int
 		ResponseLimit                                                                                  int
-		SecureMode                                                                                     bool
-		SkipCertVerify                                                                                 bool
 		TriggerRulesOnFixedTags                                                                        bool
 		NewerHandheldHavePriority                                                                      bool
 		MappingSkuUrl                                                                                  string
@@ -105,11 +103,6 @@ func InitConfig() error {
 	}
 
 	AppConfig.DatabaseName, err = config.GetString("databaseName")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
-
-	AppConfig.ZeroMQ, err = config.GetString("zeroMQ")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
@@ -231,21 +224,12 @@ func InitConfig() error {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
-	AppConfig.SecureMode, err = config.GetBool("secureMode")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
 	AppConfig.TelemetryEndpoint, err = config.GetString("telemetryEndpoint")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
 	AppConfig.TelemetryDataStoreName, err = config.GetString("telemetryDataStoreName")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
-
-	AppConfig.SkipCertVerify, err = config.GetBool("skipCertVerify")
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}

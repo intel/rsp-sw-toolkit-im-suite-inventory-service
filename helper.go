@@ -20,18 +20,24 @@
 package main
 
 import (
-	"flag"
+	"encoding/json"
 	"fmt"
-	"os"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	golog "log"
+	"plugin"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
-	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/healthcheck"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
-		(*errorGauge).Update(1)
+		if errorGauge != nil {
+			(*errorGauge).Update(1)
+		}
 		log.WithFields(log.Fields{
 			"Method": "main",
 			"Error":  fmt.Sprintf("%+v", err),
@@ -41,7 +47,9 @@ func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 
 func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
-		(*errorGauge).Update(1)
+		if errorGauge != nil {
+			(*errorGauge).Update(1)
+		}
 		log.WithFields(log.Fields{
 			"Method": "main",
 			"Error":  fmt.Sprintf("%+v", err),
@@ -49,14 +57,73 @@ func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	}
 }
 
-func healthCheck(port string) {
+func verifyProbabilisticPlugin() {
+	retry := 1
+	pluginFound := false
 
-	isHealthyPtr := flag.Bool("isHealthy", false, "a bool, runs a healthcheck")
-	flag.Parse()
+	for retry < 10 {
 
-	if *isHealthyPtr {
-		status := healthcheck.Healthcheck(port)
-		os.Exit(status)
+		log.Infof("Loading proprietary Intel Probabilistic Algorithm plugin (Retry %d)", retry)
+		probPlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
+		if err == nil {
+			pluginFound = true
+			checkIA, err := probPlugin.Lookup("CheckIA")
+			if err != nil {
+				log.Errorf("Unable to find checkIA function in probabilistic algorithm plugin")
+				break
+			}
+
+			if err := checkIA.(func() error)(); err != nil {
+				log.Warnf("Unable to verify Intel Architecture, Confidence value will be set to 0. Error: %s", err.Error())
+				break
+			}
+
+			log.Info("Intel Probabilistic Algorithm plugin loaded.")
+			break
+		}
+		log.Warn(err)
+		time.Sleep(1 * time.Second)
+		retry++
 	}
 
+	if !pluginFound {
+		log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
+	}
+}
+
+func decodeJsonRpc(reading *models.Reading, js jsonrpc.Message, errorGauge *metrics.Gauge) error {
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
+	decoder.UseNumber()
+
+	if err := decoder.Decode(js); err != nil {
+		errorHandler("error decoding jsonrpc messaage", err, errorGauge)
+		return err
+	}
+
+	if err := js.Validate(); err != nil {
+		errorHandler("error validating jsonrpc messaage", err, errorGauge)
+		return err
+	}
+
+	return nil
+}
+
+func setLoggingLevel(loggingLevel string) {
+	switch strings.ToLower(loggingLevel) {
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "trace":
+		log.SetLevel(log.TraceLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+
+	// Not using filtered func (Info, etc ) so that message is always logged
+	golog.Printf("Logging level set to %s\n", loggingLevel)
 }

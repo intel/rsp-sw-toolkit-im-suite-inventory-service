@@ -62,29 +62,3 @@ type previousTag struct {
 	state          TagState
 	direction      TagDirection
 }
-
-type TagRead struct {
-	Epc        string `json:"epc"`
-	Tid        string `json:"tid"`
-	AntennaId  int    `json:"antenna_id"`
-	LastReadOn int64  `json:"last_read_on"`
-	Rssi       int    `json:"rssi"`
-	Phase      int    `json:"phase"`
-	Frequency  int    `json:"frequency"`
-}
-
-type gpsLocation struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Altitude  float64 `json:"altitude"`
-}
-
-type PeriodicInventoryData struct {
-	SentOn         int64       `json:"sent_on"`
-	Period         int         `json:"period"`
-	DeviceId       string      `json:"device_id"`
-	Location       gpsLocation `json:"location"`
-	FacilityId     string      `json:"facility_id"`
-	MotionDetected bool        `json:"motion_detected"`
-	Data           []TagRead   `json:"data"`
-}
