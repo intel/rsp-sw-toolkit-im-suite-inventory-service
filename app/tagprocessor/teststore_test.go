@@ -2,6 +2,7 @@ package tagprocessor
 
 import (
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"sync/atomic"
 )
 
@@ -56,10 +57,10 @@ func generateTestSensor(facilityId string, personality Personality) *RfidSensor 
 	}
 }
 
-func generateReadData(lastRead int64) *TagRead {
+func generateReadData(lastRead int64) *jsonrpc.TagRead {
 	serial := atomic.AddUint32(&tagSerialCounter, 1)
 
-	return &TagRead{
+	return &jsonrpc.TagRead{
 		Epc:        fmt.Sprintf("EPC%06d", serial),
 		Tid:        fmt.Sprintf("TID%06d", serial),
 		Frequency:  defaultFrequency,

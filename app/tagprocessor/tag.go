@@ -1,5 +1,7 @@
 package tagprocessor
 
+import "github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+
 type Tag struct {
 	Epc string
 	Tid string
@@ -44,7 +46,7 @@ func (tag *Tag) asPreviousTag() previousTag {
 	}
 }
 
-func (tag *Tag) update(sensor *RfidSensor, read *TagRead, weighter *rssiAdjuster) {
+func (tag *Tag) update(sensor *RfidSensor, read *jsonrpc.TagRead, weighter *rssiAdjuster) {
 	// todo: double check the implementation on this code
 	// todo: it may not be complete
 

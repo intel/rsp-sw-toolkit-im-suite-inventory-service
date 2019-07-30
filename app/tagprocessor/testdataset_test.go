@@ -3,12 +3,13 @@ package tagprocessor
 import (
 	"errors"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"strings"
 )
 
 type testDataset struct {
-	tagReads     []*TagRead
+	tagReads     []*jsonrpc.TagRead
 	tags         []*Tag
 	readTimeOrig int64
 }
@@ -21,7 +22,7 @@ func newTestDataset(tagCount int) testDataset {
 
 // will generate tagread objects but NOT ingest them yet
 func (ds *testDataset) initialize(tagCount int) {
-	ds.tagReads = make([]*TagRead, tagCount)
+	ds.tagReads = make([]*jsonrpc.TagRead, tagCount)
 	ds.tags = make([]*Tag, tagCount)
 	ds.readTimeOrig = helper.UnixMilliNow()
 

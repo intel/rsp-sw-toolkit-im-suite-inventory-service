@@ -1,5 +1,7 @@
 package tagprocessor
 
+import "github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+
 type TagStats struct {
 	LastRead     int64
 	readInterval *CircularBuffer
@@ -13,7 +15,7 @@ func NewTagStats() *TagStats {
 	}
 }
 
-func (stats *TagStats) update(read *TagRead) {
+func (stats *TagStats) update(read *jsonrpc.TagRead) {
 	if stats.LastRead != 0 {
 		stats.readInterval.AddValue(float64(read.LastReadOn - stats.LastRead))
 	}
