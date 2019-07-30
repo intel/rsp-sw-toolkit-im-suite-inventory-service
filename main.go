@@ -478,7 +478,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		}
 
 		// Filter data by value descriptors
-		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, gatewayHeartbeat}
+		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, gatewayHeartbeat, inventoryData}
 
 		edgexSdk.SetFunctionsPipeline(
 			edgexSdk.ValueDescriptorFilter(valueDescriptors),
@@ -579,6 +579,8 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			break
 
 		case inventoryData:
+			log.Debugf("Received inventory_data message. msglen=%d\n", len(reading.Value))
+
 			invData := new(jsonrpc.InventoryData)
 			if err := decodeJsonRpc(&reading, invData, &mRRSRawDataProcessingError); err != nil {
 				return false, err
