@@ -29,16 +29,12 @@ COPY --from=builder /usr/lib/libgcc_s.so.1 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42 /usr/lib/
 COPY --from=builder /usr/lib/libcrypto.so.42.0.0 /usr/lib/
 
-# Adding lscpu (required by Probabilistic plugin)
-COPY --from=builder /lib/libsmartcols.so.1 /lib
-COPY --from=builder /usr/bin/lscpu /usr/bin/
-
 # CURL libraries
 COPY --from=builder /usr/bin/curl /usr/bin/
 COPY --from=builder /rootfs/curl /
 
 ADD inventory-service /
-ADD res/docker/ /res
+ADD res/docker/ /res/docker
 
 ARG GIT_COMMIT=unspecified
 LABEL git_commit=$GIT_COMMIT
