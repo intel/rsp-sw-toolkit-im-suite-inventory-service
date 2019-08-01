@@ -24,10 +24,10 @@ import (
 	"github.com/globalsign/mgo/bson"
 	"github.com/pkg/errors"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"math"
 	"os"
 	"reflect"
@@ -41,6 +41,7 @@ var (
 )
 
 var dbHost integrationtest.DBHost
+
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("dailyturn_test")
 	os.Exit(m.Run())

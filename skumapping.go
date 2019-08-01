@@ -20,9 +20,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"time"
 
 	"github.com/pkg/errors"
@@ -50,45 +50,26 @@ func NewSkuMapping(url string) SkuMapping {
 
 // processTagData inserts data from context sensing broker into database
 //nolint :gocyclo
-func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
+func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
 
 	mProcessTagLatency := metrics.GetOrRegisterTimer(`Inventory.ProcessTagData-Latency`, nil)
 	processTagTimer := time.Now()
 
-	log.Debugf("Received data:\n%s", string(jsonBytes))
-
-	var data map[string]interface{}
-
-	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
-	if err := decoder.Decode(&data); err != nil {
-		return errors.Wrap(err, "unable to Decode data")
-	}
-
-	var tags []interface{}
-	var ok bool
-
-	if tags, ok = data["data"].([]interface{}); !ok { //nolint: golint
-		return errors.New("Missing Data Field")
-	}
 	var tagData []tag.Tag
 	var tagStateChangeList []tag.TagStateChange
-	// POC only implementation
-	currentTimeMillis := time.Now().UnixNano() / 1000000
 
-	numberOfTags := len(tags)
+	// todo: is below comment still valid?
+	// POC only implementation
+	currentTimeMillis := helper.UnixMilliNow()
+
+	numberOfTags := len(invEvent.Params.Data)
 
 	if tagsGauge != nil {
 		(*tagsGauge).Add(int64(numberOfTags))
 	}
 	log.Debugf("Processing %d Tags.\n", numberOfTags)
 	tagsFiltered := 0
-	for _, t := range tags {
-		tagRecordBytes, _ := json.Marshal(t)
-		tempTag := tag.TagEvent{}
-		if err := json.Unmarshal(tagRecordBytes, &tempTag); err != nil {
-			return errors.Wrap(err, "unable to unmarshal")
-		}
-
+	for _, tempTag := range invEvent.Params.Data {
 		if len(config.AppConfig.EpcFilters) > 0 {
 			// ignore tags that don't match our filters
 			if !statemodel.IsTagWhitelisted(tempTag.EpcCode, config.AppConfig.EpcFilters) {
@@ -96,6 +77,7 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 			}
 		}
 
+		// todo: is below comment still valid?
 		// POC only implementation
 		markDepartedIfUnseen(&tempTag, config.AppConfig.AgeOuts, currentTimeMillis)
 
@@ -131,6 +113,7 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 	}
 
 	log.Debugf("Filtered %d Tags.", tagsFiltered)
+
 	// If at least 1 tag passed the whitelist, then insert
 	if len(tagData) > 0 {
 		copySession := masterDB.CopySession()
@@ -146,25 +129,13 @@ func (skuMapping SkuMapping) processTagData(jsonBytes []byte, masterDB *db.DB, s
 		handlers.UpdateForCycleCount(tagData)
 
 		if config.AppConfig.CloudConnectorUrl != "" {
-			gatewayID, ok := data["gateway_id"].(string)
-			if !ok {
-				return errors.New("Missing Gateway ID")
+			// todo: what else to put in here? seems like an old SAF bus artifact??
+			payload := event.DataPayload{
+				TagEvent: tagData,
 			}
-
-			var payload event.DataPayload
-			gatewayEventBytes, err := json.Marshal(data)
-			if err != nil {
-				return err
-			}
-			err = json.Unmarshal(gatewayEventBytes, &payload)
-			if err != nil {
-				log.Errorf("Problem unmarshalling the data.")
-				return err
-			}
-
 			triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
 
-			if err := event.TriggerCloudConnector(gatewayID, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
+			if err := event.TriggerCloudConnector(invEvent.Params.GatewayId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
 				// Must log here since in a go function, i.e. can't return the error.
 				log.WithFields(log.Fields{
 					"Method": "processTagData",

@@ -22,18 +22,22 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	golog "log"
 	"plugin"
+	"strings"
 	"time"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	metrics "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
-		(*errorGauge).Update(1)
+		if errorGauge != nil {
+			(*errorGauge).Update(1)
+		}
 		log.WithFields(log.Fields{
 			"Method": "main",
 			"Error":  fmt.Sprintf("%+v", err),
@@ -43,31 +47,13 @@ func errorHandler(message string, err error, errorGauge *metrics.Gauge) {
 
 func fatalErrorHandler(message string, err error, errorGauge *metrics.Gauge) {
 	if err != nil {
-		(*errorGauge).Update(1)
+		if errorGauge != nil {
+			(*errorGauge).Update(1)
+		}
 		log.WithFields(log.Fields{
 			"Method": "main",
 			"Error":  fmt.Sprintf("%+v", err),
 		}).Fatal(message)
-	}
-}
-
-func handleMessage(dataType string, data *map[string]interface{}, errGauge *metrics.Gauge, handler func([]byte) error) {
-	if data == nil {
-		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
-			errors.New("ItemData was nil"), errGauge)
-		return
-	}
-
-	jsonBytes, err := json.Marshal(data)
-	if err != nil {
-		errorHandler(fmt.Sprintf("unable to marshal %s data", dataType),
-			err, errGauge)
-		return
-	}
-
-	if err := handler(jsonBytes); err != nil {
-		errorHandler(fmt.Sprintf("error processing %s data", dataType),
-			err, errGauge)
 	}
 }
 
@@ -105,14 +91,39 @@ func verifyProbabilisticPlugin() {
 	}
 }
 
-func parseReadingValue(read *models.Reading) (*reading, error) {
+func decodeJsonRpc(reading *models.Reading, js jsonrpc.Message, errorGauge *metrics.Gauge) error {
+	decoder := json.NewDecoder(strings.NewReader(reading.Value))
+	decoder.UseNumber()
 
-	readingObj := reading{}
-
-	if err := json.Unmarshal([]byte(read.Value), &readingObj); err != nil {
-		return nil, err
+	if err := decoder.Decode(js); err != nil {
+		errorHandler("error decoding jsonrpc messaage", err, errorGauge)
+		return err
 	}
 
-	return &readingObj, nil
+	if err := js.Validate(); err != nil {
+		errorHandler("error validating jsonrpc messaage", err, errorGauge)
+		return err
+	}
 
+	return nil
+}
+
+func setLoggingLevel(loggingLevel string) {
+	switch strings.ToLower(loggingLevel) {
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+	case "trace":
+		log.SetLevel(log.TraceLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+
+	// Not using filtered func (Info, etc ) so that message is always logged
+	golog.Printf("Logging level set to %s\n", loggingLevel)
 }

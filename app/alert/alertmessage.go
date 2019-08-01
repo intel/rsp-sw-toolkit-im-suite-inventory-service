@@ -39,11 +39,11 @@ const (
 
 // Alert value for cloud which does not include gateway_id
 type Alert struct {
-	SentOn           int64       `json:"sent_on"`
-	AlertNumber      int         `json:"alert_number"`
-	AlertDescription string      `json:"alert_description"`
-	Severity         string      `json:"severity"`
-	Optional         interface{} `json:"optional"`
+	SentOn      int64       `json:"sent_on"`
+	Number      int         `json:"alert_number"`
+	Description string      `json:"alert_description"`
+	Severity    string      `json:"severity"`
+	Optional    interface{} `json:"optional"`
 }
 
 // MessagePayload is the json data to alertmessage endpoint of RFID-alert-service
@@ -57,11 +57,11 @@ type MessagePayload struct {
 func (payload *MessagePayload) generateDeleteTagCollectionDoneMessage() ([]byte, error) {
 	payload.Application = config.AppConfig.ServiceName
 	payload.Value = Alert{
-		SentOn:           helper.UnixMilliNow(),
-		AlertNumber:      InventoryUnload,
-		AlertDescription: "Deletion of inventory DB tag collection is done",
-		Severity:         "info",
-		Optional:         "",
+		SentOn:      helper.UnixMilliNow(),
+		Number:      InventoryUnload,
+		Description: "Deletion of inventory DB tag collection is done",
+		Severity:    "info",
+		Optional:    "",
 	}
 
 	alertMessageBytes, err := json.Marshal(payload)
@@ -89,11 +89,11 @@ func (payload *MessagePayload) SendDeleteTagCompletionAlertMessage() error {
 func (payload *MessagePayload) generateSendEventFailedAlertMessage(cloudConnectorPostURL string) ([]byte, error) {
 	payload.Application = config.AppConfig.ServiceName
 	payload.Value = Alert{
-		SentOn:           helper.UnixMilliNow(),
-		AlertNumber:      SendEventFailed,
-		AlertDescription: "Unable to send the processed event to the cloud connector",
-		Severity:         "critical",
-		Optional:         fmt.Sprintf("cloudConnectorPostURL: %s", cloudConnectorPostURL),
+		SentOn:      helper.UnixMilliNow(),
+		Number:      SendEventFailed,
+		Description: "Unable to send the processed event to the cloud connector",
+		Severity:    "critical",
+		Optional:    fmt.Sprintf("cloudConnectorPostURL: %s", cloudConnectorPostURL),
 	}
 
 	alertMessageBytes, err := json.Marshal(payload)

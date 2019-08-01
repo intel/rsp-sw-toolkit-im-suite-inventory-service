@@ -29,11 +29,11 @@ import (
 	"github.com/globalsign/mgo/bson"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/mongo"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/mongo"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 const (

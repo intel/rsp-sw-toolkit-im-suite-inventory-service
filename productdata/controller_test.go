@@ -42,7 +42,7 @@ func TestSkuMapping_TimeOut(t *testing.T) {
 		t.Skip("skipping timeout test")
 	}
 	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(time.Duration(config.AppConfig.EndpointConnectionTimedOutSeconds) * time.Second + 10 * time.Millisecond)
+		time.Sleep(time.Duration(config.AppConfig.EndpointConnectionTimedOutSeconds)*time.Second + 10*time.Millisecond)
 	}))
 
 	defer testServer.Close()

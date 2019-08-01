@@ -25,12 +25,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
-	golog "log"
+
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"time"
 
@@ -46,7 +47,6 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
@@ -60,15 +60,11 @@ const (
 )
 
 const (
-	eventTopic     = "rfid/gw/events"
-	alertTopic     = "rfid/gw/alerts"
-	heartBeatTopic = "rfid/gw/heartbeat"
+	asnData          = "ASN_data"
+	inventoryEvent   = "inventory_event"
+	deviceAlert      = "device_alert"
+	gatewayHeartbeat = "gateway_heartbeat"
 )
-
-type reading struct {
-	Topic  string                 `json:"topic"`
-	Params map[string]interface{} `json:"params"`
-}
 
 type myDB struct {
 	masterDB *db.DB
@@ -196,62 +192,17 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 	wg.Wait()
 }
 
-func processHeartBeat(jsonBytes []byte, masterDB *db.DB) error {
-
-	log.Debugf("Received Heartbeat:\n%s", string(jsonBytes))
-
-	var data map[string]interface{}
-	decoder := json.NewDecoder(bytes.NewBuffer(jsonBytes))
-	decoder.UseNumber()
-
-	if err := decoder.Decode(&data); err != nil {
-		return errors.Wrap(err, "Error decoding HeartBeat")
-	}
-
-	facilities, ok := data["facilities"].([]interface{})
-	if !ok {
-		return errors.New("Not able to cast heartbeat data")
-	}
-	//noinspection GoPreferNilSlice
-	facilityData := []facility.Facility{}
-
-	for _, f := range facilities {
-		name := f.(string)
-		facilityData = append(facilityData, facility.Facility{Name: name})
-	}
-
-	copySession := masterDB.CopySession()
-
-	// Default coefficients
-	var coefficients facility.Coefficients
-	coefficients.DailyInventoryPercentage = config.AppConfig.DailyInventoryPercentage
-	coefficients.ProbUnreadToRead = config.AppConfig.ProbUnreadToRead
-	coefficients.ProbInStoreRead = config.AppConfig.ProbInStoreRead
-	coefficients.ProbExitError = config.AppConfig.ProbExitError
-
-	// Insert facilities to database and set default coefficients if new facility is inserted
-	if err := facility.Insert(copySession, &facilityData, coefficients); err != nil {
-		copySession.Close()
-		return errors.Wrap(err, "Error replacing facilities")
-	}
-	copySession.Close()
-
-	return nil
-}
-
 // processShippingNotice processes the list of epcs (shipping notice).  If the epc does not exist in the DB
 // an entry is created with a default facility config.AppConfig.AdvancedShippingNoticeFacilityID,
 // a ttl of now, and epc context of the designated value to identify it as a shipping notice
 // config.AppConfig.AdvancedShippingNotice.  If the epc does exist, then only epc context value is updated
 // with config.AppConfig.AdvancedShippingNotice
-func processShippingNotice(jsonBytes []byte, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
-
-	log.Debugf("Received data:\n%s", string(jsonBytes))
+func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
 
 	var incomingDataSlice []tag.AdvanceShippingNotice
-	err := json.Unmarshal(jsonBytes, &incomingDataSlice)
-	if err != nil {
-		return errors.Wrap(err, "unable to unmarshal data")
+	decoder := json.NewDecoder(bytes.NewBuffer(data))
+	if err := decoder.Decode(&incomingDataSlice); err != nil {
+		return errors.Wrap(err, "unable to Decode data")
 	}
 
 	copySession := masterDB.CopySession()
@@ -486,7 +437,7 @@ func triggerRules(triggerRulesEndpoint string, data interface{}) error {
 }
 
 // POC only implementation
-func markDepartedIfUnseen(tag *tag.TagEvent, ageOuts map[string]int, currentTimeMillis int64) {
+func markDepartedIfUnseen(tag *jsonrpc.TagEvent, ageOuts map[string]int, currentTimeMillis int64) {
 	if tag.EventType == "cycle_count" {
 		if minutes, ok := ageOuts[tag.FacilityID]; ok {
 			if tag.Timestamp+int64(minutes*60*1000) <= currentTimeMillis {
@@ -525,7 +476,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		}
 
 		// Filter data by value descriptors
-		valueDescriptors := []string{"ASN_data", "gwevent"}
+		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, gatewayHeartbeat}
 
 		edgexSdk.SetFunctionsPipeline(
 			edgexSdk.ValueDescriptorFilter(valueDescriptors),
@@ -542,6 +493,14 @@ func receiveZMQEvents(masterDB *db.DB) {
 }
 
 func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
+	if len(params) < 1 {
+		return false, nil
+	}
+
+	event := params[0].(models.Event)
+	if len(event.Readings) < 1 {
+		return false, nil
+	}
 
 	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatReceived", nil)
 	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatError", nil)
@@ -551,108 +510,99 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSResetEventReceived", nil)
 	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
 
-	if len(params) < 1 {
-		return false, nil
-	}
-
 	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
-	event := params[0].(models.Event)
+	for _, reading := range event.Readings {
+		switch reading.Name {
 
-	if len(event.Readings) < 1 {
-		return false, nil
-	}
+		case asnData:
+			data, err := base64.StdEncoding.DecodeString(reading.Value)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"Method": "receiveZMQEvents",
+					"Action": "ASN data ingestion",
+					"Error":  err.Error(),
+				}).Error("error decoding base64 value")
+				return false, err
+			}
 
-	parsedReading, err := parseReadingValue(&event.Readings[0])
-	if err != nil {
-		log.WithFields(log.Fields{"Method": "parseReadingValue"}).Error(err.Error())
-		return false, nil
-	}
+			logrus.Debugf("ASN data received: %s", string(data))
 
-	if event.Readings[0].Name == "ASN_data" {
+			if err := processShippingNotice(data, db.masterDB, &mRRSASNEpcs); err != nil {
+				log.WithFields(log.Fields{
+					"Method": "processShippingNotice",
+					"Action": "ASN data ingestion",
+					"Error":  err.Error(),
+				}).Error("error processing ASN data")
+				return false, err
+			}
+			mRRSASNEpcs.Add(1)
 
-		logrus.Debugf(fmt.Sprintf("ASN data received: %s", event))
-		data, err := base64.StdEncoding.DecodeString(event.Readings[0].Value)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"Method": "receiveZMQEvents",
-				"Action": "ASN data ingestion",
-				"Error":  err.Error(),
-			}).Error("error decoding base64 value")
-			return false, nil
-		}
-		if err := processShippingNotice(data, db.masterDB, &mRRSASNEpcs); err != nil {
-			log.WithFields(log.Fields{
-				"Method": "processShippingNotice",
-				"Action": "ASN data ingestion",
-				"Error":  err.Error(),
-			}).Error("error processing ASN data")
-			return false, nil
-		}
-		mRRSASNEpcs.Add(1)
+			break
 
-		return false, nil
-	}
+		case gatewayHeartbeat:
+			mRRSHeartbeatReceived.Update(1)
 
-	switch parsedReading.Topic {
-	case heartBeatTopic:
-		mRRSHeartbeatReceived.Update(1)
-		handleMessage("heartbeat", &parsedReading.Params, &mRRSHeartbeatProcessingError,
-			func(jsonBytes []byte) error { return processHeartBeat(jsonBytes, db.masterDB) })
-	case eventTopic:
-		go func(params *reading) {
-			handleMessage("fixed", &parsedReading.Params, &mRRSEventsProcessingError,
-				func(jsonBytes []byte) error {
-					return skuMapping.processTagData(jsonBytes, db.masterDB,
-						"fixed", &mRRSEventsTags)
-				})
-		}(parsedReading)
-	case alertTopic:
-		handleMessage("RRS Alert data", &parsedReading.Params, &mRRSAlertError,
-			func(jsonBytes []byte) error {
-				rrsAlert := alert.NewRRSAlert(jsonBytes)
-				err := rrsAlert.ProcessAlert()
+			logrus.Debugf("Received Heartbeat:\n%s", reading.Value)
+
+			hb := new(jsonrpc.Heartbeat)
+			if err := decodeJsonRpc(&reading, hb, &mRRSHeartbeatProcessingError); err != nil {
+				return false, nil
+			}
+
+			if err := heartbeat.ProcessHeartbeat(hb, db.masterDB); err != nil {
+				errorHandler("error processing heartbeat data", err, &mRRSHeartbeatProcessingError)
+				return false, err
+			}
+
+			break
+
+		case inventoryEvent:
+			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
+
+				log.Debugf("Received tag event data:\n%s", reading.Value)
+
+				invEvent := new(jsonrpc.InventoryEvent)
+				if err := decodeJsonRpc(reading, invEvent, errorGauge); err != nil {
+					return
+				}
+
+				err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
 				if err != nil {
-					return err
+					errorHandler("error processing event data", err, errorGauge)
 				}
 
-				if rrsAlert.IsInventoryUnloadAlert() {
-					mRRSResetEventReceived.Add(1)
-					go func() {
-						err := callDeleteTagCollection(db.masterDB)
-						errorHandler("error calling delete tag collection",
-							err, &mRRSEventsProcessingError)
+			}(&reading, &mRRSEventsProcessingError, &mRRSEventsTags)
+			break
 
-						if err == nil {
-							alertMessage := new(alert.MessagePayload)
-							if sendErr := alertMessage.SendDeleteTagCompletionAlertMessage(); sendErr != nil {
-								errorHandler("error sending alert message for delete tag collection", sendErr, &mRRSEventsProcessingError)
-							}
-						}
-					}()
-				}
+		case deviceAlert:
+			log.Debugf("Received device alert data:\n%s", reading.Value)
 
-				return nil
-			})
+			rrsAlert, err := alert.ProcessAlert(&reading)
+			if err != nil {
+				errorHandler("error processing device alert data", err, &mRRSAlertError)
+				return false, err
+			}
+
+			if rrsAlert.IsInventoryUnloadAlert() {
+				mRRSResetEventReceived.Add(1)
+				go func(errorGauge *metrics.Gauge) {
+					err := callDeleteTagCollection(db.masterDB)
+					if err != nil {
+						errorHandler("error calling delete tag collection", err, errorGauge)
+						return
+					}
+
+					alertMessage := new(alert.MessagePayload)
+					if err := alertMessage.SendDeleteTagCompletionAlertMessage(); err != nil {
+						errorHandler("error sending alert message for delete tag collection", err, errorGauge)
+					}
+				}(&mRRSEventsProcessingError)
+			}
+
+			break
+		}
 	}
 
 	return false, nil
-}
-
-func setLoggingLevel(loggingLevel string) {
-	switch strings.ToLower(loggingLevel) {
-	case "error":
-		log.SetLevel(log.ErrorLevel)
-	case "warn":
-		log.SetLevel(log.WarnLevel)
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-	default:
-		log.SetLevel(log.InfoLevel)
-	}
-
-	// Not using filtered func (Info, etc ) so that message is always logged
-	golog.Printf("Logging level set to %s\n", loggingLevel)
 }
