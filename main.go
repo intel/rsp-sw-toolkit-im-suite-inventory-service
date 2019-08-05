@@ -586,8 +586,19 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				return false, err
 			}
 
-			if err := tagprocessor.ProcessInventoryData(invData); err != nil {
+			invEvent, err := tagprocessor.ProcessInventoryData(invData)
+			if err != nil {
 				return false, err
+			}
+
+			// ingest tag events
+			if !invEvent.IsEmpty() {
+				go func(invEvent *jsonrpc.InventoryEvent, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
+					err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
+					if err != nil {
+						errorHandler("error processing event data", err, errorGauge)
+					}
+				}(invEvent, &mRRSEventsProcessingError, &mRRSEventsTags)
 			}
 
 			break

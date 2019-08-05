@@ -34,7 +34,7 @@ restart:
 	$(call wait_for_service, start)
 
 tail:
-	$(call log,-f,$(args))
+	$(call log,-f --tail 10,$(args))
 
 scale:
 	$(call scale,$(n),$(args))

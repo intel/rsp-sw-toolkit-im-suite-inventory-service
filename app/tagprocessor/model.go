@@ -31,15 +31,15 @@ const (
 	FittingRoom   Personality = "FittingRoom"
 )
 
-type TagEvent string
+type Event string
 
 const (
-	NoEvent    TagEvent = "none"
-	Arrival    TagEvent = "arrival"
-	Moved      TagEvent = "moved"
-	Departed   TagEvent = "departed"
-	Returned   TagEvent = "returned"
-	CycleCount TagEvent = "cycle_count"
+	NoEvent    Event = "none"
+	Arrival    Event = "arrival"
+	Moved      Event = "moved"
+	Departed   Event = "departed"
+	Returned   Event = "returned"
+	CycleCount Event = "cycle_count"
 )
 
 type Waypoint struct {

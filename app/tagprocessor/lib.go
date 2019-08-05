@@ -18,10 +18,12 @@ var (
 	weighter = newRssiAdjuster()
 
 	inventoryMutex = &sync.Mutex{}
+	sensorMutex    = &sync.Mutex{}
 )
 
 const (
-	unknown = "UNKNOWN"
+	unknown         = "UNKNOWN"
+	epcEncodeFormat = "tbd"
 )
 
 // TODO: Clear exiting tags on run state change notification from the gateway?
@@ -32,24 +34,29 @@ const (
 //}
 
 // ProcessInventoryData todo: desc
-func ProcessInventoryData(invData *jsonrpc.InventoryData) error {
+func ProcessInventoryData(invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
 	sensor := lookupSensor(invData.Params.DeviceId)
 	facId := invData.Params.FacilityId
 
 	if sensor.FacilityId != facId {
-		logrus.Debugf("Updating sensor %s facilityId to %s", sensor.DeviceId, facId)
+		logrus.Debugf("Updating sensor %s facilityId to %s.\nSensor Map: %#v", sensor.DeviceId, facId, rfidSensors)
 		sensor.FacilityId = facId
 	}
 
+	invEvent := jsonrpc.NewInventoryEvent()
+
 	for _, read := range invData.Params.Data {
 		// todo: handle error?
-		processReadData(&read, sensor)
+		processReadData(invEvent, &read, sensor)
 	}
 
-	return nil
+	return invEvent, nil
 }
 
 func lookupSensor(deviceId string) *RfidSensor {
+	sensorMutex.Lock()
+	defer sensorMutex.Unlock()
+
 	sensor, found := rfidSensors[deviceId]
 
 	if !found {
@@ -60,7 +67,7 @@ func lookupSensor(deviceId string) *RfidSensor {
 	return sensor
 }
 
-func processReadData(read *jsonrpc.TagRead, sensor *RfidSensor) {
+func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, sensor *RfidSensor) {
 	if sensor.minRssiDbm10X != 0 && read.Rssi < sensor.minRssiDbm10X {
 		return
 	}
@@ -88,28 +95,28 @@ func processReadData(read *jsonrpc.TagRead, sensor *RfidSensor) {
 		}
 
 		tag.setState(Present)
-		sendEvent(tag, Arrival)
+		addEvent(invEvent, tag, Arrival)
 		break
 
 	case Present:
 		if sensor.Personality == POS {
-			if !checkDepartPOS(tag) {
-				checkMovement(tag, &prev)
+			if !checkDepartPOS(invEvent, tag) {
+				checkMovement(invEvent, tag, &prev)
 			}
 		} else {
 			checkExiting(sensor, tag)
-			checkMovement(tag, &prev)
+			checkMovement(invEvent, tag, &prev)
 		}
 		break
 
 	case Exiting:
 		if sensor.Personality == POS {
-			checkDepartPOS(tag)
+			checkDepartPOS(invEvent, tag)
 		} else {
 			if sensor.Personality != Exit && sensor.DeviceId == tag.DeviceLocation {
 				tag.setState(Present)
 			}
-			checkMovement(tag, &prev)
+			checkMovement(invEvent, tag, &prev)
 		}
 		break
 
@@ -118,7 +125,7 @@ func processReadData(read *jsonrpc.TagRead, sensor *RfidSensor) {
 			break
 		}
 
-		doTagReturn(tag, &prev)
+		doTagReturn(invEvent, tag, &prev)
 		checkExiting(sensor, tag)
 		break
 
@@ -130,7 +137,7 @@ func processReadData(read *jsonrpc.TagRead, sensor *RfidSensor) {
 		// Such a tag must remain in the DEPARTED state for
 		// a configurable amount of time (i.e. 1 day)
 		if tag.LastDeparted < (tag.LastRead - int64(config.AppConfig.PosReturnThresholdMillis)) {
-			doTagReturn(tag, &prev)
+			doTagReturn(invEvent, tag, &prev)
 			checkExiting(sensor, tag)
 		}
 		break
@@ -139,14 +146,14 @@ func processReadData(read *jsonrpc.TagRead, sensor *RfidSensor) {
 	inventoryMutex.Unlock()
 }
 
-func checkDepartPOS(tag *Tag) bool {
+func checkDepartPOS(invEvent *jsonrpc.InventoryEvent, tag *Tag) bool {
 	// if tag is ever read by a POS, it immediately generates a departed event
 	// as long as it has been seen by our system for a minimum period of time first
 	expiration := tag.LastRead - int64(config.AppConfig.PosDepartedThresholdMillis)
 
 	if tag.LastArrived < expiration {
 		tag.setState(DepartedPos)
-		sendEvent(tag, Departed)
+		addEvent(invEvent, tag, Departed)
 		logrus.Debugf("Departed POS: %v", tag)
 		return true
 	}
@@ -154,14 +161,14 @@ func checkDepartPOS(tag *Tag) bool {
 	return false
 }
 
-func checkMovement(tag *Tag, prev *previousTag) {
+func checkMovement(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag) {
 	if prev.location != "" && prev.location != tag.Location {
 		if prev.facilityId != "" && prev.facilityId != tag.FacilityId {
 			// change facility (depart old facility, arrive new facility)
-			sendEventDetails(tag.Epc, tag.Tid, prev.location, prev.facilityId, Departed, prev.lastRead)
-			sendEvent(tag, Arrival)
+			addEventDetails(invEvent, tag.Epc, tag.Tid, prev.location, prev.facilityId, Departed, prev.lastRead)
+			addEvent(invEvent, tag, Arrival)
 		} else {
-			sendEvent(tag, Moved)
+			addEvent(invEvent, tag, Moved)
 		}
 	}
 }
@@ -198,11 +205,11 @@ func addExiting(facilityId string, tag *Tag) {
 	}
 }
 
-func doTagReturn(tag *Tag, prev *previousTag) {
+func doTagReturn(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag) {
 	if prev.facilityId != "" && prev.facilityId == tag.FacilityId {
-		sendEvent(tag, Returned)
+		addEvent(invEvent, tag, Returned)
 	} else {
-		sendEvent(tag, Arrival)
+		addEvent(invEvent, tag, Arrival)
 	}
 	tag.setState(Present)
 }
@@ -236,6 +243,8 @@ func doAggregateDepartedTask() {
 
 	inventoryMutex.Lock()
 
+	invEvent := jsonrpc.NewInventoryEvent()
+
 	for _, tags := range exitingTags {
 		keepIndex := 0
 		for _, tag := range tags {
@@ -249,7 +258,7 @@ func doAggregateDepartedTask() {
 			if tag.LastRead < expiration {
 				tag.setStateAt(DepartedExit, now)
 				logrus.Debugf("Departed %v", tag)
-				sendEvent(tag, Departed)
+				addEvent(invEvent, tag, Departed)
 			} else {
 				// if the tag is to be kept, put it back in the slice
 				tags[keepIndex] = tag
@@ -260,15 +269,26 @@ func doAggregateDepartedTask() {
 		tags = tags[:keepIndex]
 	}
 
+	// todo: do something with invEvent
+
 	inventoryMutex.Unlock()
 }
 
-func sendEvent(tag *Tag, event TagEvent) {
-	// todo: implement ingest into inventory
-	logrus.Infof("Sending event %v for epc %s in %s %v", event, tag.Epc, tag.FacilityId, tag)
+func addEvent(invEvent *jsonrpc.InventoryEvent, tag *Tag, event Event) {
+	addEventDetails(invEvent, tag.Epc, tag.Tid, tag.Location, tag.FacilityId, event, tag.LastRead)
 }
 
-func sendEventDetails(epc string, tid string, location string, facilityId string, event TagEvent, lastRead int64) {
-	// todo: implement ingest into inventory
-	logrus.Infof("Sending event %v for epc %s in %s", event, epc, facilityId)
+func addEventDetails(invEvent *jsonrpc.InventoryEvent, epc string, tid string, location string, facilityId string, event Event, timestamp int64) {
+	logrus.Infof("Sending event {epc: %s, tid: %s, event_type: %s, facility_id: %s, location: %s, timestamp: %d}",
+		epc, tid, event, facilityId, location, timestamp)
+
+	invEvent.AddTagEvent(jsonrpc.TagEvent{
+		Timestamp:       timestamp,
+		Location:        location,
+		Tid:             tid,
+		EpcCode:         epc,
+		EpcEncodeFormat: epcEncodeFormat,
+		EventType:       string(event),
+		FacilityID:      facilityId,
+	})
 }

@@ -1,5 +1,15 @@
 package jsonrpc
 
+import (
+	"errors"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+)
+
+const (
+	gatewayId      = "rrs-gateway"
+	inventoryEvent = "inventory_event"
+)
+
 type InventoryEvent struct {
 	Notification                      // embed
 	Params       InventoryEventParams `json:"params"`
@@ -20,4 +30,33 @@ type TagEvent struct {
 	Location        string `json:"location"`
 	EventType       string `json:"event_type,omitempty"`
 	Timestamp       int64  `json:"timestamp"`
+}
+
+func (invEvent *InventoryEvent) Validate() error {
+	if invEvent.IsEmpty() {
+		return errors.New("missing data field")
+	}
+
+	return invEvent.Notification.Validate()
+}
+
+func NewInventoryEvent() *InventoryEvent {
+	return &InventoryEvent{
+		Notification: Notification{
+			Method:  inventoryEvent,
+			Version: RpcVersion,
+		},
+		Params: InventoryEventParams{
+			GatewayId: gatewayId,
+			SentOn:    helper.UnixMilliNow(),
+		},
+	}
+}
+
+func (invEvent *InventoryEvent) AddTagEvent(event TagEvent) {
+	invEvent.Params.Data = append(invEvent.Params.Data, event)
+}
+
+func (invEvent *InventoryEvent) IsEmpty() bool {
+	return invEvent.Params.Data == nil || len(invEvent.Params.Data) == 0
 }
