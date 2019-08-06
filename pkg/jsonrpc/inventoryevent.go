@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	gatewayId      = "rrs-gateway"
+	controllerId      = "rsp-controller"
 	inventoryEvent = "inventory_event"
 )
 
@@ -17,11 +17,11 @@ type InventoryEvent struct {
 
 type InventoryEventParams struct {
 	SentOn    int64      `json:"sent_on"`
-	GatewayId string     `json:"gateway_id,omitempty"` // ok to be empty for handheld
+	ControllerId string     `json:"controller_id,omitempty"` // ok to be empty for handheld
 	Data      []TagEvent `json:"data"`
 }
 
-// TagEvent is the model of the tag event received from gateway
+// TagEvent is the model of the tag event received from RSP Controller
 type TagEvent struct {
 	EpcCode         string `json:"epc_code"`
 	Tid             string `json:"tid"`
@@ -47,7 +47,7 @@ func NewInventoryEvent() *InventoryEvent {
 			Version: RpcVersion,
 		},
 		Params: InventoryEventParams{
-			GatewayId: gatewayId,
+			ControllerId: controllerId,
 			SentOn:    helper.UnixMilliNow(),
 		},
 	}

@@ -248,7 +248,7 @@ func TestNoDataRetrieveOne(t *testing.T) {
 		t.Error("Unable to retrieve tags")
 	}
 
-	if noTagFound.IsTagReadByGateway() {
+	if noTagFound.IsTagReadByRspController() {
 		t.Error("Did not return empty tag")
 	}
 }
@@ -271,7 +271,7 @@ func TestWithDataRetrieveOne(t *testing.T) {
 		t.Error("Unable to retrieve tags")
 	}
 
-	if !gotTag.IsTagReadByGateway() {
+	if !gotTag.IsTagReadByRspController() {
 		t.Error("Unable to retrieve tags")
 	}
 }
@@ -427,7 +427,7 @@ func TestDataReplace_Bulk(t *testing.T) {
 		t.Error("Unable to retrieve tags")
 	}
 
-	if !gotTag.IsTagReadByGateway() {
+	if !gotTag.IsTagReadByRspController() {
 		t.Error("Unable to retrieve tags")
 	}
 }
@@ -526,7 +526,7 @@ func TestUpdate(t *testing.T) {
 	tag, err := FindByEpc(dbs, epc)
 	if err != nil {
 		t.Errorf("Error trying to find tag by epc %s", err.Error())
-	} else if !tag.IsTagReadByGateway() {
+	} else if !tag.IsTagReadByRspController() {
 		if tag.QualifiedState != "sold" {
 			t.Fatal("Qualified_state update failed")
 		}
@@ -641,7 +641,7 @@ func TestFindByEpc_found(t *testing.T) {
 	tag, err := FindByEpc(dbs, epc)
 	if err != nil {
 		t.Errorf("Error trying to find tag by epc %s", err.Error())
-	} else if !tag.IsTagReadByGateway() {
+	} else if !tag.IsTagReadByRspController() {
 		t.Errorf("Expected to find a tag with epc: %s", epc)
 	} else if tag.Epc != epc {
 		t.Error("Expected found tag epc to be equal to the input epc")
@@ -664,7 +664,7 @@ func TestFindByEpc_notFound(t *testing.T) {
 	tag, err := FindByEpc(dbs, epc)
 	if err != nil {
 		t.Errorf("Error trying to find tag by epc %s", err.Error())
-	} else if tag.IsTagReadByGateway() {
+	} else if tag.IsTagReadByRspController() {
 		t.Errorf("Expected to NOT find a tag with epc: %s", epc)
 	}
 }

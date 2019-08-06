@@ -142,7 +142,7 @@ func TestIsInventoryUnloadAlert(t *testing.T) {
 					"Tavern"
 		  		],
 		  		"alert_number": 241,
-		  		"alert_description": "Gateway shutdown Alert",
+		  		"alert_description": "RSP Controller shutdown Alert",
 		  		"severity": "critical",
 		  		"sent_on": 1503700192960
 			}`,

@@ -24,7 +24,7 @@ const (
 	MovedEvent = "moved"
 	//CycleCountEvent is the constant for the cyclecount event
 	CycleCountEvent = "cycle_count"
-	//ArrivalEvent is the constant for the arrival event from the GW
+	//ArrivalEvent is the constant for the arrival event from the RSP Controller
 	ArrivalEvent = "arrival"
 	//DepartedEvent is the constant for the departed event
 	DepartedEvent = "departed"
