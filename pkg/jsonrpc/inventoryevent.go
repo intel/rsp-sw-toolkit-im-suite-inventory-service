@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	controllerId      = "rsp-controller"
+	controllerId   = "rsp-controller"
 	inventoryEvent = "inventory_event"
 )
 
@@ -16,9 +16,9 @@ type InventoryEvent struct {
 }
 
 type InventoryEventParams struct {
-	SentOn    int64      `json:"sent_on"`
+	SentOn       int64      `json:"sent_on"`
 	ControllerId string     `json:"controller_id,omitempty"` // ok to be empty for handheld
-	Data      []TagEvent `json:"data"`
+	Data         []TagEvent `json:"data"`
 }
 
 // TagEvent is the model of the tag event received from RSP Controller
@@ -48,7 +48,7 @@ func NewInventoryEvent() *InventoryEvent {
 		},
 		Params: InventoryEventParams{
 			ControllerId: controllerId,
-			SentOn:    helper.UnixMilliNow(),
+			SentOn:       helper.UnixMilliNow(),
 		},
 	}
 }

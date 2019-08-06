@@ -9,15 +9,20 @@ import (
 )
 
 type testDataset struct {
-	tagReads     []*jsonrpc.TagRead
-	tags         []*Tag
-	readTimeOrig int64
+	tagReads       []*jsonrpc.TagRead
+	tags           []*Tag
+	readTimeOrig   int64
+	inventoryEvent *jsonrpc.InventoryEvent
 }
 
 func newTestDataset(tagCount int) testDataset {
 	ds := testDataset{}
 	ds.initialize(tagCount)
 	return ds
+}
+
+func (ds *testDataset) resetEvents() {
+	ds.inventoryEvent = jsonrpc.NewInventoryEvent()
 }
 
 // will generate tagread objects but NOT ingest them yet
@@ -30,7 +35,7 @@ func (ds *testDataset) initialize(tagCount int) {
 		ds.tagReads[i] = generateReadData(ds.readTimeOrig)
 	}
 
-	// resetEvents()
+	ds.resetEvents()
 }
 
 // update the tag pointers based on actual ingested data
@@ -60,7 +65,7 @@ func (ds *testDataset) readTag(tagIndex int, sensor *RfidSensor, rssi int, times
 	ds.setRssi(tagIndex, rssi)
 
 	for i := 0; i < times; i++ {
-		processReadData(ds.tagReads[tagIndex], sensor)
+		processReadData(ds.inventoryEvent, ds.tagReads[tagIndex], sensor)
 	}
 }
 
