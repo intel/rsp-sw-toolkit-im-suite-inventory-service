@@ -458,7 +458,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 	}
 
 	JSONSample := createInventoryEvent(t, `{			 
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
 				 "data": [
@@ -605,7 +605,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 	}
 
 	JSONSample1 := createInventoryEvent(t, `{			 
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
 				 "event_segment_number": 1,
 				 "total_event_segments": 2,
 				 "data": [
@@ -631,7 +631,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 				 "sent_on": 1501872400247
    }`)
 	JSONSample2 := createInventoryEvent(t, `{			 
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
 				 "event_segment_number": 2,
 				 "total_event_segments": 2,
 				 "data": [
@@ -774,7 +774,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 	}
 
 	JSONSample := createInventoryEvent(t, `{			 
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
          "total_event_segments": 1,
          "event_segment_number": 1,
 				 "data": [
@@ -872,7 +872,7 @@ func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
 				logrus.Info(tagEvent)
 				if tagEvent.Event != statemodel.ArrivalEvent {
 					t.Errorf("When a cycle count event is recieved from the "+
-						"GW AND the tag doesn't exist in the database, the event type "+
+						"RSP Controller AND the tag doesn't exist in the database, the event type "+
 						"should be Arrival, but for tag %d, it was %s: %+v.",
 						tagIdx, tagEvent.Event, tagEvent)
 				}
@@ -962,7 +962,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 	defer masterDb.Close()
 
 	JSONSample := createInventoryEvent(t, `{			 
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
 				 "data": [
 							 {
 								 "epc_code": "30243639F84191AD22900266",
@@ -1032,8 +1032,8 @@ func TestProcessHeartBeat(t *testing.T) {
 	defer masterDb.Close()
 
 	JSONSample := createHeartbeat(t, `{
-		   "gateway_id": "rrpgw",
-		   "device_id": "rrpgw",
+		   "controller_id": "rsp-controller",
+		   "device_id": "rsp-controller",
 		   "facilities": [
 			 "Tavern"
 		   ],
@@ -1346,7 +1346,7 @@ func getTagData() []tag.Tag {
 
 func getJSONCycleCountSample(t *testing.T) *jsonrpc.InventoryEvent {
 	return createInventoryEvent(t, `{			 
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
 				 "data": [
@@ -1375,7 +1375,7 @@ func getJSONCycleCountSample(t *testing.T) *jsonrpc.InventoryEvent {
 
 func getJSONDepartedSample(t *testing.T) *jsonrpc.InventoryEvent {
 	return createInventoryEvent(t, `{	
-				 "gateway_id": "rrpgw",
+				 "controller_id": "rsp-controller",
 				 "total_event_segments": 1,
 				 "event_segment_number": 1,
 				 "data": [
@@ -1393,10 +1393,10 @@ func getJSONDepartedSample(t *testing.T) *jsonrpc.InventoryEvent {
    }`)
 }
 
-// gateway_id is empty for handheld data
+// controller_id is empty for handheld data
 func getJSONSampleHandheld(t *testing.T) *jsonrpc.InventoryEvent {
 	return createInventoryEvent(t, `{			 
-				 "gateway_id": "",
+				 "controller_id": "",
 				 "data": [
 							 {
 								 "epc_code": "30143639F84191AD22900104",

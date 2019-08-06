@@ -37,7 +37,7 @@ const (
 	jsonApplication = "application/json;charset=utf-8"
 )
 
-// Alert value for cloud which does not include gateway_id
+// Alert value for cloud which does not include controller_id
 type Alert struct {
 	SentOn      int64       `json:"sent_on"`
 	Number      int         `json:"alert_number"`

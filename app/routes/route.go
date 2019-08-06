@@ -586,7 +586,7 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 		//
 		// Update Facility Coefficents
 		//
-		// This API call is used to retrieve handheld events that have been received. Coefficient variables are used to calculate the confidence of a tag. Default values are set as configuration variables. When a Heartbeat is received from RRS, the inventory-service extracts the one or more facility_id configured in the RRS gateway and if it doesn't exist in the database, applies the default coefficient values to each facility. <br><br>
+		// This API call is used to retrieve handheld events that have been received. Coefficient variables are used to calculate the confidence of a tag. Default values are set as configuration variables. When a Heartbeat is received from RRS, the inventory-service extracts the one or more facility_id configured in the RSP Controller and if it doesn't exist in the database, applies the default coefficient values to each facility. <br><br>
 		//
 		//
 		// Example Schema:

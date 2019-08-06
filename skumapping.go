@@ -135,7 +135,7 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 			}
 			triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
 
-			if err := event.TriggerCloudConnector(invEvent.Params.GatewayId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
+			if err := event.TriggerCloudConnector(invEvent.Params.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, tagData, triggerCloudConnectorEndpoint); err != nil {
 				// Must log here since in a go function, i.e. can't return the error.
 				log.WithFields(log.Fields{
 					"Method": "processTagData",

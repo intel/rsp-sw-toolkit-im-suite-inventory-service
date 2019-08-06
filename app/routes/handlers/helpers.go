@@ -413,7 +413,7 @@ func generateContraEPC(data []contraepc.CreateContraEpcItem, copySession *db.DB)
 				mFindByEpcErr.Update(1)
 				return nil, errors.Wrap(err, "error checking database for existing tag")
 			}
-			if foundTag.IsTagReadByGateway() {
+			if foundTag.IsTagReadByRspController() {
 				mInvalidInputErr.Update(1)
 				return nil, errors.Wrap(web.ErrInvalidInput, "tag with that epc already exists in the database")
 			}
@@ -441,7 +441,7 @@ func generateContraEPC(data []contraepc.CreateContraEpcItem, copySession *db.DB)
 
 				// If the epc we generated is already in the database, try again
 				foundTag, err := tag.FindByEpc(copySession, item.Epc)
-				if err != nil || foundTag.IsTagReadByGateway() {
+				if err != nil || foundTag.IsTagReadByRspController() {
 					tries--
 					continue
 				}

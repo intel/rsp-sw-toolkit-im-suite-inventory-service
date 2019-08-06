@@ -60,10 +60,10 @@ const (
 )
 
 const (
-	asnData          = "ASN_data"
-	inventoryEvent   = "inventory_event"
-	deviceAlert      = "device_alert"
-	gatewayHeartbeat = "gateway_heartbeat"
+	asnData             = "ASN_data"
+	inventoryEvent      = "inventory_event"
+	deviceAlert         = "device_alert"
+	controllerHeartbeat = "controller_heartbeat"
 )
 
 type myDB struct {
@@ -476,7 +476,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		}
 
 		// Filter data by value descriptors
-		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, gatewayHeartbeat}
+		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, controllerHeartbeat}
 
 		edgexSdk.SetFunctionsPipeline(
 			edgexSdk.ValueDescriptorFilter(valueDescriptors),
@@ -540,7 +540,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
-		case gatewayHeartbeat:
+		case controllerHeartbeat:
 			mRRSHeartbeatReceived.Update(1)
 
 			logrus.Debugf("Received Heartbeat:\n%s", reading.Value)

@@ -29,7 +29,7 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 )
 
-//IsTagWhitelisted determines if the tag received from gateway
+//IsTagWhitelisted determines if the tag received from RSP Controller
 //belongs to the list of whitelisted epcs and returns true or false
 func IsTagWhitelisted(epc string, whiteList []string) bool {
 	for i := range whiteList {
@@ -56,7 +56,7 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 		currentState.Arrived = newTagEvent.Timestamp
 		currentState.LocationHistory = []tag.LocationHistory{}
 
-		//if new event from gw is anything but departed set it epc state to present
+		//if new event from rsp controller is anything but departed set it epc state to present
 		if newTagEvent.EventType != DepartedEvent {
 			currentState.EpcState = PresentEpcState
 		} else {
@@ -139,7 +139,7 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 }
 
 //GetNewTagEvent determines the event based on the event received
-//from gateway.  Arrival and Departed are the only return value options
+//from RSP Controller.  Arrival and Departed are the only return value options
 func GetNewTagEvent(eventType string) string {
 	var newEventType string
 	switch eventType {
@@ -152,7 +152,7 @@ func GetNewTagEvent(eventType string) string {
 }
 
 //GetUpdatedEvent determines event based on the current tag's even
-//and what event was received from the gateway
+//and what event was received from the RSP Controller
 func GetUpdatedEvent(currentEpcState string, currentEvent string, newEvent string) string {
 	if (currentEpcState == DepartedEpcState && newEvent != DepartedEvent) || newEvent == ReturnedEvent {
 		return ArrivalEvent
@@ -164,7 +164,7 @@ func GetUpdatedEvent(currentEpcState string, currentEvent string, newEvent strin
 }
 
 //GetEpcState determines the epc state value based on the event
-//received from the gateway
+//received from the RSP Controller
 func GetEpcState(currentEpcState string, newState tag.Tag) string {
 	var epcState string
 	switch newState.Event {

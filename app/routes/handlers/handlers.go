@@ -550,7 +550,7 @@ func (inve *Inventory) DeleteContraEPC(ctx context.Context, writer http.Response
 	}
 	mFindByEpcLatency.Update(time.Since(findTimer))
 
-	if !t.IsTagReadByGateway() {
+	if !t.IsTagReadByRspController() {
 		// Nothing to delete
 		mSuccess.Update(1)
 		web.Respond(ctx, writer, nil, http.StatusNoContent)
