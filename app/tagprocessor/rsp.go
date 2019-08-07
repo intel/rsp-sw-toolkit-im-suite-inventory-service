@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-type RfidSensor struct {
+type RSP struct {
 	DeviceId      string
 	FacilityId    string
 	Personality   Personality
@@ -13,15 +13,15 @@ type RfidSensor struct {
 	minRssiDbm10X int
 }
 
-func NewRfidSensor(deviceId string) *RfidSensor {
-	return &RfidSensor{
+func NewRSP(deviceId string) *RSP {
+	return &RSP{
 		DeviceId:    deviceId,
 		Personality: NoPersonality,
 		FacilityId:  unknown,
 	}
 }
 
-func (sensor *RfidSensor) getAntennaAlias(antennaId int) string {
+func (sensor *RSP) getAntennaAlias(antennaId int) string {
 	var sb strings.Builder
 	sb.WriteString(sensor.DeviceId)
 	sb.WriteString("-")

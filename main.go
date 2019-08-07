@@ -62,11 +62,12 @@ const (
 )
 
 const (
-	asnData             = "ASN_data"
-	inventoryEvent      = "inventory_event"
-	inventoryData       = "inventory_data"
-	deviceAlert         = "device_alert"
-	controllerHeartbeat = "controller_heartbeat"
+	asnData                  = "ASN_data"
+	inventoryEvent           = "inventory_event"
+	inventoryData            = "inventory_data"
+	deviceAlert              = "device_alert"
+	controllerHeartbeat      = "controller_heartbeat"
+	sensorConfigNotification = "sensor_config_notification"
 )
 
 type myDB struct {
@@ -478,8 +479,15 @@ func receiveZMQEvents(masterDB *db.DB) {
 			os.Exit(-1)
 		}
 
-		// Filter data by value descriptors
-		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, controllerHeartbeat, inventoryData}
+		// Filter data by value descriptors (aka device resource name)
+		valueDescriptors := []string{
+			asnData,
+			inventoryEvent,
+			deviceAlert,
+			controllerHeartbeat,
+			inventoryData,
+			sensorConfigNotification,
+		}
 
 		edgexSdk.SetFunctionsPipeline(
 			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,

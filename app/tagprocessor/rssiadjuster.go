@@ -12,7 +12,7 @@ func newRssiAdjuster() rssiAdjuster {
 	}
 }
 
-func (weighter *rssiAdjuster) getWeight(lastRead int64, sensor *RfidSensor) float64 {
+func (weighter *rssiAdjuster) getWeight(lastRead int64, sensor *RSP) float64 {
 	profile := weighter.mobilityProfile
 
 	if sensor.isInDeepScan {

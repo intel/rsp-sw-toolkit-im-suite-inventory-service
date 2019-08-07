@@ -46,7 +46,7 @@ func (tag *Tag) asPreviousTag() previousTag {
 	}
 }
 
-func (tag *Tag) update(sensor *RfidSensor, read *jsonrpc.TagRead, weighter *rssiAdjuster) {
+func (tag *Tag) update(sensor *RSP, read *jsonrpc.TagRead, weighter *rssiAdjuster) {
 	// todo: double check the implementation on this code
 	// todo: it may not be complete
 
@@ -115,6 +115,6 @@ func (tag *Tag) setStateAt(newState TagState, timestamp int64) {
 	tag.state = newState
 }
 
-func (tag *Tag) addHistory(sensor *RfidSensor, timestamp int64) {
+func (tag *Tag) addHistory(sensor *RSP, timestamp int64) {
 	// todo: implement
 }

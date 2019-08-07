@@ -13,7 +13,7 @@ var (
 	inventory   = make(map[string]*Tag) // todo: TreeMap?
 	exitingTags = make(map[string][]*Tag)
 
-	rfidSensors = make(map[string]*RfidSensor)
+	rfidSensors = make(map[string]*RSP)
 
 	weighter = newRssiAdjuster()
 
@@ -53,21 +53,21 @@ func ProcessInventoryData(invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEve
 	return invEvent, nil
 }
 
-func lookupSensor(deviceId string) *RfidSensor {
+func lookupSensor(deviceId string) *RSP {
 	sensorMutex.Lock()
 	defer sensorMutex.Unlock()
 
 	sensor, found := rfidSensors[deviceId]
 
 	if !found {
-		sensor = NewRfidSensor(deviceId)
+		sensor = NewRSP(deviceId)
 		rfidSensors[deviceId] = sensor
 	}
 
 	return sensor
 }
 
-func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, sensor *RfidSensor) {
+func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, sensor *RSP) {
 	if sensor.minRssiDbm10X != 0 && read.Rssi < sensor.minRssiDbm10X {
 		return
 	}
@@ -173,7 +173,7 @@ func checkMovement(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag
 	}
 }
 
-func checkExiting(sensor *RfidSensor, tag *Tag) {
+func checkExiting(sensor *RSP, tag *Tag) {
 	if sensor.Personality != Exit || sensor.DeviceId != tag.DeviceLocation {
 		return
 	}

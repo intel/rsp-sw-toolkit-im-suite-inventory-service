@@ -236,7 +236,7 @@ func TestMoveDifferentFacility(t *testing.T) {
 		t.Error(err)
 	}
 	// ensure moved facilities departed/arrival sequence
-	if err := ds.verifyEventPattern(2 * ds.size(), Departed, Arrival); err != nil {
+	if err := ds.verifyEventPattern(2*ds.size(), Departed, Arrival); err != nil {
 		t.Error(err)
 	}
 	ds.resetEvents()
@@ -272,7 +272,7 @@ func TestBasicExit(t *testing.T) {
 		t.Error(err)
 	}
 	// ensure departed/arrival events generated for new facility
-	if err := ds.verifyEventPattern(2 * ds.size(), Departed, Arrival); err != nil {
+	if err := ds.verifyEventPattern(2*ds.size(), Departed, Arrival); err != nil {
 		t.Error(err)
 	}
 	ds.resetEvents()
@@ -330,7 +330,7 @@ func TestExitingArrivalDepartures(t *testing.T) {
 		t.Error(err)
 	}
 	// ensure moved facilities departed/arrival sequence
-	if err := ds.verifyEventPattern(2 * ds.size(), Departed, Arrival); err != nil {
+	if err := ds.verifyEventPattern(2*ds.size(), Departed, Arrival); err != nil {
 		t.Error(err)
 	}
 	ds.resetEvents()
@@ -375,7 +375,7 @@ func TestTagDepartAndReturnFromExit(t *testing.T) {
 		t.Error(err)
 	}
 	// ensure no events were generated
-	if err := ds.verifyEventPattern(2 * ds.size(), Departed, Arrival); err != nil {
+	if err := ds.verifyEventPattern(2*ds.size(), Departed, Arrival); err != nil {
 		t.Error(err)
 	}
 	ds.resetEvents()
