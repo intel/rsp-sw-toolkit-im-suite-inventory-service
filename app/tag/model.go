@@ -189,8 +189,8 @@ func (source Tag) IsShippingNoticeEntry() bool {
 		asn.SiteID != "" && asn.ItemGTIN != "" && asn.ItemID != ""
 }
 
-// IsTagReadByGateway returns true if a tag was read by the gateway, versus a result of ASN
-func (source Tag) IsTagReadByGateway() bool {
+// IsTagReadByRspController returns true if a tag was read by the RSP Controller, versus a result of ASN
+func (source Tag) IsTagReadByRspController() bool {
 	return !source.IsEmpty() && !source.IsShippingNoticeEntry()
 }
 

@@ -44,13 +44,11 @@ type EventPayload struct {
 
 // DataPayload payload for the data body
 type DataPayload struct {
-	// Gateway ID
-	GatewayID string `json:"device_id"` //backend expects this to be "device_id" instead of gateway_id
+	// RSP Controller ID
+	ControllerId string `json:"device_id"` //backend expects this to be "device_id" instead of controller_id
 	// Sent On
 	SentOn int64 `json:"sent_on"`
-	// Gateway ID
 	TotalEventSegments int `json:"total_event_segments"`
-	// Gateway ID
 	EventSegmentNumber int `json:"event_segment_number"`
 	// Tag Event
 	TagEvent []tag.Tag `json:"data"`

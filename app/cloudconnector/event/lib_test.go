@@ -52,7 +52,7 @@ func TestBuildEventPayload(t *testing.T) {
 		t.Errorf("Error Building DataPayload")
 	}
 
-	if eventPayload.Body.GatewayID != "test_id" {
+	if eventPayload.Body.ControllerId != "test_id" {
 		t.Errorf("Error Building DataPayload")
 	}
 	if !eventPayload.Body.TagEvent[0].IsEqual(tags[0]) {
@@ -97,7 +97,7 @@ func TestTriggerCloudConnectorWithData(t *testing.T) {
 
 	defer testServer.Close()
 
-	err := TriggerCloudConnector("rrpgw", 123456, 3, 1, tagData, testServer.URL+"/callwebhook")
+	err := TriggerCloudConnector("rsp-controller", 123456, 3, 1, tagData, testServer.URL+"/callwebhook")
 	if err != nil {
 		t.Error(err)
 	}
@@ -138,7 +138,7 @@ func TestTriggerCloudConnectorWithoutData(t *testing.T) {
 
 	defer testServer.Close()
 
-	err := TriggerCloudConnector("rrpgw", 123456, 3, 1, nil, testServer.URL+"/callwebhook")
+	err := TriggerCloudConnector("rsp-controller", 123456, 3, 1, nil, testServer.URL+"/callwebhook")
 	if err != nil {
 		t.Error(err)
 	}
@@ -159,7 +159,7 @@ func TestCloudConnector_BadRequest(t *testing.T) {
 	config.AppConfig.EndpointConnectionTimedOutSeconds = 1
 	config.AppConfig.CloudConnectorRetrySeconds = 0
 
-	err := TriggerCloudConnector("gateway_id", 123456, 3, 1, nil, testServer.URL+"/callwebhook")
+	err := TriggerCloudConnector("controller_id", 123456, 3, 1, nil, testServer.URL+"/callwebhook")
 
 	config.AppConfig.CloudConnectorRetrySeconds = cOrig
 	config.AppConfig.EndpointConnectionTimedOutSeconds = eOrig
@@ -185,7 +185,7 @@ func TestTriggerCloudConnector_TimedOut(t *testing.T) {
 
 	defer testServer.Close()
 
-	err := TriggerCloudConnector("gateway_id", 123456, 3, 1, nil, testServer.URL+"/callwebhook")
+	err := TriggerCloudConnector("controller_id", 123456, 3, 1, nil, testServer.URL+"/callwebhook")
 
 	config.AppConfig.CloudConnectorRetrySeconds = cOrig
 	config.AppConfig.EndpointConnectionTimedOutSeconds = eOrig

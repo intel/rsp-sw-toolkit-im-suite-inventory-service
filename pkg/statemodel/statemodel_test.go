@@ -507,28 +507,28 @@ func TestArrived_New(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, helperTagEvent, "fixed")
 
 	if updatedTag.Arrived != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState != UnknownQualifiedState {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != helperTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 
 	// Last read is in milliseconds and TTL is Seconds precision so have to convert last read to seconds to compare
@@ -559,28 +559,28 @@ func TestArrived_ExistPresent(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, helperTagEvent, "fixed")
 
 	if updatedTag.Arrived != helperTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != helperTag.EpcState {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != helperTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != helper.UnixMilli(newEventTagTime) {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -607,28 +607,28 @@ func TestArrived_ExistDeparted(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, helperTagEvent, "fixed")
 
 	if updatedTag.Arrived != helperTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != helperTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != helper.UnixMilli(newEventTagTime) {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if err := tag.Delete(dbs, helperTag.Epc); err != nil {
@@ -655,28 +655,28 @@ func TestMoved_New(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, movedTagEvent, "fixed")
 
 	if updatedTag.Arrived != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.LastRead != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.QualifiedState != UnknownQualifiedState {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != movedTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -705,28 +705,28 @@ func TestMoved_ExistPresent(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, movedTagEvent, "fixed")
 
 	if updatedTag.Arrived != movedTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.Event != MovedEvent {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.EpcState != movedTag.EpcState {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.LastRead != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != movedTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -756,28 +756,28 @@ func TestMoved_ExistDeparted(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, movedTagEvent, "fixed")
 
 	if updatedTag.Arrived != movedTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.LastRead != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != movedTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != movedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a moved GW event with existing Moved Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -805,28 +805,28 @@ func TestCycleCount_New(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, cycleCountTagEvent, "fixed")
 
 	if updatedTag.Arrived != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.QualifiedState != UnknownQualifiedState {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if updatedTag.LastRead != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != cycleCountTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -855,19 +855,19 @@ func TestCycleCount_ExistPresent(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, cycleCountTagEvent, "fixed")
 
 	if updatedTag.Arrived != cycleCountTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if updatedTag.Event != cycleCountTag.Event {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if updatedTag.EpcState != cycleCountTag.EpcState {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if updatedTag.LastRead != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if updatedTag.QualifiedState == "" {
@@ -875,7 +875,7 @@ func TestCycleCount_ExistPresent(t *testing.T) {
 	}
 
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if updatedTag.QualifiedState == "" {
@@ -883,11 +883,11 @@ func TestCycleCount_ExistPresent(t *testing.T) {
 	}
 
 	if updatedTag.LocationHistory[0].Location != cycleCountTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	if updatedTag.LocationHistory[0].Timestamp != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -917,28 +917,28 @@ func TestCycleCount_ExistDeparted(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, cycleCountTagEvent, "fixed")
 
 	if updatedTag.Arrived != cycleCountTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if updatedTag.LocationHistory[0].Location != cycleCountTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != cycleCountTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -970,22 +970,22 @@ func TestDeparted_New(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes due to LocationHistory nil instead of [].")
 	}
 	if updatedTag.Arrived != departedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.Event != DepartedEvent {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.EpcState != DepartedEpcState {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.LastRead != departedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 	if updatedTag.QualifiedState != UnknownQualifiedState {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 0 {
-		t.Errorf("Updated Tag failed state changes for a cycle count event from GW and no Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -1014,28 +1014,28 @@ func TestDeparted_ExistPresent(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, departedTagEvent, "fixed")
 
 	if updatedTag.Arrived != departedTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != DepartedEvent {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != DepartedEpcState {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != departedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != departedTag.LocationHistory[0].Location {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != departedTag.LocationHistory[0].Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -1065,28 +1065,28 @@ func TestDeparted_ExistDeparted(t *testing.T) {
 	updatedTag := UpdateTag(departedTag, departedTagEvent, "fixed")
 
 	if updatedTag.Arrived != departedTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != departedTag.Event {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != departedTag.EpcState {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != departedTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != departedTag.LocationHistory[0].Location {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != departedTag.LocationHistory[0].Timestamp {
-		t.Errorf("Updated Tag failed state changes for an arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -1112,28 +1112,28 @@ func TestReturned_New(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, helperTagEvent, "fixed")
 
 	if updatedTag.Arrived != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState != UnknownQualifiedState {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != helperTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with no Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 
 	// Last read is in milliseconds and TTL is Seconds precision so have to convert last read to seconds to compare
@@ -1165,28 +1165,28 @@ func TestReturned_ExistPresent(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, helperTagEvent, "fixed")
 
 	if updatedTag.Arrived != helperTag.Arrived { //No Change
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != helperTag.EpcState {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != helperTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != helper.UnixMilli(newEventTagTime) {
-		t.Errorf("Updated Tag failed state changes for an returned GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, getHelperTag().Epc)
@@ -1214,28 +1214,28 @@ func TestReturned_ExistDeparted(t *testing.T) {
 	updatedTag := UpdateTag(foundTag, helperTagEvent, "fixed")
 
 	if updatedTag.Arrived != helperTag.Arrived {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.Event != ArrivalEvent {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.EpcState != PresentEpcState {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LastRead != helperTagEvent.Timestamp {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.QualifiedState == "" {
 		t.Errorf("Updated Tag failed. Expect %s, Received %s", UnknownQualifiedState, updatedTag.QualifiedState)
 	}
 	if len(updatedTag.LocationHistory) != 1 {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Location != helperTagEvent.Location {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 	if updatedTag.LocationHistory[0].Timestamp != helper.UnixMilli(newEventTagTime) {
-		t.Errorf("Updated Tag failed state changes for a arrived GW event with existing Arrived Tag in DB.")
+		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
 	tag.Delete(dbs, helperTag.Epc)

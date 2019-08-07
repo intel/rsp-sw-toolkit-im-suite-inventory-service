@@ -42,7 +42,7 @@ const (
 )
 
 // newEventPayload returns payload to send to cloud connector
-func newEventPayload(tagData []tag.Tag, gatewayID string, sentOn int64, totalEventSegments int, eventSegmentNumber int, header http.Header) EventPayload {
+func newEventPayload(tagData []tag.Tag, controllerId string, sentOn int64, totalEventSegments int, eventSegmentNumber int, header http.Header) EventPayload {
 
 	eventPayload := EventPayload{
 		Method:  http.MethodPost,
@@ -50,7 +50,7 @@ func newEventPayload(tagData []tag.Tag, gatewayID string, sentOn int64, totalEve
 		IsAsync: false,
 		URL:     config.AppConfig.EventDestination,
 		Body: DataPayload{
-			GatewayID:          gatewayID,
+			ControllerId:          controllerId,
 			SentOn:             sentOn,
 			TotalEventSegments: totalEventSegments,
 			EventSegmentNumber: eventSegmentNumber,
@@ -80,7 +80,7 @@ func newEventPayload(tagData []tag.Tag, gatewayID string, sentOn int64, totalEve
 }
 
 // TriggerCloudConnector sends payload it needs to go to external cloud, to the cloud connector
-func TriggerCloudConnector(gatewayID string, sentOn int64, totalEventSegments int, eventSegmentNumber int, tagData []tag.Tag, url string) error {
+func TriggerCloudConnector(controllerId string, sentOn int64, totalEventSegments int, eventSegmentNumber int, tagData []tag.Tag, url string) error {
 	log.Debugf("Making Cloud Connector call to: %s", url)
 	// Metrics
 	metrics.GetOrRegisterMeter(`InventoryService.triggerCloudConnector.Attempt`, nil).Mark(1)
@@ -90,7 +90,7 @@ func TriggerCloudConnector(gatewayID string, sentOn int64, totalEventSegments in
 
 	header := http.Header{}
 	header["Content-Type"] = []string{"application/json"}
-	eventPayload := newEventPayload(tagData, gatewayID, sentOn, totalEventSegments, eventSegmentNumber, header)
+	eventPayload := newEventPayload(tagData, controllerId, sentOn, totalEventSegments, eventSegmentNumber, header)
 
 	// Make the POST to authenticate
 	eventPayloadBytes, err := json.Marshal(eventPayload)
