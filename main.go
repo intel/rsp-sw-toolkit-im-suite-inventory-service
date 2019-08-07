@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
@@ -479,7 +480,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, gatewayHeartbeat}
 
 		edgexSdk.SetFunctionsPipeline(
-			edgexSdk.ValueDescriptorFilter(valueDescriptors),
+			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
 			db.processEvents,
 		)
 
