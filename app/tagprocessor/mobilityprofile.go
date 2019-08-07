@@ -21,22 +21,27 @@ var (
 		HoldoffMillis: 60000.0,
 	}
 
-	defaultProfileId = assetTrackingDefault.Id
+	defaultProfile = MobilityProfile{
+		Id:            "default",
+		Slope:         assetTrackingDefault.Slope,
+		Threshold:     assetTrackingDefault.Threshold,
+		HoldoffMillis: assetTrackingDefault.HoldoffMillis,
+	}
 
 	mobilityProfiles = map[string]MobilityProfile{
 		assetTrackingDefault.Id: assetTrackingDefault,
 		retailGarmentDefault.Id: retailGarmentDefault,
+		defaultProfile.Id:       defaultProfile,
 	}
 )
 
 type MobilityProfile struct {
 	Id string `json:"id"`
-	// using general slope forumla y = m(x) + b
-	// where m is slope in dBm per millisecond
+	// Slope (dBm per millisecond): Used to determine the weight applied to older RSSI values
 	Slope float64 `json:"m"`
-	// dBm change threshold
+	// Threshold (dBm) RSSI threshold that must be exceeded for the tag to move from the previous sensor
 	Threshold float64 `json:"t"`
-	// milliseconds of holdoff
+	// HoldoffMillis (milliseconds) Amount of time in which the weight used is just the threshold, effectively the slope is not used
 	HoldoffMillis float64 `json:"a"`
 	// b = y - (m*x)
 	YIntercept float64 `json:"b"`
@@ -48,11 +53,11 @@ func (profile *MobilityProfile) calculateYIntercept() {
 }
 
 func GetDefaultMobilityProfile() MobilityProfile {
-	profile, err := GetMobilityProfile(defaultProfileId)
+	profile, err := GetMobilityProfile(defaultProfile.Id)
 
 	// default should always exist
 	if err != nil {
-		err = errors.Wrapf(err, "default mobility profile with id %s does not exist!", defaultProfileId)
+		err = errors.Wrapf(err, "default mobility profile with id %s does not exist!", defaultProfile.Id)
 		logrus.Error(err)
 		panic(err)
 	}

@@ -3,6 +3,7 @@ package tagprocessor
 import (
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"sync"
@@ -13,7 +14,7 @@ var (
 	inventory   = make(map[string]*Tag) // todo: TreeMap?
 	exitingTags = make(map[string][]*Tag)
 
-	rfidSensors = make(map[string]*RSP)
+	rfidSensors = make(map[string]*sensor.RSP)
 
 	weighter = newRssiAdjuster()
 
@@ -35,40 +36,39 @@ const (
 
 // ProcessInventoryData todo: desc
 func ProcessInventoryData(invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
-	sensor := lookupSensor(invData.Params.DeviceId)
+	rsp := lookupRSP(invData.Params.DeviceId)
 	facId := invData.Params.FacilityId
 
-	if sensor.FacilityId != facId {
-		logrus.Debugf("Updating sensor %s facilityId to %s.\nSensor Map: %#v", sensor.DeviceId, facId, rfidSensors)
-		sensor.FacilityId = facId
+	if rsp.FacilityId != facId {
+		logrus.Debugf("Updating sensor %s facilityId to %s.\nSensor Map: %#v", rsp.DeviceId, facId, rfidSensors)
+		rsp.FacilityId = facId
 	}
 
 	invEvent := jsonrpc.NewInventoryEvent()
 
 	for _, read := range invData.Params.Data {
-		// todo: handle error?
-		processReadData(invEvent, &read, sensor)
+		processReadData(invEvent, &read, rsp)
 	}
 
 	return invEvent, nil
 }
 
-func lookupSensor(deviceId string) *RSP {
+func lookupRSP(deviceId string) *sensor.RSP {
 	sensorMutex.Lock()
 	defer sensorMutex.Unlock()
 
-	sensor, found := rfidSensors[deviceId]
+	rsp, found := rfidSensors[deviceId]
 
 	if !found {
-		sensor = NewRSP(deviceId)
-		rfidSensors[deviceId] = sensor
+		rsp = sensor.NewRSP(deviceId)
+		rfidSensors[deviceId] = rsp
 	}
 
-	return sensor
+	return rsp
 }
 
-func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, sensor *RSP) {
-	if sensor.minRssiDbm10X != 0 && read.Rssi < sensor.minRssiDbm10X {
+func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
+	if !rsp.RssiInRange(read.Rssi) {
 		return
 	}
 
@@ -81,7 +81,7 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 	}
 
 	prev := tag.asPreviousTag()
-	tag.update(sensor, read, &weighter)
+	tag.update(rsp, read, &weighter)
 
 	switch prev.state {
 
@@ -90,7 +90,7 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		// for the use case of POS reader might be the first
 		// sensor in the store hallway to see a tag etc. so
 		// need to prevent premature departures
-		if sensor.Personality == POS {
+		if rsp.POSSensor() {
 			break
 		}
 
@@ -99,21 +99,21 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		break
 
 	case Present:
-		if sensor.Personality == POS {
+		if rsp.POSSensor() {
 			if !checkDepartPOS(invEvent, tag) {
 				checkMovement(invEvent, tag, &prev)
 			}
 		} else {
-			checkExiting(sensor, tag)
+			checkExiting(rsp, tag)
 			checkMovement(invEvent, tag, &prev)
 		}
 		break
 
 	case Exiting:
-		if sensor.Personality == POS {
+		if rsp.POSSensor() {
 			checkDepartPOS(invEvent, tag)
 		} else {
-			if sensor.Personality != Exit && sensor.DeviceId == tag.DeviceLocation {
+			if !rsp.ExitSensor() && rsp.DeviceId == tag.DeviceLocation {
 				tag.setState(Present)
 			}
 			checkMovement(invEvent, tag, &prev)
@@ -121,16 +121,16 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		break
 
 	case DepartedExit:
-		if sensor.Personality == POS {
+		if rsp.POSSensor() {
 			break
 		}
 
 		doTagReturn(invEvent, tag, &prev)
-		checkExiting(sensor, tag)
+		checkExiting(rsp, tag)
 		break
 
 	case DepartedPos:
-		if sensor.Personality == POS {
+		if rsp.POSSensor() {
 			break
 		}
 
@@ -138,7 +138,7 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		// a configurable amount of time (i.e. 1 day)
 		if tag.LastDeparted < (tag.LastRead - int64(config.AppConfig.PosReturnThresholdMillis)) {
 			doTagReturn(invEvent, tag, &prev)
-			checkExiting(sensor, tag)
+			checkExiting(rsp, tag)
 		}
 		break
 	}
@@ -173,11 +173,11 @@ func checkMovement(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag
 	}
 }
 
-func checkExiting(sensor *RSP, tag *Tag) {
-	if sensor.Personality != Exit || sensor.DeviceId != tag.DeviceLocation {
+func checkExiting(rsp *sensor.RSP, tag *Tag) {
+	if !rsp.ExitSensor() || rsp.DeviceId != tag.DeviceLocation {
 		return
 	}
-	addExiting(sensor.FacilityId, tag)
+	addExiting(rsp.FacilityId, tag)
 }
 
 func clearExiting() {

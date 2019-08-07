@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"strings"
@@ -63,17 +64,17 @@ func (ds *testDataset) setLastReadOnAll(timestamp int64) {
 	}
 }
 
-func (ds *testDataset) readTag(tagIndex int, sensor *RSP, rssi int, times int) {
+func (ds *testDataset) readTag(tagIndex int, rsp *sensor.RSP, rssi int, times int) {
 	ds.setRssi(tagIndex, rssi)
 
 	for i := 0; i < times; i++ {
-		processReadData(ds.inventoryEvent, ds.tagReads[tagIndex], sensor)
+		processReadData(ds.inventoryEvent, ds.tagReads[tagIndex], rsp)
 	}
 }
 
-func (ds *testDataset) readAll(sensor *RSP, rssi int, times int) {
+func (ds *testDataset) readAll(rsp *sensor.RSP, rssi int, times int) {
 	for tagIndex := range ds.tagReads {
-		ds.readTag(tagIndex, sensor, rssi, times)
+		ds.readTag(tagIndex, rsp, rssi, times)
 	}
 }
 
@@ -81,12 +82,12 @@ func (ds *testDataset) size() int {
 	return len(ds.tagReads)
 }
 
-func (ds *testDataset) verifyAll(expectedState TagState, expectedSensor *RSP) error {
+func (ds *testDataset) verifyAll(expectedState TagState, expectedRSP *sensor.RSP) error {
 	ds.updateTagRefs()
 
 	var errs []string
 	for i := range ds.tags {
-		if err := ds.verifyTag(i, expectedState, expectedSensor); err != nil {
+		if err := ds.verifyTag(i, expectedState, expectedRSP); err != nil {
 			errs = append(errs, err.Error())
 		}
 	}
@@ -97,7 +98,7 @@ func (ds *testDataset) verifyAll(expectedState TagState, expectedSensor *RSP) er
 	return nil
 }
 
-func (ds *testDataset) verifyTag(tagIndex int, expectedState TagState, expectedSensor *RSP) error {
+func (ds *testDataset) verifyTag(tagIndex int, expectedState TagState, expectedRSP *sensor.RSP) error {
 	tag := ds.tags[tagIndex]
 
 	if tag == nil {
@@ -109,9 +110,9 @@ func (ds *testDataset) verifyTag(tagIndex int, expectedState TagState, expectedS
 		return fmt.Errorf("tag index %d (%s): state %v does not match expected state %v\n\t%#v", tagIndex, tag.Epc, tag.state, expectedState, tag)
 	}
 
-	// if expectedSensor is nil, we do not care to validate that field
-	if expectedSensor != nil && tag.Location != expectedSensor.getAntennaAlias(0) {
-		return fmt.Errorf("tag index %d (%s): location %v does not match expected location %v\n\t%#v", tagIndex, tag.Epc, tag.Location, expectedSensor.getAntennaAlias(0), tag)
+	// if expectedRSP is nil, we do not care to validate that field
+	if expectedRSP != nil && tag.Location != expectedRSP.AntennaAlias(0) {
+		return fmt.Errorf("tag index %d (%s): location %v does not match expected location %v\n\t%#v", tagIndex, tag.Epc, tag.Location, expectedRSP.AntennaAlias(0), tag)
 	}
 
 	return nil

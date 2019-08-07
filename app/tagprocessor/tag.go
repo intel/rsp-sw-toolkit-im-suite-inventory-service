@@ -1,6 +1,9 @@
 package tagprocessor
 
-import "github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+import (
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+)
 
 type Tag struct {
 	Epc string
@@ -46,11 +49,11 @@ func (tag *Tag) asPreviousTag() previousTag {
 	}
 }
 
-func (tag *Tag) update(sensor *RSP, read *jsonrpc.TagRead, weighter *rssiAdjuster) {
+func (tag *Tag) update(rsp *sensor.RSP, read *jsonrpc.TagRead, weighter *rssiAdjuster) {
 	// todo: double check the implementation on this code
 	// todo: it may not be complete
 
-	srcAlias := sensor.getAntennaAlias(read.AntennaId)
+	srcAlias := rsp.AntennaAlias(read.AntennaId)
 
 	// only set Tid if it is present
 	if read.Tid != "" {
@@ -76,22 +79,22 @@ func (tag *Tag) update(sensor *RSP, read *jsonrpc.TagRead, weighter *rssiAdjuste
 	if !found {
 		// this means the tag has never been read (somehow)
 		tag.Location = srcAlias
-		tag.DeviceLocation = sensor.DeviceId
-		tag.FacilityId = sensor.FacilityId
-		tag.addHistory(sensor, read.LastReadOn)
+		tag.DeviceLocation = rsp.DeviceId
+		tag.FacilityId = rsp.FacilityId
+		tag.addHistory(rsp, read.LastReadOn)
 	} else if curStats.getCount() > 2 {
 		weight := 0.0
 		if weighter != nil {
-			weight = weighter.getWeight(locationStats.LastRead, sensor)
+			weight = weighter.getWeight(locationStats.LastRead, rsp)
 		}
 
 		//logrus.Debugf("%f, %f", curStats.getRssiMeanDBM(), locationStats.getRssiMeanDBM())
 
 		if curStats.getRssiMeanDBM() > locationStats.getRssiMeanDBM()+weight {
 			tag.Location = srcAlias
-			tag.DeviceLocation = sensor.DeviceId
-			tag.FacilityId = sensor.FacilityId
-			tag.addHistory(sensor, read.LastReadOn)
+			tag.DeviceLocation = rsp.DeviceId
+			tag.FacilityId = rsp.FacilityId
+			tag.addHistory(rsp, read.LastReadOn)
 		}
 	}
 }
@@ -115,6 +118,6 @@ func (tag *Tag) setStateAt(newState TagState, timestamp int64) {
 	tag.state = newState
 }
 
-func (tag *Tag) addHistory(sensor *RSP, timestamp int64) {
+func (tag *Tag) addHistory(rsp *sensor.RSP, timestamp int64) {
 	// todo: implement
 }

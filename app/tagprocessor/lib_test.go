@@ -3,6 +3,7 @@ package tagprocessor
 import (
 	"fmt"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"log"
 	"os"
 	"testing"
@@ -18,10 +19,10 @@ func TestMain(m *testing.M) {
 func TestMinRssiFilter(t *testing.T) {
 	ds := newTestDataset(2)
 
-	back := generateTestSensor(backStock, NoPersonality)
+	back := generateTestSensor(backStock, sensor.NoPersonality)
 
 	// set the minimum rssi to arbitrary value
-	back.minRssiDbm10X = -600
+	back.MinRssiDbm10X = -600
 
 	// tag with good rssi
 	ds.readTag(0, back, -580, 1)
@@ -53,8 +54,8 @@ func TestMinRssiFilter(t *testing.T) {
 func TestPosDoesNotGenerateArrival(t *testing.T) {
 	ds := newTestDataset(10)
 
-	front := generateTestSensor(salesFloor, NoPersonality)
-	posSensor := generateTestSensor(salesFloor, POS)
+	front := generateTestSensor(salesFloor, sensor.NoPersonality)
+	posSensor := generateTestSensor(salesFloor, sensor.POS)
 
 	ds.readAll(posSensor, rssiMin, 1)
 	ds.updateTagRefs()
@@ -91,7 +92,7 @@ func TestPosDoesNotGenerateArrival(t *testing.T) {
 func TestBasicArrival(t *testing.T) {
 	ds := newTestDataset(10)
 
-	front := generateTestSensor(salesFloor, NoPersonality)
+	front := generateTestSensor(salesFloor, sensor.NoPersonality)
 
 	ds.readAll(front, rssiWeak, 1)
 	ds.updateTagRefs()
@@ -109,9 +110,9 @@ func TestBasicArrival(t *testing.T) {
 func TestTagMoveWeakRssi(t *testing.T) {
 	ds := newTestDataset(10)
 
-	back1 := generateTestSensor(backStock, NoPersonality)
-	back2 := generateTestSensor(backStock, NoPersonality)
-	back3 := generateTestSensor(backStock, NoPersonality)
+	back1 := generateTestSensor(backStock, sensor.NoPersonality)
+	back2 := generateTestSensor(backStock, sensor.NoPersonality)
+	back3 := generateTestSensor(backStock, sensor.NoPersonality)
 
 	// start all tags in the back stock
 	ds.readAll(back1, rssiMin, 1)
@@ -151,14 +152,14 @@ func TestTagMoveWeakRssi(t *testing.T) {
 func TestMoveAntennaLocation(t *testing.T) {
 	antennaIds := []int{1, 4, 33, 15, 99}
 
-	sensor := generateTestSensor(backStock, NoPersonality)
+	back01 := generateTestSensor(backStock, sensor.NoPersonality)
 
 	for _, antId := range antennaIds {
 		t.Run(fmt.Sprintf("Antenna-%d", antId), func(t *testing.T) {
 			ds := newTestDataset(1)
 
 			// start all tags at antenna port 0
-			ds.readAll(sensor, rssiMin, 1)
+			ds.readAll(back01, rssiMin, 1)
 			ds.updateTagRefs()
 			// ensure arrival events generated
 			if err := ds.verifyEventPattern(1, Arrival); err != nil {
@@ -168,10 +169,10 @@ func TestMoveAntennaLocation(t *testing.T) {
 
 			// move tag to a different antenna port on same sensor
 			ds.tagReads[0].AntennaId = antId
-			ds.readTag(0, sensor, rssiStrong, 4)
-			if ds.tags[0].Location != sensor.getAntennaAlias(antId) {
+			ds.readTag(0, back01, rssiStrong, 4)
+			if ds.tags[0].Location != back01.AntennaAlias(antId) {
 				t.Errorf("tag location was %s, but we expected %s.\n\t%#v",
-					ds.tags[0].Location, sensor.getAntennaAlias(antId), ds.tags[0])
+					ds.tags[0].Location, back01.AntennaAlias(antId), ds.tags[0])
 			}
 			// ensure moved events generated
 			if err := ds.verifyEventPattern(1, Moved); err != nil {
@@ -185,8 +186,8 @@ func TestMoveAntennaLocation(t *testing.T) {
 func TestMoveSameFacility(t *testing.T) {
 	ds := newTestDataset(10)
 
-	back1 := generateTestSensor(backStock, NoPersonality)
-	back2 := generateTestSensor(backStock, NoPersonality)
+	back1 := generateTestSensor(backStock, sensor.NoPersonality)
+	back2 := generateTestSensor(backStock, sensor.NoPersonality)
 
 	// start all tags in the back stock
 	ds.readAll(back1, rssiMin, 1)
@@ -215,8 +216,8 @@ func TestMoveSameFacility(t *testing.T) {
 func TestMoveDifferentFacility(t *testing.T) {
 	ds := newTestDataset(10)
 
-	front := generateTestSensor(salesFloor, NoPersonality)
-	back := generateTestSensor(backStock, NoPersonality)
+	front := generateTestSensor(salesFloor, sensor.NoPersonality)
+	back := generateTestSensor(backStock, sensor.NoPersonality)
 
 	// start all tags in the front sales floor
 	ds.readAll(front, rssiMin, 1)
@@ -245,9 +246,9 @@ func TestMoveDifferentFacility(t *testing.T) {
 func TestBasicExit(t *testing.T) {
 	ds := newTestDataset(9)
 
-	back := generateTestSensor(backStock, NoPersonality)
-	frontExit := generateTestSensor(salesFloor, Exit)
-	front := generateTestSensor(salesFloor, NoPersonality)
+	back := generateTestSensor(backStock, sensor.NoPersonality)
+	frontExit := generateTestSensor(salesFloor, sensor.Exit)
+	front := generateTestSensor(salesFloor, sensor.NoPersonality)
 
 	// get it in the system
 	ds.readAll(back, rssiMin, 4)
@@ -306,9 +307,9 @@ func TestBasicExit(t *testing.T) {
 func TestExitingArrivalDepartures(t *testing.T) {
 	ds := newTestDataset(5)
 
-	back := generateTestSensor(backStock, NoPersonality)
-	frontExit := generateTestSensor(salesFloor, Exit)
-	front := generateTestSensor(salesFloor, NoPersonality)
+	back := generateTestSensor(backStock, sensor.NoPersonality)
+	frontExit := generateTestSensor(salesFloor, sensor.Exit)
+	front := generateTestSensor(salesFloor, sensor.NoPersonality)
 
 	ds.readAll(back, rssiMin, 4)
 	ds.resetEvents()
@@ -361,9 +362,9 @@ func TestExitingArrivalDepartures(t *testing.T) {
 func TestTagDepartAndReturnFromExit(t *testing.T) {
 	ds := newTestDataset(4)
 
-	back := generateTestSensor(backStock, NoPersonality)
-	frontExit := generateTestSensor(salesFloor, Exit)
-	front1 := generateTestSensor(salesFloor, NoPersonality)
+	back := generateTestSensor(backStock, sensor.NoPersonality)
+	frontExit := generateTestSensor(salesFloor, sensor.Exit)
+	front1 := generateTestSensor(salesFloor, sensor.NoPersonality)
 
 	ds.readAll(back, rssiMin, 1)
 	ds.updateTagRefs()
@@ -399,11 +400,11 @@ func TestTagDepartAndReturnFromExit(t *testing.T) {
 func TestTagDepartAndReturnPOS(t *testing.T) {
 	ds := newTestDataset(5)
 
-	back := generateTestSensor(backStock, NoPersonality)
-	frontPos := generateTestSensor(salesFloor, POS)
-	front1 := generateTestSensor(salesFloor, NoPersonality)
-	front2 := generateTestSensor(salesFloor, NoPersonality)
-	front3 := generateTestSensor(salesFloor, NoPersonality)
+	back := generateTestSensor(backStock, sensor.NoPersonality)
+	frontPos := generateTestSensor(salesFloor, sensor.POS)
+	front1 := generateTestSensor(salesFloor, sensor.NoPersonality)
+	front2 := generateTestSensor(salesFloor, sensor.NoPersonality)
+	front3 := generateTestSensor(salesFloor, sensor.NoPersonality)
 
 	// start the tags in the back
 	ds.readAll(back, rssiMin, 1)

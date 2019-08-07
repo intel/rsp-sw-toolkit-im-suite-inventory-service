@@ -2,6 +2,7 @@ package tagprocessor
 
 import (
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"sync/atomic"
 )
@@ -26,31 +27,12 @@ var (
 
 	tagSerialCounter uint32
 	sensorIdCounter  uint32 = 150000 - 1
-
-	//sensorFront01 = &RSP{DeviceId: "RSP-150000", FacilityId: salesFloor, Personality: NoPersonality}
-	//sensorFront02 = &RSP{DeviceId: "RSP-150001", FacilityId: salesFloor, Personality: NoPersonality}
-	//sensorFront03 = &RSP{DeviceId: "RSP-150002", FacilityId: salesFloor, Personality: NoPersonality}
-	//
-	//sensorFrontPOS  = &RSP{DeviceId: "RSP-150003", FacilityId: salesFloor, Personality: POS}
-	//sensorFrontExit = &RSP{DeviceId: "RSP-150004", FacilityId: salesFloor, Personality: Exit}
-	//
-	//sensorBack01 = &RSP{DeviceId: "RSP-150005", FacilityId: backStock, Personality: NoPersonality}
-	//sensorBack02 = &RSP{DeviceId: "RSP-150006", FacilityId: backStock, Personality: NoPersonality}
-	//sensorBack03 = &RSP{DeviceId: "RSP-150007", FacilityId: backStock, Personality: NoPersonality}
-	//
-	//sensorCold01 = &RSP{DeviceId: "RSP-150008", FacilityId: facilityCold, Personality: NoPersonality}
-	//sensorDry01  = &RSP{DeviceId: "RSP-150009", FacilityId: facilityDry, Personality: NoPersonality}
-	//
-	//sensorA01     = &RSP{DeviceId: "RSP-150010", FacilityId: facilityA, Personality: NoPersonality}
-	//sensorB01     = &RSP{DeviceId: "RSP-150011", FacilityId: facilityB, Personality: NoPersonality}
-	//sensorCexit01 = &RSP{DeviceId: "RSP-150012", FacilityId: facilityC, Personality: Exit}
-	//sensorCexit02 = &RSP{DeviceId: "RSP-150013", FacilityId: facilityC, Personality: Exit}
 )
 
-func generateTestSensor(facilityId string, personality Personality) *RSP {
+func generateTestSensor(facilityId string, personality sensor.Personality) *sensor.RSP {
 	sensorId := atomic.AddUint32(&sensorIdCounter, 1)
 
-	return &RSP{
+	return &sensor.RSP{
 		DeviceId:    fmt.Sprintf("RSP-%06d", sensorId),
 		FacilityId:  facilityId,
 		Personality: personality,
