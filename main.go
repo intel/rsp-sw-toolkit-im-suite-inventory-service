@@ -603,7 +603,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				return false, err
 			}
 
-			invEvent, err := tagprocessor.ProcessInventoryData(invData)
+			invEvent, err := tagprocessor.ProcessInventoryData(db.masterDB, invData)
 			if err != nil {
 				return false, err
 			}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
@@ -15,12 +16,22 @@ type testDataset struct {
 	tags           []*Tag
 	readTimeOrig   int64
 	inventoryEvent *jsonrpc.InventoryEvent
+	masterDb       *db.DB
+	copySession    *db.DB
 }
 
-func newTestDataset(tagCount int) testDataset {
-	ds := testDataset{}
+func newTestDataset(masterDb *db.DB, tagCount int) testDataset {
+	ds := testDataset{
+		masterDb:    masterDb,
+		copySession: masterDb.CopySession(),
+	}
 	ds.initialize(tagCount)
 	return ds
+}
+
+func (ds *testDataset) close() {
+	ds.copySession.Close()
+	ds.masterDb.Close()
 }
 
 func (ds *testDataset) resetEvents() {
@@ -68,7 +79,7 @@ func (ds *testDataset) readTag(tagIndex int, rsp *sensor.RSP, rssi int, times in
 	ds.setRssi(tagIndex, rssi)
 
 	for i := 0; i < times; i++ {
-		processReadData(ds.inventoryEvent, ds.tagReads[tagIndex], rsp)
+		processReadData(ds.copySession, ds.inventoryEvent, ds.tagReads[tagIndex], rsp)
 	}
 }
 

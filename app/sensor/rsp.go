@@ -20,12 +20,12 @@ const (
 )
 
 type RSP struct {
-	DeviceId      string
-	FacilityId    string
-	Personality   Personality
-	Aliases       []string
-	IsInDeepScan  bool
-	MinRssiDbm10X int
+	DeviceId      string      `json:"device_id" bson:"device_id"`
+	FacilityId    string      `json:"facility_id" bson:"facility_id"`
+	Personality   Personality `json:"personality" bson:"personality"`
+	Aliases       []string    `json:"aliases" bson:"aliases"`
+	IsInDeepScan  bool        `json:"-" bson:"-"`
+	MinRssiDbm10X int         `json:"min_rssi_dbm_10x" bson:"min_rssi_dbm_10x"`
 }
 
 func NewRSP(deviceId string) *RSP {
@@ -57,10 +57,16 @@ func (rsp *RSP) RssiInRange(rssi int) bool {
 	return rsp.MinRssiDbm10X == 0 || rssi >= rsp.MinRssiDbm10X
 }
 
-func (rsp *RSP) ExitSensor() bool {
+func (rsp *RSP) IsExitSensor() bool {
 	return rsp.Personality == Exit
 }
 
-func (rsp *RSP) POSSensor() bool {
+func (rsp *RSP) IsPOSSensor() bool {
 	return rsp.Personality == POS
+}
+
+// Empty returns whether this RSP has data or not.
+// all RSPs require a deviceId, so simply check for that field
+func (rsp *RSP) IsEmpty() bool {
+	return rsp.DeviceId == ""
 }
