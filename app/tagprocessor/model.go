@@ -22,15 +22,6 @@ const (
 	Away       TagDirection = "Away"
 )
 
-type Personality string
-
-const (
-	NoPersonality Personality = "None"
-	Exit          Personality = "Exit"
-	POS           Personality = "POS"
-	FittingRoom   Personality = "FittingRoom"
-)
-
 type Event string
 
 const (

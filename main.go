@@ -569,6 +569,14 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
+		case sensorConfigNotification:
+			log.Debugf("Received sensor config notification:\n%s", reading.Value)
+
+			sensorNotif := new(jsonrpc.SensorConfigNotification)
+			if err := decodeJsonRpc(&reading, sensorNotif, nil); err != nil {
+				return false, err
+			}
+
 		case inventoryEvent:
 			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
 
