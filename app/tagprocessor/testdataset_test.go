@@ -3,6 +3,7 @@ package tagprocessor
 import (
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"strings"
@@ -23,6 +24,7 @@ func newTestDataset(tagCount int) testDataset {
 
 func (ds *testDataset) resetEvents() {
 	ds.inventoryEvent = jsonrpc.NewInventoryEvent()
+	logrus.Info("resetEvents() called")
 }
 
 // will generate tagread objects but NOT ingest them yet
@@ -125,4 +127,32 @@ func (ds *testDataset) verifyState(tagIndex int, expectedState TagState) error {
 
 func (ds *testDataset) verifyStateAll(expectedState TagState) error {
 	return ds.verifyAll(expectedState, nil)
+}
+
+func (ds *testDataset) verifyEventPattern(expectedCount int, expectedEvents ...Event) error {
+	if expectedCount % len(expectedEvents) != 0 {
+		return fmt.Errorf("invalid event pattern specified. pattern length of %d is not evenly divisible by expected event count of %d", len(expectedEvents), expectedCount)
+	}
+
+	dataLen := len(ds.inventoryEvent.Params.Data)
+	if dataLen != expectedCount {
+		return fmt.Errorf("excpected %d %v event pattern to be generated, but %d were generated. events:\n%#v", expectedCount, expectedEvents, dataLen, ds.inventoryEvent.Params.Data)
+	}
+
+	for i, item := range ds.inventoryEvent.Params.Data {
+		expected := expectedEvents[i % len(expectedEvents)]
+		if item.EventType != string(expected) {
+			return fmt.Errorf("excpected %s event but was %s. events:\n%#v", expected, item.EventType, ds.inventoryEvent.Params.Data)
+		}
+	}
+
+	return nil
+}
+
+func (ds *testDataset) verifyNoEvents() error {
+	if !ds.inventoryEvent.IsEmpty() {
+		return fmt.Errorf("excpected no events to be generated, but %d were generated. events:\n%#v", len(ds.inventoryEvent.Params.Data), ds.inventoryEvent.Params.Data)
+	}
+
+	return nil
 }
