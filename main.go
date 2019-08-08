@@ -129,8 +129,13 @@ func main() {
 	// Connect to EdgeX zeroMQ bus
 	receiveZMQEvents(masterDB)
 
-	ticker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis / 5) * time.Millisecond)
-	go processDepartedTicker(ticker, &myDB{masterDB: masterDB})
+	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis / 5) * time.Millisecond)
+	defer aggregateDepartedTicker.Stop()
+	ageoutTicker := time.NewTicker(1 * time.Hour)
+	defer ageoutTicker.Stop()
+
+
+	go processTickers(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
 
 	// THIS IS BLOCKING!!!!
 	// Initiate webserver and routes
@@ -665,12 +670,13 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	return false, nil
 }
 
-func processDepartedTicker(ticker *time.Ticker, mydb *myDB) {
+func processTickers(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
 	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
 	for {
 		select {
-		case t := <-ticker.C:
+
+		case t := <-aggregateDepartedTicker.C:
 			log.Debugf("DoAggregateDepartedTask: %v", t)
 			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent := tagprocessor.DoAggregateDepartedTask()
@@ -683,6 +689,12 @@ func processDepartedTicker(ticker *time.Ticker, mydb *myDB) {
 					}
 				}(invEvent)
 			}
+			break
+
+		case t := <-ageoutTicker.C:
+			log.Debugf("DoAgeoutTask: %v", t)
+			tagprocessor.DoAgeoutTask()
+			break
 		}
 	}
 }

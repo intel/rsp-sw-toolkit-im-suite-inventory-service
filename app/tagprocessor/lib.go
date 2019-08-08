@@ -226,12 +226,14 @@ func doTagReturn(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag) 
 	tag.setState(Present)
 }
 
-// todo: when to call this? on a schedule?
-func ageout() int {
+// todo: when to call this? on a schedule???
+// todo: it looks like rsp-controller just calls it on start and stop???
+func DoAgeoutTask() int {
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	expiration := helper.UnixMilli(time.Now().Add(
 		time.Hour * time.Duration(-config.AppConfig.AgeOutHours)))
-
-	inventoryMutex.Lock()
 
 	// it is safe to remove from map while iterating in golang
 	var numRemoved int
@@ -241,8 +243,6 @@ func ageout() int {
 			delete(inventory, epc)
 		}
 	}
-
-	inventoryMutex.Unlock()
 
 	logrus.Infof("inventory ageout removed %d tags", numRemoved)
 	return numRemoved
