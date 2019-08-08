@@ -10,8 +10,11 @@ import (
 )
 
 const (
-	rspCollection = "rspconfig"
-	deviceIdField = "device_id"
+	rspCollection    = "rspconfig"
+	deviceIdField    = "device_id"
+	facilityIdField  = "facility_id"
+	personalityField = "personality"
+	aliasesField     = "aliases"
 )
 
 // FindRSP searches DB for RSP based on the device_id value

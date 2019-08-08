@@ -13,10 +13,10 @@ const (
 type Personality string
 
 const (
-	NoPersonality Personality = "None"
-	Exit          Personality = "Exit"
+	NoPersonality Personality = "NONE"
+	Exit          Personality = "EXIT"
 	POS           Personality = "POS"
-	FittingRoom   Personality = "FittingRoom"
+	FittingRoom   Personality = "FITTING_ROOM"
 )
 
 type RSP struct {
@@ -25,7 +25,7 @@ type RSP struct {
 	Personality   Personality `json:"personality" bson:"personality"`
 	Aliases       []string    `json:"aliases" bson:"aliases"`
 	IsInDeepScan  bool        `json:"-" bson:"-"`
-	MinRssiDbm10X int         `json:"min_rssi_dbm_10x" bson:"min_rssi_dbm_10x"`
+	MinRssiDbm10X int         `json:"min_rssi,omitempty" bson:"min_rssi,omitempty"`
 }
 
 func NewRSP(deviceId string) *RSP {
@@ -39,10 +39,14 @@ func NewRSP(deviceId string) *RSP {
 	return &rsp
 }
 
-func (rsp *RSP) UpdateFromConfig(notification jsonrpc.SensorConfigNotification) {
-	rsp.FacilityId = notification.Params.FacilityId
-	rsp.Personality = Personality(notification.Params.Personality)
-	rsp.Aliases = notification.Params.Aliases
+func NewRSPFromConfigNotification(notification *jsonrpc.SensorConfigNotification) *RSP {
+	cfg := notification.Params
+	return &RSP{
+		DeviceId:    cfg.DeviceId,
+		FacilityId:  cfg.FacilityId,
+		Personality: Personality(cfg.Personality),
+		Aliases:     cfg.Aliases,
+	}
 }
 
 func (rsp *RSP) AntennaAlias(antennaId int) string {

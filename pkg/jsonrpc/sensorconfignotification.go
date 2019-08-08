@@ -8,10 +8,10 @@ type SensorConfigNotification struct {
 }
 
 type SensorConfigNotificationParams struct {
-	DeviceId    string
-	FacilityId  string
-	Personality string
-	Aliases     []string
+	DeviceId    string   `json:"device_id"`
+	FacilityId  string   `json:"facility_id"`
+	Personality string   `json:"personality"`
+	Aliases     []string `json:"aliases"`
 }
 
 func (notif *SensorConfigNotification) Validate() error {

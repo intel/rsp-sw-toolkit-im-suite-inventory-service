@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
@@ -475,7 +476,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 		//Initialized EdgeX apps functionSDK
 		edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 		if err := edgexSdk.Initialize(); err != nil {
-			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v\n", err))
+			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
 			os.Exit(-1)
 		}
 
@@ -572,9 +573,15 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 		case sensorConfigNotification:
 			log.Debugf("Received sensor config notification:\n%s", reading.Value)
 
-			sensorNotif := new(jsonrpc.SensorConfigNotification)
-			if err := decodeJsonRpc(&reading, sensorNotif, nil); err != nil {
+			notification := new(jsonrpc.SensorConfigNotification)
+			if err := decodeJsonRpc(&reading, notification, nil); err != nil {
 				return false, err
+			}
+
+			rsp := sensor.NewRSPFromConfigNotification(notification)
+			err := sensor.Upsert(db.masterDB, rsp)
+			if err != nil {
+				return false, errors.Wrapf(err, "unable to upsert sensor config notification for sensor %s", notification.Params.DeviceId)
 			}
 
 		case inventoryEvent:
@@ -596,7 +603,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			break
 
 		case inventoryData:
-			log.Debugf("Received inventory_data message. msglen=%d\n", len(reading.Value))
+			log.Debugf("Received inventory_data message. msglen=%d", len(reading.Value))
 
 			invData := new(jsonrpc.InventoryData)
 			if err := decodeJsonRpc(&reading, invData, &mRRSRawDataProcessingError); err != nil {
