@@ -40,8 +40,11 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 
 	rsp, err := lookupRSP(copySession, invData.Params.DeviceId)
 	if err != nil {
-		return &jsonrpc.InventoryEvent{}, errors.Wrapf(err, "unable to find sensor %s in database", invData.Params.DeviceId)
+		return &jsonrpc.InventoryEvent{}, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}
+
+	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, minRssiDbm10x: %d, aliases: %v",
+		rsp.DeviceId, rsp.Personality, rsp.IsExitSensor(), rsp.IsPOSSensor(), rsp.MinRssiDbm10X, rsp.Aliases)
 
 	facId := invData.Params.FacilityId
 
@@ -246,11 +249,14 @@ func ageout() int {
 }
 
 // todo: when to call this? on schedule?
-func doAggregateDepartedTask() {
+// todo: rsp-controller call its at 1/5 the timeout interval
+func DoAggregateDepartedTask() *jsonrpc.InventoryEvent {
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
+	// acquire lock BEFORE getting the timestamps, otherwise they can be invalid if we have to wait for the lock
 	now := helper.UnixMilliNow()
 	expiration := now - int64(config.AppConfig.AggregateDepartedThresholdMillis)
-
-	inventoryMutex.Lock()
 
 	invEvent := jsonrpc.NewInventoryEvent()
 
@@ -278,9 +284,7 @@ func doAggregateDepartedTask() {
 		tags = tags[:keepIndex]
 	}
 
-	// todo: do something with invEvent
-
-	inventoryMutex.Unlock()
+	return invEvent
 }
 
 func addEvent(invEvent *jsonrpc.InventoryEvent, tag *Tag, event Event) {

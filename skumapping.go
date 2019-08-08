@@ -106,8 +106,8 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 			tagStateChangeList = append(tagStateChangeList, tagStateChange)
 		}
 
-		log.Debug("Previous and Current Tag State:\n")
-		log.Debug(tagStateChange)
+		log.Trace("Previous and Current Tag State:\n")
+		log.Trace(tagStateChange)
 
 	}
 

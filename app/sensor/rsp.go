@@ -49,6 +49,8 @@ func NewRSPFromConfigNotification(notification *jsonrpc.SensorConfigNotification
 	}
 }
 
+// AntennaAlias gets the string alias of an RSP based on the antenna port
+// format is DeviceId-AntennaId,  ie. RSP-150009-0
 func (rsp *RSP) AntennaAlias(antennaId int) string {
 	var sb strings.Builder
 	sb.WriteString(rsp.DeviceId)
@@ -57,19 +59,22 @@ func (rsp *RSP) AntennaAlias(antennaId int) string {
 	return sb.String()
 }
 
+// RssiInRange returns true if either the RSP is not filtering by minimum RSSI, or the RSSI is >= the minimum RSSI configured
 func (rsp *RSP) RssiInRange(rssi int) bool {
 	return rsp.MinRssiDbm10X == 0 || rssi >= rsp.MinRssiDbm10X
 }
 
+// IsExitSensor returns true if this RSP has the EXIT personality
 func (rsp *RSP) IsExitSensor() bool {
 	return rsp.Personality == Exit
 }
 
+// IsPOSSensor returns true if this RSP has the POS personality
 func (rsp *RSP) IsPOSSensor() bool {
 	return rsp.Personality == POS
 }
 
-// Empty returns whether this RSP has data or not.
+// IsEmpty returns whether this RSP has data or not.
 // all RSPs require a deviceId, so simply check for that field
 func (rsp *RSP) IsEmpty() bool {
 	return rsp.DeviceId == ""

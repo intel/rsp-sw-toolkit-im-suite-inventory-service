@@ -129,10 +129,15 @@ func main() {
 	// Connect to EdgeX zeroMQ bus
 	receiveZMQEvents(masterDB)
 
+	ticker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis / 5) * time.Millisecond)
+	go processDepartedTicker(ticker, &myDB{masterDB: masterDB})
+
+	// THIS IS BLOCKING!!!!
 	// Initiate webserver and routes
 	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
 
 	log.WithField("Method", "main").Info("Completed.")
+
 }
 
 func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName string) {
@@ -610,6 +615,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				return false, err
 			}
 
+			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent, err := tagprocessor.ProcessInventoryData(db.masterDB, invData)
 			if err != nil {
 				return false, err
@@ -657,4 +663,26 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	}
 
 	return false, nil
+}
+
+func processDepartedTicker(ticker *time.Ticker, mydb *myDB) {
+	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+
+	for {
+		select {
+		case t := <-ticker.C:
+			log.Debugf("DoAggregateDepartedTask: %v", t)
+			// todo: this should really just pass a channel down for the code to send the events back up to
+			invEvent := tagprocessor.DoAggregateDepartedTask()
+			// ingest tag events
+			if !invEvent.IsEmpty() {
+				go func(invEvent *jsonrpc.InventoryEvent) {
+					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
+					if err != nil {
+						errorHandler("error processing event data", err, nil)
+					}
+				}(invEvent)
+			}
+		}
+	}
 }
