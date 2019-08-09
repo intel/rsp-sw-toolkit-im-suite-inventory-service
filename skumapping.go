@@ -66,7 +66,7 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 	if tagsGauge != nil {
 		(*tagsGauge).Add(int64(numberOfTags))
 	}
-	log.Debugf("Processing %d Tags.\n", numberOfTags)
+	log.Debugf("Processing %d Tag Events", numberOfTags)
 	tagsFiltered := 0
 	for _, tempTag := range invEvent.Params.Data {
 		if len(config.AppConfig.EpcFilters) > 0 {

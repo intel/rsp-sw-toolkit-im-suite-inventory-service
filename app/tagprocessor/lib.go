@@ -192,8 +192,16 @@ func checkExiting(rsp *sensor.RSP, tag *Tag) {
 	addExiting(rsp.FacilityId, tag)
 }
 
+func OnSchedulerRunState(runState *jsonrpc.SchedulerRunState) {
+	// clear any cached exiting tag status
+	logrus.Infof("Scheduler run state has changed to %s. Clearing exiting status of all tags.", runState.Params.RunState)
+	clearExiting()
+}
+
 func clearExiting() {
 	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	for _, tags := range exitingTags {
 		for _, tag := range tags {
 			// test just to be sure, this should not be necessary but belt and suspenders
@@ -203,7 +211,6 @@ func clearExiting() {
 		}
 	}
 	exitingTags = make(map[string][]*Tag)
-	inventoryMutex.Unlock()
 }
 
 func addExiting(facilityId string, tag *Tag) {

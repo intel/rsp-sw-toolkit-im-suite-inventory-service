@@ -69,6 +69,20 @@ const (
 	deviceAlert              = "device_alert"
 	controllerHeartbeat      = "controller_heartbeat"
 	sensorConfigNotification = "sensor_config_notification"
+	schedulerRunState        = "scheduler_run_state"
+)
+
+var (
+	// Filter data by value descriptors (aka device resource name)
+	valueDescriptors = []string{
+		asnData,
+		inventoryEvent,
+		deviceAlert,
+		controllerHeartbeat,
+		inventoryData,
+		sensorConfigNotification,
+		schedulerRunState,
+	}
 )
 
 type myDB struct {
@@ -129,11 +143,10 @@ func main() {
 	// Connect to EdgeX zeroMQ bus
 	receiveZMQEvents(masterDB)
 
-	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis / 5) * time.Millisecond)
+	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis/5) * time.Millisecond)
 	defer aggregateDepartedTicker.Stop()
 	ageoutTicker := time.NewTicker(1 * time.Hour)
 	defer ageoutTicker.Stop()
-
 
 	go processTickers(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
 
@@ -490,16 +503,6 @@ func receiveZMQEvents(masterDB *db.DB) {
 			os.Exit(-1)
 		}
 
-		// Filter data by value descriptors (aka device resource name)
-		valueDescriptors := []string{
-			asnData,
-			inventoryEvent,
-			deviceAlert,
-			controllerHeartbeat,
-			inventoryData,
-			sensorConfigNotification,
-		}
-
 		edgexSdk.SetFunctionsPipeline(
 			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
 			db.processEvents,
@@ -593,6 +596,19 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			if err != nil {
 				return false, errors.Wrapf(err, "unable to upsert sensor config notification for sensor %s", notification.Params.DeviceId)
 			}
+			break
+
+		case schedulerRunState:
+			log.Debugf("Received scheduler run state notification:\n%s", reading.Value)
+
+			runState := new(jsonrpc.SchedulerRunState)
+			if err := decodeJsonRpc(&reading, runState, nil); err != nil {
+				return false, err
+			}
+
+			tagprocessor.OnSchedulerRunState(runState)
+
+			break
 
 		case inventoryEvent:
 			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
