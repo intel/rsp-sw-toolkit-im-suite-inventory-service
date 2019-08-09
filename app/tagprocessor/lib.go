@@ -38,9 +38,9 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 	copySession := dbs.CopySession()
 	defer copySession.Close()
 
-	rsp, err := lookupRSP(copySession, invData.Params.DeviceId)
+	rsp, err := sensor.GetOrCreateRSP(copySession, invData.Params.DeviceId)
 	if err != nil {
-		return &jsonrpc.InventoryEvent{}, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
+		return nil, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}
 
 	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, minRssiDbm10x: %d, aliases: %v",
@@ -63,20 +63,6 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 	}
 
 	return invEvent, nil
-}
-
-func lookupRSP(dbs *db.DB, deviceId string) (*sensor.RSP, error) {
-	rsp, err := sensor.FindRSP(dbs, deviceId)
-	if err != nil {
-		return &sensor.RSP{}, err
-	} else if rsp.IsEmpty() {
-		rsp = sensor.NewRSP(deviceId)
-		if err = sensor.Upsert(dbs, rsp); err != nil {
-			return &sensor.RSP{}, err
-		}
-	}
-
-	return rsp, nil
 }
 
 func processReadData(dbs *db.DB, invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {

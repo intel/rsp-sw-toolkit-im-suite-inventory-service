@@ -58,5 +58,7 @@ func (invEvent *InventoryEvent) AddTagEvent(event TagEvent) {
 }
 
 func (invEvent *InventoryEvent) IsEmpty() bool {
-	return invEvent.Params.Data == nil || len(invEvent.Params.Data) == 0
+	return invEvent == nil ||
+			invEvent.Params.Data == nil ||
+			len(invEvent.Params.Data) == 0
 }

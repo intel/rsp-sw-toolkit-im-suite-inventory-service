@@ -572,7 +572,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			logrus.Debugf("Received Heartbeat:\n%s", reading.Value)
 
 			hb := new(jsonrpc.Heartbeat)
-			if err := decodeJsonRpc(&reading, hb, &mRRSHeartbeatProcessingError); err != nil {
+			if err := jsonrpc.Decode(reading.Value, hb, &mRRSHeartbeatProcessingError); err != nil {
 				return false, err
 			}
 
@@ -587,7 +587,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			log.Debugf("Received sensor config notification:\n%s", reading.Value)
 
 			notification := new(jsonrpc.SensorConfigNotification)
-			if err := decodeJsonRpc(&reading, notification, nil); err != nil {
+			if err := jsonrpc.Decode(reading.Value, notification, nil); err != nil {
 				return false, err
 			}
 
@@ -602,7 +602,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			log.Debugf("Received scheduler run state notification:\n%s", reading.Value)
 
 			runState := new(jsonrpc.SchedulerRunState)
-			if err := decodeJsonRpc(&reading, runState, nil); err != nil {
+			if err := jsonrpc.Decode(reading.Value, runState, nil); err != nil {
 				return false, err
 			}
 
@@ -616,7 +616,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				log.Debugf("Received tag event data:\n%s", reading.Value)
 
 				invEvent := new(jsonrpc.InventoryEvent)
-				if err := decodeJsonRpc(reading, invEvent, errorGauge); err != nil {
+				if err := jsonrpc.Decode(reading.Value, invEvent, errorGauge); err != nil {
 					return
 				}
 
@@ -632,9 +632,17 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			log.Debugf("Received inventory_data message. msglen=%d", len(reading.Value))
 
 			invData := new(jsonrpc.InventoryData)
-			if err := decodeJsonRpc(&reading, invData, &mRRSRawDataProcessingError); err != nil {
+			if err := jsonrpc.Decode(reading.Value, invData, &mRRSRawDataProcessingError); err != nil {
 				return false, err
 			}
+
+			//go func() {
+			//	sensorInfo, err := sensor.QuerySensorBasicInfo(invData.Params.DeviceId)
+			//	if err != nil {
+			//		return
+			//	}
+			//	log.Infof("%+v", sensorInfo)
+			//}()
 
 			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent, err := tagprocessor.ProcessInventoryData(db.masterDB, invData)

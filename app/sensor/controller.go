@@ -36,10 +36,10 @@ func FindRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 	if err := dbs.Execute(rspCollection, execFunc); err != nil {
 		// If the error was because item does not exist, return empty struct and no error
 		if err == mgo.ErrNotFound {
-			return &RSP{}, nil
+			return nil, nil
 		}
 		mFindErr.Update(1)
-		return &RSP{}, errors.Wrapf(err, "db.%s.find()", rspCollection)
+		return nil, errors.Wrapf(err, "db.%s.find()", rspCollection)
 	}
 
 	mSuccess.Update(1)

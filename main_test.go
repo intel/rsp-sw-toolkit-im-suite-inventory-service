@@ -1435,7 +1435,7 @@ func createHeartbeat(t *testing.T, data string) *jsonrpc.Heartbeat {
 	data = wrapJsonrpcParams("heartbeat", data)
 	reading := &models.Reading{Value: data}
 	js := new(jsonrpc.Heartbeat)
-	if err := decodeJsonRpc(reading, js, nil); err != nil {
+	if err := jsonrpc.Decode(reading.Value, js, nil); err != nil {
 		t.Error(errors.Wrap(err, data))
 	}
 	return js
@@ -1445,7 +1445,7 @@ func createInventoryEvent(t *testing.T, data string) *jsonrpc.InventoryEvent {
 	data = wrapJsonrpcParams("inventory_event", data)
 	reading := &models.Reading{Value: data}
 	js := new(jsonrpc.InventoryEvent)
-	if err := decodeJsonRpc(reading, js, nil); err != nil {
+	if err := jsonrpc.Decode(reading.Value, js, nil); err != nil {
 		t.Error(errors.Wrap(err, data))
 	}
 	return js

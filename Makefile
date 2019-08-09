@@ -10,14 +10,18 @@ default: build
 scale = docker service scale $(STACK_NAME)_$(SERVICE_NAME)=$1 $2
 
 wait_for_service =	@printf "Waiting for $(SERVICE_NAME) service to$1..."; \
-					while [  $2 -z `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1` ]; \
+					while [  $2 -z $(get_id) ]; \
                  	do \
                  		printf "."; \
                  		sleep 0.3;\
                  	done; \
                  	printf "\n";
 
-log = docker logs $1$2 `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1` 2>&1
+trap_ctrl_c = trap 'exit 0' INT;
+
+get_id = `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1`
+
+log = docker logs $1$2 $(get_id) 2>&1
 
 clean_mongo =   echo "Cleaning MongoDB test databases..."; \
 				$(eval tmp := "$(shell mktemp).js") \
@@ -46,6 +50,8 @@ build:
 iterate:
 	$(call scale,0,-d)
 	$(MAKE) build
+	# make sure it has stopped before we try and start it again
+	$(call wait_for_service, stop, !)
 	$(call scale,1,-d)
 	$(call wait_for_service, start)
 	$(MAKE) tail
@@ -57,7 +63,27 @@ restart:
 	$(call wait_for_service, start)
 
 tail:
-	$(call log,-f --tail 10,$(args))
+	$(trap_ctrl_c) $(call log,-f --tail 10,$(args))
+
+stop:
+	$(call scale,0,$(args))
+
+start:
+	$(call scale,1,$(args))
+
+stop-d:
+	$(call scale,0,-d)
+
+start-d:
+	$(call scale,1,-d)
+
+wait-stop:
+	$(call scale,0,-d)
+	$(call wait_for_service, stop, !)
+
+wait-start:
+	$(call scale,1,-d)
+	$(call wait_for_service, start)
 
 scale:
 	$(call scale,$(n),$(args))
