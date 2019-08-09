@@ -1,8 +1,11 @@
 package tagprocessor
 
 import (
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"sync"
@@ -13,12 +16,9 @@ var (
 	inventory   = make(map[string]*Tag) // todo: TreeMap?
 	exitingTags = make(map[string][]*Tag)
 
-	rfidSensors = make(map[string]*RfidSensor)
-
 	weighter = newRssiAdjuster()
 
 	inventoryMutex = &sync.Mutex{}
-	sensorMutex    = &sync.Mutex{}
 )
 
 const (
@@ -34,41 +34,53 @@ const (
 //}
 
 // ProcessInventoryData todo: desc
-func ProcessInventoryData(invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
-	sensor := lookupSensor(invData.Params.DeviceId)
+func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
+	copySession := dbs.CopySession()
+	defer copySession.Close()
+
+	rsp, err := lookupRSP(copySession, invData.Params.DeviceId)
+	if err != nil {
+		return &jsonrpc.InventoryEvent{}, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
+	}
+
+	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, minRssiDbm10x: %d, aliases: %v",
+		rsp.DeviceId, rsp.Personality, rsp.IsExitSensor(), rsp.IsPOSSensor(), rsp.MinRssiDbm10X, rsp.Aliases)
+
 	facId := invData.Params.FacilityId
 
-	if sensor.FacilityId != facId {
-		logrus.Debugf("Updating sensor %s facilityId to %s.\nSensor Map: %#v", sensor.DeviceId, facId, rfidSensors)
-		sensor.FacilityId = facId
+	if rsp.FacilityId != facId {
+		logrus.Debugf("Updating sensor %s facilityId to %s", rsp.DeviceId, facId)
+		rsp.FacilityId = facId
+		if err = sensor.Upsert(dbs, rsp); err != nil {
+			logrus.Errorf("unable to upsert sensor %s. cause: %v", rsp.DeviceId, err)
+		}
 	}
 
 	invEvent := jsonrpc.NewInventoryEvent()
 
 	for _, read := range invData.Params.Data {
-		// todo: handle error?
-		processReadData(invEvent, &read, sensor)
+		processReadData(copySession, invEvent, &read, rsp)
 	}
 
 	return invEvent, nil
 }
 
-func lookupSensor(deviceId string) *RfidSensor {
-	sensorMutex.Lock()
-	defer sensorMutex.Unlock()
-
-	sensor, found := rfidSensors[deviceId]
-
-	if !found {
-		sensor = NewRfidSensor(deviceId)
-		rfidSensors[deviceId] = sensor
+func lookupRSP(dbs *db.DB, deviceId string) (*sensor.RSP, error) {
+	rsp, err := sensor.FindRSP(dbs, deviceId)
+	if err != nil {
+		return &sensor.RSP{}, err
+	} else if rsp.IsEmpty() {
+		rsp = sensor.NewRSP(deviceId)
+		if err = sensor.Upsert(dbs, rsp); err != nil {
+			return &sensor.RSP{}, err
+		}
 	}
 
-	return sensor
+	return rsp, nil
 }
 
-func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, sensor *RfidSensor) {
-	if sensor.minRssiDbm10X != 0 && read.Rssi < sensor.minRssiDbm10X {
+func processReadData(dbs *db.DB, invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
+	if !rsp.RssiInRange(read.Rssi) {
 		return
 	}
 
@@ -81,7 +93,7 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 	}
 
 	prev := tag.asPreviousTag()
-	tag.update(sensor, read, &weighter)
+	tag.update(rsp, read, &weighter)
 
 	switch prev.state {
 
@@ -90,7 +102,7 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		// for the use case of POS reader might be the first
 		// sensor in the store hallway to see a tag etc. so
 		// need to prevent premature departures
-		if sensor.Personality == POS {
+		if rsp.IsPOSSensor() {
 			break
 		}
 
@@ -99,21 +111,21 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		break
 
 	case Present:
-		if sensor.Personality == POS {
+		if rsp.IsPOSSensor() {
 			if !checkDepartPOS(invEvent, tag) {
 				checkMovement(invEvent, tag, &prev)
 			}
 		} else {
-			checkExiting(sensor, tag)
+			checkExiting(rsp, tag)
 			checkMovement(invEvent, tag, &prev)
 		}
 		break
 
 	case Exiting:
-		if sensor.Personality == POS {
+		if rsp.IsPOSSensor() {
 			checkDepartPOS(invEvent, tag)
 		} else {
-			if sensor.Personality != Exit && sensor.DeviceId == tag.DeviceLocation {
+			if !rsp.IsExitSensor() && rsp.DeviceId == tag.DeviceLocation {
 				tag.setState(Present)
 			}
 			checkMovement(invEvent, tag, &prev)
@@ -121,16 +133,16 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		break
 
 	case DepartedExit:
-		if sensor.Personality == POS {
+		if rsp.IsPOSSensor() {
 			break
 		}
 
 		doTagReturn(invEvent, tag, &prev)
-		checkExiting(sensor, tag)
+		checkExiting(rsp, tag)
 		break
 
 	case DepartedPos:
-		if sensor.Personality == POS {
+		if rsp.IsPOSSensor() {
 			break
 		}
 
@@ -138,7 +150,7 @@ func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, se
 		// a configurable amount of time (i.e. 1 day)
 		if tag.LastDeparted < (tag.LastRead - int64(config.AppConfig.PosReturnThresholdMillis)) {
 			doTagReturn(invEvent, tag, &prev)
-			checkExiting(sensor, tag)
+			checkExiting(rsp, tag)
 		}
 		break
 	}
@@ -173,15 +185,23 @@ func checkMovement(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag
 	}
 }
 
-func checkExiting(sensor *RfidSensor, tag *Tag) {
-	if sensor.Personality != Exit || sensor.DeviceId != tag.DeviceLocation {
+func checkExiting(rsp *sensor.RSP, tag *Tag) {
+	if !rsp.IsExitSensor() || rsp.DeviceId != tag.DeviceLocation {
 		return
 	}
-	addExiting(sensor.FacilityId, tag)
+	addExiting(rsp.FacilityId, tag)
+}
+
+func OnSchedulerRunState(runState *jsonrpc.SchedulerRunState) {
+	// clear any cached exiting tag status
+	logrus.Infof("Scheduler run state has changed to %s. Clearing exiting status of all tags.", runState.Params.RunState)
+	clearExiting()
 }
 
 func clearExiting() {
 	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	for _, tags := range exitingTags {
 		for _, tag := range tags {
 			// test just to be sure, this should not be necessary but belt and suspenders
@@ -191,7 +211,6 @@ func clearExiting() {
 		}
 	}
 	exitingTags = make(map[string][]*Tag)
-	inventoryMutex.Unlock()
 }
 
 func addExiting(facilityId string, tag *Tag) {
@@ -214,12 +233,14 @@ func doTagReturn(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag) 
 	tag.setState(Present)
 }
 
-// todo: when to call this? on a schedule?
-func ageout() int {
+// todo: when to call this? on a schedule???
+// todo: it looks like rsp-controller just calls it on start and stop???
+func DoAgeoutTask() int {
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
 	expiration := helper.UnixMilli(time.Now().Add(
 		time.Hour * time.Duration(-config.AppConfig.AgeOutHours)))
-
-	inventoryMutex.Lock()
 
 	// it is safe to remove from map while iterating in golang
 	var numRemoved int
@@ -230,18 +251,19 @@ func ageout() int {
 		}
 	}
 
-	inventoryMutex.Unlock()
-
 	logrus.Infof("inventory ageout removed %d tags", numRemoved)
 	return numRemoved
 }
 
 // todo: when to call this? on schedule?
-func doAggregateDepartedTask() {
+// todo: rsp-controller call its at 1/5 the timeout interval
+func DoAggregateDepartedTask() *jsonrpc.InventoryEvent {
+	inventoryMutex.Lock()
+	defer inventoryMutex.Unlock()
+
+	// acquire lock BEFORE getting the timestamps, otherwise they can be invalid if we have to wait for the lock
 	now := helper.UnixMilliNow()
 	expiration := now - int64(config.AppConfig.AggregateDepartedThresholdMillis)
-
-	inventoryMutex.Lock()
 
 	invEvent := jsonrpc.NewInventoryEvent()
 
@@ -269,9 +291,7 @@ func doAggregateDepartedTask() {
 		tags = tags[:keepIndex]
 	}
 
-	// todo: do something with invEvent
-
-	inventoryMutex.Unlock()
+	return invEvent
 }
 
 func addEvent(invEvent *jsonrpc.InventoryEvent, tag *Tag, event Event) {

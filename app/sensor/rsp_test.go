@@ -1,4 +1,4 @@
-package tagprocessor
+package sensor
 
 import (
 	"testing"
@@ -29,8 +29,8 @@ func TestSensorGetAntennaAlias(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
-			sensor := NewRfidSensor(test.deviceId)
-			alias := sensor.getAntennaAlias(test.antennaId)
+			sensor := NewRSP(test.deviceId)
+			alias := sensor.AntennaAlias(test.antennaId)
 			if alias != test.expected {
 				t.Errorf("Expected alias of %s, but got %s", test.expected, alias)
 			}

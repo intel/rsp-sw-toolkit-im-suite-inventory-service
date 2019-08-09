@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
@@ -62,11 +63,26 @@ const (
 )
 
 const (
-	asnData             = "ASN_data"
-	inventoryEvent      = "inventory_event"
-	inventoryData       = "inventory_data"
-	deviceAlert         = "device_alert"
-	controllerHeartbeat = "controller_heartbeat"
+	asnData                  = "ASN_data"
+	inventoryEvent           = "inventory_event"
+	inventoryData            = "inventory_data"
+	deviceAlert              = "device_alert"
+	controllerHeartbeat      = "controller_heartbeat"
+	sensorConfigNotification = "sensor_config_notification"
+	schedulerRunState        = "scheduler_run_state"
+)
+
+var (
+	// Filter data by value descriptors (aka device resource name)
+	valueDescriptors = []string{
+		asnData,
+		inventoryEvent,
+		deviceAlert,
+		controllerHeartbeat,
+		inventoryData,
+		sensorConfigNotification,
+		schedulerRunState,
+	}
 )
 
 type myDB struct {
@@ -127,10 +143,19 @@ func main() {
 	// Connect to EdgeX zeroMQ bus
 	receiveZMQEvents(masterDB)
 
+	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis/5) * time.Millisecond)
+	defer aggregateDepartedTicker.Stop()
+	ageoutTicker := time.NewTicker(1 * time.Hour)
+	defer ageoutTicker.Stop()
+
+	go processTickers(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
+
+	// THIS IS BLOCKING!!!!
 	// Initiate webserver and routes
 	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
 
 	log.WithField("Method", "main").Info("Completed.")
+
 }
 
 func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName string) {
@@ -474,12 +499,9 @@ func receiveZMQEvents(masterDB *db.DB) {
 		//Initialized EdgeX apps functionSDK
 		edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 		if err := edgexSdk.Initialize(); err != nil {
-			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v\n", err))
+			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
 			os.Exit(-1)
 		}
-
-		// Filter data by value descriptors
-		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, controllerHeartbeat, inventoryData}
 
 		edgexSdk.SetFunctionsPipeline(
 			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
@@ -561,6 +583,33 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
+		case sensorConfigNotification:
+			log.Debugf("Received sensor config notification:\n%s", reading.Value)
+
+			notification := new(jsonrpc.SensorConfigNotification)
+			if err := decodeJsonRpc(&reading, notification, nil); err != nil {
+				return false, err
+			}
+
+			rsp := sensor.NewRSPFromConfigNotification(notification)
+			err := sensor.Upsert(db.masterDB, rsp)
+			if err != nil {
+				return false, errors.Wrapf(err, "unable to upsert sensor config notification for sensor %s", notification.Params.DeviceId)
+			}
+			break
+
+		case schedulerRunState:
+			log.Debugf("Received scheduler run state notification:\n%s", reading.Value)
+
+			runState := new(jsonrpc.SchedulerRunState)
+			if err := decodeJsonRpc(&reading, runState, nil); err != nil {
+				return false, err
+			}
+
+			tagprocessor.OnSchedulerRunState(runState)
+
+			break
+
 		case inventoryEvent:
 			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
 
@@ -580,14 +629,15 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			break
 
 		case inventoryData:
-			log.Debugf("Received inventory_data message. msglen=%d\n", len(reading.Value))
+			log.Debugf("Received inventory_data message. msglen=%d", len(reading.Value))
 
 			invData := new(jsonrpc.InventoryData)
 			if err := decodeJsonRpc(&reading, invData, &mRRSRawDataProcessingError); err != nil {
 				return false, err
 			}
 
-			invEvent, err := tagprocessor.ProcessInventoryData(invData)
+			// todo: this should really just pass a channel down for the code to send the events back up to
+			invEvent, err := tagprocessor.ProcessInventoryData(db.masterDB, invData)
 			if err != nil {
 				return false, err
 			}
@@ -634,4 +684,33 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	}
 
 	return false, nil
+}
+
+func processTickers(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
+	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+
+	for {
+		select {
+
+		case t := <-aggregateDepartedTicker.C:
+			log.Debugf("DoAggregateDepartedTask: %v", t)
+			// todo: this should really just pass a channel down for the code to send the events back up to
+			invEvent := tagprocessor.DoAggregateDepartedTask()
+			// ingest tag events
+			if !invEvent.IsEmpty() {
+				go func(invEvent *jsonrpc.InventoryEvent) {
+					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
+					if err != nil {
+						errorHandler("error processing event data", err, nil)
+					}
+				}(invEvent)
+			}
+			break
+
+		case t := <-ageoutTicker.C:
+			log.Debugf("DoAgeoutTask: %v", t)
+			tagprocessor.DoAgeoutTask()
+			break
+		}
+	}
 }

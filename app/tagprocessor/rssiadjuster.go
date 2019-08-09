@@ -1,6 +1,9 @@
 package tagprocessor
 
-import "github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+import (
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+)
 
 type rssiAdjuster struct {
 	mobilityProfile MobilityProfile
@@ -12,10 +15,10 @@ func newRssiAdjuster() rssiAdjuster {
 	}
 }
 
-func (weighter *rssiAdjuster) getWeight(lastRead int64, sensor *RfidSensor) float64 {
+func (weighter *rssiAdjuster) getWeight(lastRead int64, rsp *sensor.RSP) float64 {
 	profile := weighter.mobilityProfile
 
-	if sensor.isInDeepScan {
+	if rsp.IsInDeepScan {
 		return profile.Threshold
 	}
 
