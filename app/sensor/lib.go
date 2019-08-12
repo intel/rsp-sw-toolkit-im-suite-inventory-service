@@ -16,7 +16,9 @@ const (
 	GetBasicInfo = "sensor_get_basic_info"
 )
 
-
+// GetOrCreateRSP returns a pointer to an RSP if found in the DB, and if
+// not found in the DB, a record will be created and added, then returned to the caller
+// error is only non-nil when there is an issue communicating with the DB
 func GetOrCreateRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 	rsp, err := FindRSP(dbs, deviceId)
 	if err != nil {
@@ -44,6 +46,8 @@ func GetOrCreateRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 	return rsp, nil
 }
 
+// QueryBasicInfo makes a call to the EdgeX command service to request the RSP-Controller
+// to return us more information about a given RSP sensor
 func QueryBasicInfo(deviceId string) (*jsonrpc.SensorBasicInfo, error) {
 	reading, err := ExecuteSensorCommand(deviceId, GetBasicInfo)
 	if err != nil {
@@ -58,6 +62,8 @@ func QueryBasicInfo(deviceId string) (*jsonrpc.SensorBasicInfo, error) {
 	return sensorInfo, nil
 }
 
+// ExecuteSensorCommand makes an HTTP GET call to the EdgeX core command service to execute
+// a specified command on a given RSP sensor
 func ExecuteSensorCommand(deviceId string, commandName string) (*models.Reading, error) {
 	url := fmt.Sprintf("%s/api/v1/device/name/%s/command/%s", config.AppConfig.CoreCommandUrl, deviceId, commandName)
 	logrus.Infof("Making GET call to %s", url)

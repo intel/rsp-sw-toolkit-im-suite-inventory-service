@@ -4,7 +4,7 @@ import "testing"
 
 func TestNewMobilityProfile(t *testing.T) {
 	// check that default is asset tracking
-	mp := GetDefaultMobilityProfile()
+	mp := getDefaultMobilityProfile()
 	if mp.Slope >= 0.0 {
 		t.Errorf("mobility profile: M is %v, which is >= 0.0.\n\t%#v", mp.Slope, mp)
 	}

@@ -11,7 +11,7 @@ type rssiAdjuster struct {
 
 func newRssiAdjuster() rssiAdjuster {
 	return rssiAdjuster{
-		mobilityProfile: GetDefaultMobilityProfile(),
+		mobilityProfile: GetActiveMobilityProfile(),
 	}
 }
 

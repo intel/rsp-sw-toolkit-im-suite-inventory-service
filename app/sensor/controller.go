@@ -10,11 +10,8 @@ import (
 )
 
 const (
-	rspCollection    = "rspconfig"
-	deviceIdField    = "device_id"
-	facilityIdField  = "facility_id"
-	personalityField = "personality"
-	aliasesField     = "aliases"
+	rspCollection = "rspconfig"
+	deviceIdField = "device_id"
 )
 
 // FindRSP searches DB for RSP based on the device_id value
@@ -46,6 +43,8 @@ func FindRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 	return rsp, nil
 }
 
+// Upsert takes a pointer to an rsp config and either adds it to the DB if it is new,
+// or updates its values if it is existing
 func Upsert(dbs *db.DB, rsp *RSP) error {
 	upsertTimer := time.Now()
 

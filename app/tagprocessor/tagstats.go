@@ -2,6 +2,7 @@ package tagprocessor
 
 import "github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 
+// TagStats helps keep track of tag read rssi values over time
 type TagStats struct {
 	LastRead     int64
 	readInterval *CircularBuffer

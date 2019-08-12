@@ -33,8 +33,13 @@ var (
 		retailGarmentDefault.Id: retailGarmentDefault,
 		defaultProfile.Id:       defaultProfile,
 	}
+
+	activeProfile = getDefaultMobilityProfile()
 )
 
+// Mobility Profile defines the parameters of the weighted slope formula used in calculating a tag's location.
+// Tag location is determined based on the quality of tag reads associated with a sensor/antenna averaged over time.
+// For a tag to move from one location to another, the other location must be either a better signal or be more recent.
 type MobilityProfile struct {
 	Id string `json:"id"`
 	// Slope (dBm per millisecond): Used to determine the weight applied to older RSSI values
@@ -52,7 +57,11 @@ func (profile *MobilityProfile) calculateYIntercept() {
 	profile.YIntercept = profile.Threshold - (profile.Slope * profile.HoldoffMillis)
 }
 
-func GetDefaultMobilityProfile() MobilityProfile {
+func GetActiveMobilityProfile() MobilityProfile {
+	return activeProfile
+}
+
+func getDefaultMobilityProfile() MobilityProfile {
 	profile, err := GetMobilityProfile(defaultProfile.Id)
 
 	// default should always exist

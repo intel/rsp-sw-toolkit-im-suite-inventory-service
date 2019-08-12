@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	backStock    = "BackStock"
-	salesFloor   = "SalesFloor"
+	backStock  = "BackStock"
+	salesFloor = "SalesFloor"
 
 	defaultFrequency = 927
 )

@@ -399,7 +399,7 @@ func InitConfig() error {
 	}
 
 	AppConfig.AgeOutHours = getOrDefaultInt(config, "ageOutHours", 336)
-	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl",  "http://edgex-core-command:48082")
+	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
 	return nil
 }
@@ -407,7 +407,7 @@ func InitConfig() error {
 func getOrDefaultString(config *configuration.Configuration, path string, defaultValue string) string {
 	value, err := config.GetString(path)
 	if err != nil {
-		log.Debug("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		log.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
 		return defaultValue
 	}
 	return value
@@ -416,7 +416,7 @@ func getOrDefaultString(config *configuration.Configuration, path string, defaul
 func getOrDefaultInt(config *configuration.Configuration, path string, defaultValue int) int {
 	value, err := config.GetInt(path)
 	if err != nil {
-		log.Debug("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		log.Debugf("%s was missing from configuration, setting to default value of %d", path, defaultValue)
 		return defaultValue
 	}
 	return value
