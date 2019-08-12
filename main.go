@@ -637,7 +637,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}
 
 			//go func() {
-			//	sensorInfo, err := sensor.QuerySensorBasicInfo(invData.Params.DeviceId)
+			//	sensorInfo, err := sensor.QueryBasicInfo(invData.Params.DeviceId)
 			//	if err != nil {
 			//		return
 			//	}

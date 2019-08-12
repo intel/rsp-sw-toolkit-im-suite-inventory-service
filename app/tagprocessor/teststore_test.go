@@ -10,11 +10,6 @@ import (
 const (
 	backStock    = "BackStock"
 	salesFloor   = "SalesFloor"
-	facilityCold = "Cold"
-	facilityDry  = "Dry"
-	facilityA    = "A"
-	facilityB    = "B"
-	facilityC    = "C"
 
 	defaultFrequency = 927
 )

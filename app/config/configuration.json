@@ -52,5 +52,6 @@
   "posDepartedThresholdMillis": 3600000,
   "posReturnThresholdMillis": 86400000,
   "aggregateDepartedThresholdMillis": 30000,
-  "ageOutHours": 336
+  "ageOutHours": 336,
+  "coreCommandUrl": "http://edgex-core-command:48082"
 }
