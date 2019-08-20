@@ -579,7 +579,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}
 
 			// ingest tag events
-			if !invEvent.IsEmpty() {
+			if invEvent != nil {
 				go func(invEvent *jsonrpc.InventoryEvent, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
 					err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
 					if err != nil {
@@ -635,7 +635,7 @@ func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageout
 			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent := tagprocessor.DoAggregateDepartedTask()
 			// ingest tag events
-			if !invEvent.IsEmpty() {
+			if invEvent!= nil && !invEvent.IsEmpty() {
 				go func(invEvent *jsonrpc.InventoryEvent) {
 					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
 					if err != nil {

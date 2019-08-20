@@ -62,9 +62,3 @@ func (rsp *RSP) IsExitSensor() bool {
 func (rsp *RSP) IsPOSSensor() bool {
 	return rsp.Personality == POS
 }
-
-// IsEmpty returns whether this RSP has data or not.
-// all RSPs require a deviceId, so simply check for that field
-func (rsp *RSP) IsEmpty() bool {
-	return rsp.DeviceId == ""
-}

@@ -40,7 +40,7 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 
 	rsp, err := lookupRSP(copySession, invData.Params.DeviceId)
 	if err != nil {
-		return &jsonrpc.InventoryEvent{}, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
+		return nil, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}
 
 	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, aliases: %v",
@@ -68,11 +68,11 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 func lookupRSP(dbs *db.DB, deviceId string) (*sensor.RSP, error) {
 	rsp, err := sensor.FindRSP(dbs, deviceId)
 	if err != nil {
-		return &sensor.RSP{}, err
-	} else if rsp.IsEmpty() {
+		return nil, err
+	} else if rsp == nil {
 		rsp = sensor.NewRSP(deviceId)
 		if err = sensor.Upsert(dbs, rsp); err != nil {
-			return &sensor.RSP{}, err
+			return nil, err
 		}
 	}
 
