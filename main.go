@@ -30,7 +30,6 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"io/ioutil"
 
 	"net/http"
 	"os"
@@ -58,13 +57,11 @@ import (
 )
 
 const (
-	jsonApplication = "application/json;charset=utf-8"
-	serviceKey      = "inventory-service"
+	serviceKey = "inventory-service"
 )
 
 const (
 	asnData                  = "ASN_data"
-	inventoryEvent           = "inventory_event"
 	inventoryData            = "inventory_data"
 	deviceAlert              = "device_alert"
 	controllerHeartbeat      = "controller_heartbeat"
@@ -76,7 +73,6 @@ var (
 	// Filter data by value descriptors (aka device resource name)
 	valueDescriptors = []string{
 		asnData,
-		inventoryEvent,
 		deviceAlert,
 		controllerHeartbeat,
 		inventoryData,
@@ -148,10 +144,10 @@ func main() {
 	ageoutTicker := time.NewTicker(1 * time.Hour)
 	defer ageoutTicker.Stop()
 
-	go processTickers(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
+	go runBackgroundTasks(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
 
-	// THIS IS BLOCKING!!!!
 	// Initiate webserver and routes
+	// NOTE: The call to `startWebServer` will block the main thread forever until an osSignal interrupt is received
 	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
 
 	log.WithField("Method", "main").Info("Completed.")
@@ -422,48 +418,6 @@ func callDeleteTagCollection(masterDB *db.DB) error {
 	return tag.DeleteTagCollection(masterDB)
 }
 
-func triggerRules(triggerRulesEndpoint string, data interface{}) error {
-	timeout := time.Duration(config.AppConfig.EndpointConnectionTimedOutSeconds) * time.Second
-	client := &http.Client{
-		Timeout: timeout,
-	}
-
-	mData, err := json.Marshal(data)
-	if err != nil {
-		return errors.Wrapf(err, "problem marshalling the data")
-	}
-
-	// Make the POST to authenticate
-	request, err := http.NewRequest("POST", triggerRulesEndpoint, bytes.NewBuffer(mData))
-	if err != nil {
-		return errors.Wrapf(err, "unable to create http.NewRquest")
-	}
-	request.Header.Set("content-type", jsonApplication)
-
-	response, err := client.Do(request)
-	if err != nil {
-		return errors.Wrapf(err, "unable trigger rules: %s", triggerRulesEndpoint)
-	}
-	defer func() {
-		if respErr := response.Body.Close(); respErr != nil {
-			log.WithFields(log.Fields{
-				"Method": "triggerRules",
-				"Action": "response.Body.Close()",
-			}).Warning("Failed to close response.")
-		}
-	}()
-
-	if response.StatusCode != http.StatusOK {
-		responseData, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			return errors.Wrapf(err, "unable to ReadALL response.Body")
-		}
-		return errors.Wrapf(errors.New("execution error"), "StatusCode %d , Response %s",
-			response.StatusCode, string(responseData))
-	}
-	return nil
-}
-
 // POC only implementation
 func markDepartedIfUnseen(tag *jsonrpc.TagEvent, ageOuts map[string]int, currentTimeMillis int64) {
 	if tag.EventType == "cycle_count" {
@@ -610,24 +564,6 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
-		case inventoryEvent:
-			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
-
-				log.Debugf("Received tag event data:\n%s", reading.Value)
-
-				invEvent := new(jsonrpc.InventoryEvent)
-				if err := jsonrpc.Decode(reading.Value, invEvent, errorGauge); err != nil {
-					return
-				}
-
-				err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
-				if err != nil {
-					errorHandler("error processing event data", err, errorGauge)
-				}
-
-			}(&reading, &mRRSEventsProcessingError, &mRRSEventsTags)
-			break
-
 		case inventoryData:
 			log.Debugf("Received inventory_data message. msglen=%d", len(reading.Value))
 
@@ -651,7 +587,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}
 
 			// ingest tag events
-			if !invEvent.IsEmpty() {
+			if invEvent != nil {
 				go func(invEvent *jsonrpc.InventoryEvent, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
 					err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
 					if err != nil {
@@ -694,7 +630,9 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	return false, nil
 }
 
-func processTickers(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
+// runBackgroundTasks is an infinite loop that processes timer tickers which are basically
+// a way to run code on a scheduled interval in golang
+func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
 	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
 	for {
@@ -705,7 +643,7 @@ func processTickers(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTick
 			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent := tagprocessor.DoAggregateDepartedTask()
 			// ingest tag events
-			if !invEvent.IsEmpty() {
+			if invEvent!= nil && !invEvent.IsEmpty() {
 				go func(invEvent *jsonrpc.InventoryEvent) {
 					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
 					if err != nil {

@@ -399,6 +399,10 @@ func InitConfig() error {
 	}
 
 	AppConfig.AgeOutHours = getOrDefaultInt(config, "ageOutHours", 336)
+	if AppConfig.AgeOutHours <= 0 {
+		return fmt.Errorf("AgeOutHours should be greater than 0! AgeOutHours: %d", AppConfig.AgeOutHours)
+	}
+
 	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
 	return nil

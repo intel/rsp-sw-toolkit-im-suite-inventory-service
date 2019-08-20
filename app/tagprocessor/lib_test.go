@@ -20,42 +20,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestMinRssiFilter(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 2)
-	defer ds.close()
-
-	back := generateTestSensor(backStock, sensor.NoPersonality)
-
-	// set the minimum rssi to arbitrary value
-	back.MinRssiDbm10X = -600
-
-	// tag with good rssi
-	ds.readTag(0, back, -580, 1)
-	// tag with bad rssi
-	ds.readTag(1, back, -620, 1)
-
-	ds.updateTagRefs()
-
-	if err := ds.verifyTag(0, Present, back); err != nil {
-		t.Error(err)
-	}
-	// check for 1 arrival events
-	if err := ds.verifyEventPattern(1, Arrival); err != nil {
-		t.Error(err)
-	}
-	ds.resetEvents()
-
-	// tag1 will NOT arrive due to having an rssi too low
-	if ds.tags[1] != nil {
-		t.Errorf("expected tag with index 1 to be nil, but was %#v", ds.tags[1])
-	}
-
-	// check no new events
-	if err := ds.verifyNoEvents(); err != nil {
-		t.Error(err)
-	}
-}
-
 func TestPosDoesNotGenerateArrival(t *testing.T) {
 	ds := newTestDataset(dbHost.CreateDB(t), 10)
 	defer ds.close()
