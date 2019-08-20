@@ -325,7 +325,7 @@ func TestDataProcessFixedNoOoSRulesTriggered(t *testing.T) {
 		}
 		if request.URL.EscapedPath() == "/callwebhook" {
 
-			var data event.EventPayload
+			var data event.TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Errorf(err.Error())
@@ -398,7 +398,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		}
 		if request.URL.EscapedPath() == "/callwebhook" {
 
-			var data event.EventPayload
+			var data event.TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Errorf(err.Error())
@@ -525,7 +525,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 		}
 		if request.URL.EscapedPath() == "/callwebhook" {
 
-			var data event.EventPayload
+			var data event.TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Errorf(err.Error())
@@ -710,7 +710,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 		case "/skus":
 			jsonData = getMappingSkuSample()
 		case "/callwebhook":
-			var data event.EventPayload
+			var data event.TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Fatal(err)
@@ -858,7 +858,7 @@ func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
 		case "/skus":
 			jsonData = getMappingSkuSample()
 		case "/callwebhook":
-			var data event.EventPayload
+			var data event.TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Errorf(err.Error())

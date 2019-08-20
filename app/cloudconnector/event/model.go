@@ -20,38 +20,26 @@
 package event
 
 import (
-	"net/http"
-
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"net/http"
 )
 
-// EventPayload payload for the cloudconnector
-//swagger:model EventPayload
-type EventPayload struct {
-	// URL destination
-	URL string `json:"url"`
-	// URL headers
+// Payload for the cloudconnector
+type TagEventPayload struct {
+	URL     string      `json:"url"`
 	Headers http.Header `json:"header"`
-	// Heartbeat
-	Body DataPayload `json:"payload"`
-	// Authentication data
-	Auth Auth `json:"auth"`
-	// REST Method
-	Method string `json:"method"`
-	// Is Async
-	IsAsync bool `json:"isasync"`
+	Body    DataPayload `json:"payload"`
+	Auth    Auth        `json:"auth"`
+	Method  string      `json:"method"`
+	IsAsync bool        `json:"isasync"`
 }
 
-// DataPayload payload for the data body
 type DataPayload struct {
-	// RSP Controller ID
-	ControllerId string `json:"device_id"` //backend expects this to be "device_id" instead of controller_id
-	// Sent On
-	SentOn int64 `json:"sent_on"`
-	TotalEventSegments int `json:"total_event_segments"`
-	EventSegmentNumber int `json:"event_segment_number"`
-	// Tag Event
-	TagEvent []tag.Tag `json:"data"`
+	ControllerId       string    `json:"device_id"` //backend expects this to be "device_id" instead of controller_id
+	SentOn             int64     `json:"sent_on"`
+	TotalEventSegments int       `json:"total_event_segments"`
+	EventSegmentNumber int       `json:"event_segment_number"`
+	TagEvent           []tag.Tag `json:"data"`
 }
 
 // Auth contains the type and the endpoint of authentication

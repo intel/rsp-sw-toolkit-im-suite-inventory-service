@@ -1,14 +1,14 @@
 package jsonrpc
 
 type InventoryEvent struct {
-	Notification                      // embed
-	Params       InventoryEventParams `json:"params"`
+	Notification // embed
+	Params InventoryEventParams `json:"params"`
 }
 
 type InventoryEventParams struct {
-	SentOn    int64      `json:"sent_on"`
+	SentOn       int64      `json:"sent_on"`
 	ControllerId string     `json:"controller_id,omitempty"` // ok to be empty for handheld
-	Data      []TagEvent `json:"data"`
+	Data         []TagEvent `json:"data"`
 }
 
 // TagEvent is the model of the tag event received from RSP Controller
