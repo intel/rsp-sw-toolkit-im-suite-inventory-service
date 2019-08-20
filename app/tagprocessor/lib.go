@@ -43,8 +43,8 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 		return &jsonrpc.InventoryEvent{}, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}
 
-	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, minRssiDbm10x: %d, aliases: %v",
-		rsp.DeviceId, rsp.Personality, rsp.IsExitSensor(), rsp.IsPOSSensor(), rsp.MinRssiDbm10X, rsp.Aliases)
+	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, aliases: %v",
+		rsp.DeviceId, rsp.Personality, rsp.IsExitSensor(), rsp.IsPOSSensor(), rsp.Aliases)
 
 	facId := invData.Params.FacilityId
 
@@ -80,10 +80,6 @@ func lookupRSP(dbs *db.DB, deviceId string) (*sensor.RSP, error) {
 }
 
 func processReadData(dbs *db.DB, invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
-	if !rsp.RssiInRange(read.Rssi) {
-		return
-	}
-
 	inventoryMutex.Lock()
 
 	tag, exists := inventory[read.Epc]

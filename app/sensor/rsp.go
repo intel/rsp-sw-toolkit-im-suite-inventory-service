@@ -3,7 +3,6 @@ package sensor
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"strconv"
-	"strings"
 )
 
 const (
@@ -20,12 +19,11 @@ const (
 )
 
 type RSP struct {
-	DeviceId      string      `json:"device_id" bson:"device_id"`
-	FacilityId    string      `json:"facility_id" bson:"facility_id"`
-	Personality   Personality `json:"personality" bson:"personality"`
-	Aliases       []string    `json:"aliases" bson:"aliases"`
-	IsInDeepScan  bool        `json:"-" bson:"-"`
-	MinRssiDbm10X int         `json:"min_rssi,omitempty" bson:"min_rssi,omitempty"`
+	DeviceId     string      `json:"device_id" bson:"device_id"`
+	FacilityId   string      `json:"facility_id" bson:"facility_id"`
+	Personality  Personality `json:"personality" bson:"personality"`
+	Aliases      []string    `json:"aliases" bson:"aliases"`
+	IsInDeepScan bool        `json:"-" bson:"-"`
 }
 
 func NewRSP(deviceId string) *RSP {
@@ -52,16 +50,7 @@ func NewRSPFromConfigNotification(notification *jsonrpc.SensorConfigNotification
 // AntennaAlias gets the string alias of an RSP based on the antenna port
 // format is DeviceId-AntennaId,  ie. RSP-150009-0
 func (rsp *RSP) AntennaAlias(antennaId int) string {
-	var sb strings.Builder
-	sb.WriteString(rsp.DeviceId)
-	sb.WriteString("-")
-	sb.WriteString(strconv.Itoa(antennaId))
-	return sb.String()
-}
-
-// RssiInRange returns true if either the RSP is not filtering by minimum RSSI, or the RSSI is >= the minimum RSSI configured
-func (rsp *RSP) RssiInRange(rssi int) bool {
-	return rsp.MinRssiDbm10X == 0 || rssi >= rsp.MinRssiDbm10X
+	return rsp.DeviceId + "-" + strconv.Itoa(antennaId)
 }
 
 // IsExitSensor returns true if this RSP has the EXIT personality

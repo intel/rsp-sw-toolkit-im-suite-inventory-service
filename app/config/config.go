@@ -409,6 +409,9 @@ func InitConfig() error {
 	if err != nil {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
+	if AppConfig.AgeOutHours <= 0 {
+		return fmt.Errorf("AgeOutHours should be greater than 0! AgeOutHours: %d", AppConfig.AgeOutHours)
+	}
 
 	return nil
 }
