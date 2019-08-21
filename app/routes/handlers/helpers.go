@@ -235,6 +235,45 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 	return nil
 }
 
+// processPostRequest handles POST requests for sending inventory snapshot to the cloud connector
+func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, request *http.Request, writer http.ResponseWriter, url string) error {
+
+	// Metrics
+	metrics.GetOrRegisterGauge("Inventory.processPostRequest.Attempt", nil).Update(1)
+
+	startTime := time.Now()
+	defer metrics.GetOrRegisterTimer("Inventory.processPostRequest.Latency", nil).Update(time.Since(startTime))
+
+	mSuccess := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Success", nil)
+	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Retrieve-Error", nil)
+
+	copySession := MasterDB.CopySession()
+	defer copySession.Close()
+
+	var mapping tag.RequestBody
+
+	validationErrors, err := readAndValidateRequest(request, schema, &mapping)
+	if err != nil {
+		return err
+	}
+	if validationErrors != nil {
+		web.Respond(ctx, writer, validationErrors, http.StatusBadRequest)
+		return nil
+	}
+
+	odataMap := make(map[string][]string)
+	odataMap = mapRequestToOdata(odataMap, &mapping)
+	_, _, _, err = tag.Retrieve(copySession, odataMap, 250)
+	if err != nil {
+		mRetrieveErr.Update(1)
+		return errors.Wrap(err, "Error retrieving Tag")
+	}
+
+	web.Respond(ctx, writer, nil, http.StatusOK)
+	mSuccess.Update(1)
+	return nil
+}
+
 func unmarshallTagsInterface(tags interface{}) ([]tag.Tag, error) {
 
 	tagsBytes, err := json.Marshal(tags)
@@ -253,24 +292,28 @@ func unmarshallTagsInterface(tags interface{}) ([]tag.Tag, error) {
 func readAndValidateRequest(request *http.Request, schema string, v interface{}) (interface{}, error) {
 	// Reading request
 	body := make([]byte, request.ContentLength)
-	_, err := io.ReadFull(request.Body, body)
+	bodyLength, err := io.ReadFull(request.Body, body)
 	if err != nil {
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
 
-	// Unmarshal request as json
-	if err = json.Unmarshal(body, &v); err != nil {
-		return nil, errors.Wrap(web.ErrValidation, err.Error())
-	}
+	// Unmarshal and validate request only if its body is not empty
+	if bodyLength > 0 {
+		if err = json.Unmarshal(body, &v); err != nil {
+			log.Info("Unmarshalling failed")
+			return nil, errors.Wrap(web.ErrValidation, err.Error())
+		}
 
-	// Validate json against schema
-	schemaValidatorResult, err := schemas.ValidateSchemaRequest(body, schema)
-	if err != nil {
-		return nil, err
-	}
-	if !schemaValidatorResult.Valid() {
-		result := schemas.BuildErrorsString(schemaValidatorResult.Errors())
-		return result, nil
+		// Validate json against schema
+		schemaValidatorResult, err := schemas.ValidateSchemaRequest(body, schema)
+		if err != nil {
+			log.Info("ValidateSchemaRequest failed")
+			return nil, err
+		}
+		if !schemaValidatorResult.Valid() {
+			result := schemas.BuildErrorsString(schemaValidatorResult.Errors())
+			return result, nil
+		}
 	}
 
 	return nil, nil

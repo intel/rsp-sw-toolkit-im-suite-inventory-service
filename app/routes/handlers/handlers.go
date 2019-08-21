@@ -173,7 +173,13 @@ func (inve *Inventory) GetTags(ctx context.Context, writer http.ResponseWriter, 
 // be provided in request body in JSON format.
 //nolint:lll
 func (inve *Inventory) GetCurrentInventory(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
-	return processGetRequest(ctx, schemas.CurrentInventorySchema, inve.MasterDB, request, writer, inve.Url)
+	return processGetRequest(ctx, schemas.GetCurrentInventorySchema, inve.MasterDB, request, writer, inve.Url)
+}
+
+// PostCurrentInventory is used to send current inventory snapshot to the cloud connector
+//nolint:lll
+func (inve *Inventory) PostCurrentInventory(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	return processPostRequest(ctx, schemas.PostCurrentInventorySchema, inve.MasterDB, request, writer, inve.Url)
 }
 
 // GetMissingTags returns a list of unique tags that have not been read by a reader since a defined timestamp. Body parameters

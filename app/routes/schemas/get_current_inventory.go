@@ -20,7 +20,7 @@
 package schemas
 
 // CurrentInventorySchema is required for request body validation
-const CurrentInventorySchema = `{
+const GetCurrentInventorySchema = `{
 	"type": "object",
 	"required": [
 		"facility_id"

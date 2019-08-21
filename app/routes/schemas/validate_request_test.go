@@ -38,7 +38,7 @@ func TestValidateCurrentInventoryRequest(t *testing.T) {
 		"size":500,
 		"count_only":true
 	  }`)
-	result, err := ValidateSchemaRequest(requestJSON, CurrentInventorySchema)
+	result, err := ValidateSchemaRequest(requestJSON, GetCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
@@ -49,7 +49,7 @@ func TestValidateCurrentInventoryRequest(t *testing.T) {
 	invalidRequest := []byte(`{
 		"qualified_state":"sold"
 	  }`)
-	result, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
+	result, err = ValidateSchemaRequest(invalidRequest, GetCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
@@ -86,7 +86,7 @@ func TestValidateCurrentInventoryRequest(t *testing.T) {
 		"start":3948309,
 		"count_only":true
 	  }`)
-	result, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
+	result, err = ValidateSchemaRequest(invalidRequest, GetCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
@@ -99,7 +99,7 @@ func TestValidateCurrentInventoryRequest(t *testing.T) {
 		"facility_id":"store001",
 		"count_only":true
 	  }`)
-	result, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
+	result, err = ValidateSchemaRequest(invalidRequest, GetCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
@@ -108,7 +108,7 @@ func TestValidateCurrentInventoryRequest(t *testing.T) {
 	}
 
 	invalidRequest = []byte{}
-	_, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
+	_, err = ValidateSchemaRequest(invalidRequest, GetCurrentInventorySchema)
 	if err == nil {
 		t.Fatal("Failed to catch json schema validation error, request body cannot be empty")
 	}

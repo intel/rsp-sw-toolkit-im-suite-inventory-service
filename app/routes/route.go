@@ -288,24 +288,15 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 			"/inventory/handheldevents",
 			inventory.GetHandheldEvents,
 		},
-		//swagger:route POST /inventory/query/current current getCurrentInventory
+		//swagger:route POST /inventory/query/current current postCurrentInventory
 		//
-		// Queries a store's inventory
-		//
-		// The current endpoint is used to query a store's inventory. It returns a list of unique tags. Parameters shall be provided in request body in JSON format.<br><br>
+		// Post current inventory snapshot to the cloud connector
 		//
 		// Example Input:
 		// ```
 		// {
 		// 	&#8195&#8195"qualified_state":"sold",
-		// 	&#8195&#8195"facility_id":"store001",
-		// 	&#8195&#8195"epc_state":"sold",
-		// 	&#8195&#8195"starttime":1482624000000,
-		// 	&#8195&#8195"endtime":1483228800000,
-		// 	&#8195&#8195"confidence":.75,
-		// 	&#8195&#8195"cursor":"aGksIDovMSB0aGlz",
-		// 	&#8195&#8195"size":500,
-		// 	&#8195&#8195"count_only":false
+		// 	&#8195&#8195"facility_id":"store001"
 		// }
 		// ```
 		//
@@ -316,43 +307,7 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 		// + __epc_state__ - EPC state of 'present' or 'departed'
 		// + __starttime__ - Millisecond epoch start time
 		// + __endtime__ - Millisecond epoch stop time
-		// + __confidence__ - Minimum probability items must meet
-		// + __cursor__ - Cursor from previous response used to retrieve next page of results
-		// + __size__ - Number of results per page
-		// + __count_only__ - Return only tag count
 		//
-		//
-		//
-		// Example Response:
-		// ```
-		// {
-		// 	&#8195"paging":{
-		// 	&#8195&#8195&#8195"cursor":"string"
-		// 	&#8195},
-		// 	&#8195&#8195"results":[
-		// 	&#8195&#8195{
-		// 	&#9"epc":"string",
-		// 	&#9"facility_id":"string",
-		// 	&#9"event":"string",
-		// 	&#9"gtin":"string",
-		// 	&#9"last_read":0,
-		// 	&#9"arrived":0,
-		// 	&#9"epc_state":"string",
-		// 	&#9"confidence":0,
-		// 	&#9"encode_format":"string",
-		// 	&#9"tid":"string",
-		// 	&#9"qualified_state":"string",
-		// 	&#9"epc_context":"string",
-		// 	&#9"location_history":[
-		// 	&#9&#8195&#8195{
-		// 	&#9&#9"location":"string",
-		// 	&#9&#9"timestamp":0
-		// 	&#9&#8195&#8195}
-		// 	&#9]
-		// 	&#8195&#8195}
-		// 	&#8195]
-		// }
-		// ```
 		//
 		//
 		// ---
@@ -375,10 +330,10 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 		//   504: externalServiceTimeout
 		//
 		{
-			"GetCurrentInventory",
+			"PostCurrentInventory",
 			"POST",
 			"/inventory/query/current",
-			inventory.GetCurrentInventory,
+			inventory.PostCurrentInventory,
 		},
 		//swagger:route POST /inventory/query/missingtags missingtags getMissingTags
 		//
