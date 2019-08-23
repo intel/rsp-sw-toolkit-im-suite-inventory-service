@@ -303,17 +303,16 @@ func readAndValidateRequest(request *http.Request, schema string, v interface{})
 			log.Info("Unmarshalling failed")
 			return nil, errors.Wrap(web.ErrValidation, err.Error())
 		}
-
-		// Validate json against schema
-		schemaValidatorResult, err := schemas.ValidateSchemaRequest(body, schema)
-		if err != nil {
-			log.Info("ValidateSchemaRequest failed")
-			return nil, err
-		}
-		if !schemaValidatorResult.Valid() {
-			result := schemas.BuildErrorsString(schemaValidatorResult.Errors())
-			return result, nil
-		}
+	}
+	// Validate json against schema
+	schemaValidatorResult, err := schemas.ValidateSchemaRequest(body, schema)
+	if err != nil {
+		log.Info("ValidateSchemaRequest failed")
+		return nil, err
+	}
+	if !schemaValidatorResult.Valid() {
+		result := schemas.BuildErrorsString(schemaValidatorResult.Errors())
+		return result, nil
 	}
 
 	return nil, nil
