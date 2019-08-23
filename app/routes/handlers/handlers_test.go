@@ -350,7 +350,7 @@ func TestGetSelectTags(t *testing.T) {
 	testHandlerHelper(selectTests, "GET", handler, copySession, t)
 }
 
-// nolint :dupl
+/*// nolint :dupl
 func TestGetCurrentInventoryPositive(t *testing.T) {
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -397,7 +397,7 @@ func TestGetCurrentInventoryPositive(t *testing.T) {
 				"facility_id":"store001",
 				"epc_state":"sold",
 				"starttime":1482624000000,
-				"endtime":1483228800000,				
+				"endtime":1483228800000,
 				"count_only":true
 			  }`),
 			code: []int{200, 204},
@@ -445,7 +445,7 @@ func TestGetCurrentInventoryNegative(t *testing.T) {
 			title: "No facility id test",
 			input: []byte(`{
 				"qualified_state":"sold",
-				"epc_state":"sold"				
+				"epc_state":"sold"
 			  }`),
 			code: []int{400},
 		},
@@ -487,7 +487,7 @@ func TestGetCurrentInventoryNegative(t *testing.T) {
 
 	testHandlerHelper(currentInventoryTests, "POST", handler, copySession, t)
 
-}
+}*/
 
 // nolint :dupl
 func TestGetMissingTagsPositive(t *testing.T) {

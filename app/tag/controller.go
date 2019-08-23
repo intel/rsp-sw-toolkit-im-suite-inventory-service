@@ -75,22 +75,23 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 		return countHandler(dbs)
 	}
 
-	// Apply size limit if needed
-	if len(query["$top"]) > 0 {
+	// Execute only if a size limit for retrieval is assigned
+	if maxSize > 0 {
+		if len(query["$top"]) > 0 {
 
-		topVal, err := strconv.Atoi(query["$top"][0])
-		if err != nil {
-			return nil, nil, nil, errors.Wrap(web.ErrValidation, "invalid $top value")
+			topVal, err := strconv.Atoi(query["$top"][0])
+			if err != nil {
+				return nil, nil, nil, errors.Wrap(web.ErrValidation, "invalid $top value")
+			}
+
+			if topVal > maxSize {
+				query["$top"][0] = strconv.Itoa(maxSize)
+			}
+
+		} else {
+			query["$top"] = []string{strconv.Itoa(maxSize)} // Apply size limit to the odata query
 		}
-
-		if topVal > maxSize {
-			query["$top"][0] = strconv.Itoa(maxSize)
-		}
-
-	} else {
-		query["$top"] = []string{strconv.Itoa(maxSize)} // Apply size limit to the odata query
 	}
-
 	// Else, run filter query and return slice of Tag
 	execFunc := func(collection *mgo.Collection) error {
 		return odata.ODataQuery(query, &object, collection)

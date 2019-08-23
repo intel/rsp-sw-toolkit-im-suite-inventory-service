@@ -263,7 +263,7 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 
 	odataMap := make(map[string][]string)
 	odataMap = mapRequestToOdata(odataMap, &mapping)
-	_, _, _, err = tag.Retrieve(copySession, odataMap, 250)
+	_, _, _, err = tag.Retrieve(copySession, odataMap, 0)
 	if err != nil {
 		mRetrieveErr.Update(1)
 		return errors.Wrap(err, "Error retrieving Tag")
