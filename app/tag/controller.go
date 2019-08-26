@@ -54,7 +54,7 @@ const (
 	numEpcDigits = numEpcBits / 4 // 4 bits per hex digit
 )
 
-// Retrieve retrieves All tags from database
+// Retrieve retrieves tags from database based on Odata query and a size limit
 //nolint:dupl
 func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountType, *PagingType, error) {
 
@@ -75,23 +75,21 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 		return countHandler(dbs)
 	}
 
-	// Execute only if a size limit for retrieval is assigned
-	if maxSize > 0 {
-		if len(query["$top"]) > 0 {
+	if len(query["$top"]) > 0 {
 
-			topVal, err := strconv.Atoi(query["$top"][0])
-			if err != nil {
-				return nil, nil, nil, errors.Wrap(web.ErrValidation, "invalid $top value")
-			}
-
-			if topVal > maxSize {
-				query["$top"][0] = strconv.Itoa(maxSize)
-			}
-
-		} else {
-			query["$top"] = []string{strconv.Itoa(maxSize)} // Apply size limit to the odata query
+		topVal, err := strconv.Atoi(query["$top"][0])
+		if err != nil {
+			return nil, nil, nil, errors.Wrap(web.ErrValidation, "invalid $top value")
 		}
+
+		if topVal > maxSize {
+			query["$top"][0] = strconv.Itoa(maxSize)
+		}
+
+	} else {
+		query["$top"] = []string{strconv.Itoa(maxSize)} // Apply size limit to the odata query
 	}
+
 	// Else, run filter query and return slice of Tag
 	execFunc := func(collection *mgo.Collection) error {
 		return odata.ODataQuery(query, &object, collection)
@@ -129,6 +127,45 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 
 	mSuccess.Update(1)
 	return object, countType, pagingType, nil
+}
+
+// Retrieve retrieves tags from database based on Odata query and a size limit
+//nolint:dupl
+func RetrieveOdataNoLimit(dbs *db.DB, query url.Values) (interface{}, error) {
+	log.Info( "RetrieveOdataNoLimit is called")
+
+	// Metrics
+	metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Attempt`, nil).Update(1)
+	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Success`, nil)
+	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataNoLimit.Find-Error", nil)
+	mInputErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataNoLimit.Input-Error", nil)
+	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveOdataNoLimit.Find-Latency`, nil)
+
+	//var tagArray []Tag
+	var object []interface{}
+
+	execFunc := func(collection *mgo.Collection) error {
+		return odata.ODataQuery(query, &object, collection)
+	}
+
+	retrieveTimer := time.Now()
+	if err := dbs.Execute(tagCollection, execFunc); err != nil {
+		if errors.Cause(err) == odata.ErrInvalidInput {
+			mInputErr.Update(1)
+			return nil, errors.Wrap(web.ErrInvalidInput, err.Error())
+		}
+		mFindErr.Update(1)
+		return nil, errors.Wrap(err, "db.tags.find()")
+	}
+	mFindLatency.Update(time.Since(retrieveTimer))
+
+	if len(object) > 0 {
+		mSuccess.Update(1)
+		return object, nil
+	}
+
+	mSuccess.Update(1)
+	return nil, nil
 }
 
 func countHandler(dbs *db.DB) (interface{}, *CountType, *PagingType, error) {
@@ -249,6 +286,37 @@ func RetrieveOne(dbs *db.DB, query url.Values) (Tag, error) {
 
 	mSuccess.Update(1)
 	return Tag{}, nil
+}
+
+// RetrieveAll retrieves all tags from the database
+func RetrieveAll(dbs *db.DB) ([]Tag, error) {
+
+	// Metrics
+	metrics.GetOrRegisterGauge(`Inventory.RetrieveAll.Attempt`, nil).Update(1)
+	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveAll.Success`, nil)
+	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveAll.Find-Error", nil)
+	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveAll.Find-Latency`, nil)
+
+	var object []Tag
+
+	execFunc := func(collection *mgo.Collection) error {
+		return collection.Find(nil).All(&object)
+	}
+
+	retrieveTimer := time.Now()
+	if err := dbs.Execute(tagCollection, execFunc); err != nil {
+		mFindErr.Update(1)
+		return nil, errors.Wrap(err, "Error in retrieving all the tags")
+	}
+	mFindLatency.Update(time.Since(retrieveTimer))
+
+	if len(object) > 0 {
+		mSuccess.Update(1)
+		return object, nil
+	}
+
+	mSuccess.Update(1)
+	return nil, nil
 }
 
 // Replace bulk upserts tags into database

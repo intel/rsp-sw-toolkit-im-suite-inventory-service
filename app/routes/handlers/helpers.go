@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"io"
 	"net/http"
 	"plugin"
@@ -207,10 +208,6 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
-
 	if len(tagSlice) > 0 {
 		if err := ApplyConfidence(copySession, &tagSlice, url); err != nil {
 			return err
@@ -250,24 +247,61 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 	copySession := MasterDB.CopySession()
 	defer copySession.Close()
 
-	var mapping tag.RequestBody
+	var tags interface{}
+	var err error
 
-	validationErrors, err := readAndValidateRequest(request, schema, &mapping)
-	if err != nil {
-		return err
-	}
-	if validationErrors != nil {
-		web.Respond(ctx, writer, validationErrors, http.StatusBadRequest)
-		return nil
-	}
+    if request.ContentLength > 0 {
+		var mapping tag.RequestBody
 
-	odataMap := make(map[string][]string)
-	odataMap = mapRequestToOdata(odataMap, &mapping)
-	_, _, _, err = tag.Retrieve(copySession, odataMap, 0)
-	if err != nil {
-		mRetrieveErr.Update(1)
-		return errors.Wrap(err, "Error retrieving Tag")
+		validationErrors, err := readAndValidateRequest(request, schema, &mapping)
+		if err != nil {
+			return err
+		}
+		if validationErrors != nil {
+			web.Respond(ctx, writer, validationErrors, http.StatusBadRequest)
+			return nil
+		}
+
+		odataMap := make(map[string][]string)
+		odataMap = mapRequestToOdata(odataMap, &mapping)
+		log.Info("Size of the OdataMap", len(odataMap))
+
+		tags, err = tag.RetrieveOdataNoLimit(copySession, odataMap)
+		if err != nil {
+			mRetrieveErr.Update(1)
+			return errors.Wrap(err, "Error retrieving Tags")
+		}
+	} else {
+		tags, err = tag.RetrieveAll(copySession)
+		if err != nil {
+			mRetrieveErr.Update(1)
+			return errors.Wrap(err, "Error retrieving Tags")
+		}
 	}
+		tagSlice, err := unmarshallTagsInterface(tags)
+		if err != nil {
+			return err
+		}
+		if len(tagSlice) > 0 {
+			if err := ApplyConfidence(copySession, &tagSlice, url); err != nil {
+				return err
+			}
+		} else {
+			tagSlice = []tag.Tag{} // Set empty array
+		}
+
+
+		// Post inventory snapshot to cloud connector
+		if config.AppConfig.CloudConnectorUrl != "" {
+			payload := event.DataPayload{
+				TagEvent: tagSlice,
+			}
+			triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
+
+			if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+				return err
+			}
+		}
 
 	web.Respond(ctx, writer, nil, http.StatusOK)
 	mSuccess.Update(1)
@@ -292,18 +326,17 @@ func unmarshallTagsInterface(tags interface{}) ([]tag.Tag, error) {
 func readAndValidateRequest(request *http.Request, schema string, v interface{}) (interface{}, error) {
 	// Reading request
 	body := make([]byte, request.ContentLength)
-	bodyLength, err := io.ReadFull(request.Body, body)
+	_, err := io.ReadFull(request.Body, body)
 	if err != nil {
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
 
 	// Unmarshal and validate request only if its body is not empty
-	if bodyLength > 0 {
-		if err = json.Unmarshal(body, &v); err != nil {
-			log.Info("Unmarshalling failed")
-			return nil, errors.Wrap(web.ErrValidation, err.Error())
-		}
+	if err = json.Unmarshal(body, &v); err != nil {
+		log.Info("Unmarshalling failed")
+		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
+
 	// Validate json against schema
 	schemaValidatorResult, err := schemas.ValidateSchemaRequest(body, schema)
 	if err != nil {
@@ -346,7 +379,9 @@ func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) m
 	if request.Size > 0 {
 		odataMap["$top"] = append(odataMap["$top"], strconv.Itoa(request.Size))
 	}
-	filterSlice = append(filterSlice, "facility_id eq '"+request.FacilityID+"'")
+	if request.FacilityID != "" {
+		filterSlice = append(filterSlice, "facility_id eq '"+request.FacilityID+"'")
+	}
 	if request.QualifiedState != "" {
 		filterSlice = append(filterSlice, "qualified_state eq '"+request.QualifiedState+"'")
 	}
