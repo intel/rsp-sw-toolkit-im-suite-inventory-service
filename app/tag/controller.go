@@ -129,10 +129,8 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 	return object, countType, pagingType, nil
 }
 
-// Retrieve retrieves tags from database based on Odata query and a size limit
-//nolint:dupl
-func RetrieveOdataNoLimit(dbs *db.DB, query url.Values) (interface{}, error) {
-	log.Info( "RetrieveOdataNoLimit is called")
+// RetrieveOdataAll retrieves tags from database based on Odata query and a size limit
+func RetrieveOdataAll(dbs *db.DB, query url.Values) ([]Tag, error) {
 
 	// Metrics
 	metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Attempt`, nil).Update(1)
@@ -141,8 +139,7 @@ func RetrieveOdataNoLimit(dbs *db.DB, query url.Values) (interface{}, error) {
 	mInputErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataNoLimit.Input-Error", nil)
 	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveOdataNoLimit.Find-Latency`, nil)
 
-	//var tagArray []Tag
-	var object []interface{}
+	var object []Tag
 
 	execFunc := func(collection *mgo.Collection) error {
 		return odata.ODataQuery(query, &object, collection)
@@ -155,7 +152,7 @@ func RetrieveOdataNoLimit(dbs *db.DB, query url.Values) (interface{}, error) {
 			return nil, errors.Wrap(web.ErrInvalidInput, err.Error())
 		}
 		mFindErr.Update(1)
-		return nil, errors.Wrap(err, "db.tags.find()")
+		return nil, errors.Wrap(err, "Error retrieving all tags based on odata query")
 	}
 	mFindLatency.Update(time.Since(retrieveTimer))
 

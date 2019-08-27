@@ -169,13 +169,6 @@ func (inve *Inventory) GetTags(ctx context.Context, writer http.ResponseWriter, 
 	return nil
 }
 
-// GetCurrentInventory is used to query a store’s inventory. It returns a list of unique tags. Parameters shall
-// be provided in request body in JSON format.
-//nolint:lll
-//func (inve *Inventory) GetCurrentInventory(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
-//	return processGetRequest(ctx, schemas.GetCurrentInventorySchema, inve.MasterDB, request, writer, inve.Url)
-//}
-
 // PostCurrentInventory is used to send current inventory snapshot to the cloud connector
 //nolint:lll
 func (inve *Inventory) PostCurrentInventory(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {

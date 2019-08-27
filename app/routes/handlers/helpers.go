@@ -237,19 +237,18 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 
 	// Metrics
 	metrics.GetOrRegisterGauge("Inventory.processPostRequest.Attempt", nil).Update(1)
-
 	startTime := time.Now()
 	defer metrics.GetOrRegisterTimer("Inventory.processPostRequest.Latency", nil).Update(time.Since(startTime))
-
 	mSuccess := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Success", nil)
 	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Retrieve-Error", nil)
 
 	copySession := MasterDB.CopySession()
 	defer copySession.Close()
 
-	var tags interface{}
+	var tags []tag.Tag
 	var err error
 
+	// if there is a request body
     if request.ContentLength > 0 {
 		var mapping tag.RequestBody
 
@@ -264,72 +263,66 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 
 		odataMap := make(map[string][]string)
 		odataMap = mapRequestToOdata(odataMap, &mapping)
-		log.Info("Size of the OdataMap", len(odataMap))
 
-		tags, err = tag.RetrieveOdataNoLimit(copySession, odataMap)
+		tags, err = tag.RetrieveOdataAll(copySession, odataMap)
 		if err != nil {
 			mRetrieveErr.Update(1)
-			return errors.Wrap(err, "Error retrieving Tags")
+			return err
 		}
 	} else {
 		tags, err = tag.RetrieveAll(copySession)
 		if err != nil {
 			mRetrieveErr.Update(1)
-			return errors.Wrap(err, "Error retrieving Tags")
-		}
-	}
-		tagSlice, err := unmarshallTagsInterface(tags)
-		if err != nil {
 			return err
 		}
-		if len(tagSlice) > 0 {
-			if err := ApplyConfidence(copySession, &tagSlice, url); err != nil {
-				return err
-			}
-		} else {
-			tagSlice = []tag.Tag{} // Set empty array
+	}
+
+	if len(tags) > 0 {
+		if err := ApplyConfidence(copySession, &tags, url); err != nil {
+			return err
 		}
-
-	// Post inventory snapshot to cloud connector
-	if config.AppConfig.CloudConnectorUrl != "" {
-		triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
-
-		if len(tagSlice) > 500 {
-			range1 := 0
-			range2 := 500
-			lastBatch := false
-
-			for {
-				if range2 < len(tagSlice) {
-					payload := event.DataPayload{
-						TagEvent: tagSlice[range1:range2],
-					}
-					if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
-						return err
-					}
-				} else {
-					payload := event.DataPayload{
-						TagEvent: tagSlice[range1:],
-					}
-					if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
-						return err
-					}
-					// Last batch
-					lastBatch = true
-				}
-
-				// Break after last batch
-				if lastBatch {
-					break
-				}
-				range1 = range2
-				range2 += 500
-			}
+		if err := postToCloudInBatches(tags); err != nil {
+			return err
 		}
 	}
 
 	web.Respond(ctx, writer, nil, http.StatusOK)
 	mSuccess.Update(1)
+	return nil
+}
+
+func postToCloudInBatches(tags []tag.Tag) error {
+	if config.AppConfig.CloudConnectorUrl != "" {
+		triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
+
+		batchSize := 500
+		range1 := 0
+		range2 := batchSize
+		lastBatch := false
+		for {
+			if range2 < len(tags) {
+				payload := event.DataPayload{
+					TagEvent: tags[range1:range2],
+				}
+				if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+					return errors.Wrap(err, "Error sending tags to cloud connector")
+				}
+			} else {
+				payload := event.DataPayload{
+					TagEvent: tags[range1:],
+				}
+				if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+					return errors.Wrap(err, "Error sending tags to cloud connector")
+				}
+				lastBatch = true
+			}
+			if lastBatch {
+				break
+			}
+			range1 = range2
+			range2 += batchSize
+		}
+	}
 	return nil
 }
 
