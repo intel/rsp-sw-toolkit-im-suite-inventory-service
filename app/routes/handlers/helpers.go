@@ -290,18 +290,43 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 			tagSlice = []tag.Tag{} // Set empty array
 		}
 
+	// Post inventory snapshot to cloud connector
+	if config.AppConfig.CloudConnectorUrl != "" {
+		triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
 
-		// Post inventory snapshot to cloud connector
-		if config.AppConfig.CloudConnectorUrl != "" {
-			payload := event.DataPayload{
-				TagEvent: tagSlice,
-			}
-			triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
+		if len(tagSlice) > 500 {
+			range1 := 0
+			range2 := 500
+			lastBatch := false
 
-			if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
-				return err
+			for {
+				if range2 < len(tagSlice) {
+					payload := event.DataPayload{
+						TagEvent: tagSlice[range1:range2],
+					}
+					if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+						return err
+					}
+				} else {
+					payload := event.DataPayload{
+						TagEvent: tagSlice[range1:],
+					}
+					if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+						return err
+					}
+					// Last batch
+					lastBatch = true
+				}
+
+				// Break after last batch
+				if lastBatch {
+					break
+				}
+				range1 = range2
+				range2 += 500
 			}
 		}
+	}
 
 	web.Respond(ctx, writer, nil, http.StatusOK)
 	mSuccess.Update(1)
