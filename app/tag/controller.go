@@ -129,7 +129,7 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 	return object, countType, pagingType, nil
 }
 
-// RetrieveOdataAll retrieves tags from database based on Odata query
+// RetrieveOdataAll retrieves all tags from database based on Odata query
 func RetrieveOdataAll(dbs *db.DB, query url.Values) ([]Tag, error) {
 
 	// Metrics

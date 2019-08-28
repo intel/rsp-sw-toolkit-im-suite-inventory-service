@@ -305,8 +305,10 @@ func TestRetrieveOdataAll(t *testing.T) {
 	odataMap["$filter"] = append(odataMap["$filter"], "facility_id eq facility1")
 
 	tags, err := RetrieveOdataAll(copySession, odataMap)
-	if err != nil || len(tags) != 1 {
+	if err != nil {
 		t.Error("Error in retrieving tags based on odata query")
+	} else if len(tags) != 1 {
+		t.Error("Expected one tag to be retrieved based on query")
 	}
 }
 
@@ -336,8 +338,10 @@ func TestRetrieveAll(t *testing.T) {
 	}
 
 	tags, err := RetrieveAll(copySession)
-	if err != nil || len(tags) != numOfSamples {
-		t.Error("Error in retrieving  all tags")
+	if err != nil  {
+		t.Error("Error in retrieving tags")
+	} else if len(tags) != numOfSamples {
+		t.Error("Number of tags in database and number of tags retrieved do not match")
 	}
 }
 

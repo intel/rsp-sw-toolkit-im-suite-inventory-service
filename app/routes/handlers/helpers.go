@@ -249,7 +249,7 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 	var err error
 
 	// if there is a request body
-    if request.ContentLength > 0 {
+	if request.ContentLength > 0 {
 		var mapping tag.RequestBody
 
 		validationErrors, err := readAndValidateRequest(request, schema, &mapping)
@@ -349,7 +349,6 @@ func readAndValidateRequest(request *http.Request, schema string, v interface{})
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
 
-	// Unmarshal and validate request only if its body is not empty
 	if err = json.Unmarshal(body, &v); err != nil {
 		log.Info("Unmarshalling failed")
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
@@ -358,7 +357,6 @@ func readAndValidateRequest(request *http.Request, schema string, v interface{})
 	// Validate json against schema
 	schemaValidatorResult, err := schemas.ValidateSchemaRequest(body, schema)
 	if err != nil {
-		log.Info("ValidateSchemaRequest failed")
 		return nil, err
 	}
 	if !schemaValidatorResult.Valid() {
