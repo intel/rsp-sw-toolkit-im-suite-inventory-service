@@ -129,14 +129,13 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 	return object, countType, pagingType, nil
 }
 
-// RetrieveOdataAll retrieves tags from database based on Odata query and a size limit
+// RetrieveOdataAll retrieves tags from database based on Odata query
 func RetrieveOdataAll(dbs *db.DB, query url.Values) ([]Tag, error) {
 
 	// Metrics
 	metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Attempt`, nil).Update(1)
 	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Success`, nil)
 	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataNoLimit.Find-Error", nil)
-	mInputErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataNoLimit.Input-Error", nil)
 	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveOdataNoLimit.Find-Latency`, nil)
 
 	var object []Tag
@@ -147,10 +146,6 @@ func RetrieveOdataAll(dbs *db.DB, query url.Values) ([]Tag, error) {
 
 	retrieveTimer := time.Now()
 	if err := dbs.Execute(tagCollection, execFunc); err != nil {
-		if errors.Cause(err) == odata.ErrInvalidInput {
-			mInputErr.Update(1)
-			return nil, errors.Wrap(web.ErrInvalidInput, err.Error())
-		}
 		mFindErr.Update(1)
 		return nil, errors.Wrap(err, "Error retrieving all tags based on odata query")
 	}

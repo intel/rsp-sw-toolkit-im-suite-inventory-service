@@ -350,9 +350,8 @@ func TestGetSelectTags(t *testing.T) {
 	testHandlerHelper(selectTests, "GET", handler, copySession, t)
 }
 
-/*// nolint :dupl
-func TestGetCurrentInventoryPositive(t *testing.T) {
-
+// nolint :dupl
+func TestPostCurrentInventory(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		time.Sleep(1 * time.Second)
 		if request.URL.EscapedPath() != "/skus" {
@@ -376,31 +375,34 @@ func TestGetCurrentInventoryPositive(t *testing.T) {
 	defer masterDB.Close()
 
 	var currentInventoryTests = []inputTest{
-		// Expected input with count_only = false
 		{
 			input: []byte(`{
 			"qualified_state":"sold",
 			"facility_id":"store001",
-			"epc_state":"sold",
-			"starttime":1482624000000,
-			"endtime":1483228800000,
-			"size":2,
-			"cursor":"59a754fa22e60174f5109efc",
-			"count_only":false
+			"epc_state":"sold"
 		  }`),
-			code: []int{200, 204},
+			code: []int{200},
 		},
-		// Expected input with count_only = true
 		{
 			input: []byte(`{
-				"qualified_state":"sold",
-				"facility_id":"store001",
-				"epc_state":"sold",
-				"starttime":1482624000000,
-				"endtime":1483228800000,
-				"count_only":true
-			  }`),
-			code: []int{200, 204},
+			"facility_id":"store001"
+		  }`),
+			code: []int{200},
+		},
+		// empty request body
+		{
+			input: []byte(``),
+			code:  []int{200},
+		},
+		// Invalid input type for facility_id
+		{
+			input: []byte(`{ "facility_id":10 }`),
+			code:  []int{400},
+		},
+		// Additional properties not allowed
+		{
+			input: []byte(`{ "test":10 }`),
+			code:  []int{400},
 		},
 	}
 
@@ -409,85 +411,11 @@ func TestGetCurrentInventoryPositive(t *testing.T) {
 
 	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
-	handler := web.Handler(inventory.GetCurrentInventory)
+	handler := web.Handler(inventory.PostCurrentInventory)
 
 	testHandlerHelper(currentInventoryTests, "POST", handler, copySession, t)
 
 }
-
-func TestGetCurrentInventoryNegative(t *testing.T) {
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(1 * time.Second)
-		if request.URL.EscapedPath() != "/skus" {
-			t.Errorf("Expected request to be '/skus', received %s",
-				request.URL.EscapedPath())
-		}
-		if request.Method != "GET" {
-			t.Errorf("Expected 'GET' request, received '%s", request.Method)
-		}
-		var jsonData []byte
-		if request.URL.EscapedPath() == "/skus" {
-			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
-			jsonData, _ = json.Marshal(result)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(jsonData)
-	}))
-
-	defer testServer.Close()
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	var currentInventoryTests = []inputTest{
-		// No facility id
-		{
-			title: "No facility id test",
-			input: []byte(`{
-				"qualified_state":"sold",
-				"epc_state":"sold"
-			  }`),
-			code: []int{400},
-		},
-		// Empty request body
-		{
-			title: "Empty request body test",
-			input: []byte(``),
-			code:  []int{400},
-		},
-		// Invalid input type for facility_id
-		{
-			title: "Invalid input type for facility_id test",
-			input: []byte(`{ "facility_id":10 }`),
-			code:  []int{400},
-		},
-		// Invalid cursor
-		{
-			title: "Invalid cursor test",
-			input: []byte(`{
-					"qualified_state":"sold",
-					"facility_id":"store001",
-					"epc_state":"sold",
-					"starttime":1482624000000,
-					"endtime":1483228800000,
-					"size":2,
-					"cursor":"123",
-					"count_only":false
-				  }`),
-			code: []int{400},
-		},
-	}
-
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
-
-	handler := web.Handler(inventory.GetCurrentInventory)
-
-	testHandlerHelper(currentInventoryTests, "POST", handler, copySession, t)
-
-}*/
 
 // nolint :dupl
 func TestGetMissingTagsPositive(t *testing.T) {
