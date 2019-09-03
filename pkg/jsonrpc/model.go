@@ -1,6 +1,9 @@
 package jsonrpc
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+)
 
 const (
 	RpcVersion = "2.0"
@@ -20,8 +23,9 @@ type Message interface {
 }
 
 type Notification struct {
-	Version string `json:"jsonrpc"`
-	Method  string `json:"method"`
+	Version string          `json:"jsonrpc"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params"`
 }
 
 type Request struct {

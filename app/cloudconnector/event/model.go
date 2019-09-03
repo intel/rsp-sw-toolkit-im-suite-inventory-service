@@ -47,9 +47,9 @@ type DataPayload struct {
 	// RSP Controller ID
 	ControllerId string `json:"device_id"` //backend expects this to be "device_id" instead of controller_id
 	// Sent On
-	SentOn int64 `json:"sent_on"`
-	TotalEventSegments int `json:"total_event_segments"`
-	EventSegmentNumber int `json:"event_segment_number"`
+	SentOn             int64 `json:"sent_on"`
+	TotalEventSegments int   `json:"total_event_segments"`
+	EventSegmentNumber int   `json:"event_segment_number"`
 	// Tag Event
 	TagEvent []tag.Tag `json:"data"`
 }

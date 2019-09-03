@@ -50,7 +50,7 @@ func newEventPayload(tagData []tag.Tag, controllerId string, sentOn int64, total
 		IsAsync: false,
 		URL:     config.AppConfig.EventDestination,
 		Body: DataPayload{
-			ControllerId:          controllerId,
+			ControllerId:       controllerId,
 			SentOn:             sentOn,
 			TotalEventSegments: totalEventSegments,
 			EventSegmentNumber: eventSegmentNumber,
