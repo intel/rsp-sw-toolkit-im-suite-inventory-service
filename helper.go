@@ -20,10 +20,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	golog "log"
 	"plugin"
 	"strings"
@@ -89,23 +86,6 @@ func verifyProbabilisticPlugin() {
 	if !pluginFound {
 		log.Warn("Unable to verify Intel Architecture, Confidence value will be set to 0")
 	}
-}
-
-func decodeJsonRpc(reading *models.Reading, js jsonrpc.Message, errorGauge *metrics.Gauge) error {
-	decoder := json.NewDecoder(strings.NewReader(reading.Value))
-	decoder.UseNumber()
-
-	if err := decoder.Decode(js); err != nil {
-		errorHandler("error decoding jsonrpc messaage", err, errorGauge)
-		return err
-	}
-
-	if err := js.Validate(); err != nil {
-		errorHandler("error validating jsonrpc messaage", err, errorGauge)
-		return err
-	}
-
-	return nil
 }
 
 func setLoggingLevel(loggingLevel string) {

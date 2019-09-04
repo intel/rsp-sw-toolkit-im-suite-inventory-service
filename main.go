@@ -27,8 +27,9 @@ import (
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"io/ioutil"
 
 	"net/http"
 	"os"
@@ -56,15 +57,28 @@ import (
 )
 
 const (
-	jsonApplication = "application/json;charset=utf-8"
-	serviceKey      = "inventory-service"
+	serviceKey = "inventory-service"
 )
 
 const (
-	asnData             = "ASN_data"
-	inventoryEvent      = "inventory_event"
-	deviceAlert         = "device_alert"
-	controllerHeartbeat = "controller_heartbeat"
+	asnData                  = "ASN_data"
+	inventoryData            = "inventory_data"
+	deviceAlert              = "device_alert"
+	controllerHeartbeat      = "controller_heartbeat"
+	sensorConfigNotification = "sensor_config_notification"
+	schedulerRunState        = "scheduler_run_state"
+)
+
+var (
+	// Filter data by value descriptors (aka device resource name)
+	valueDescriptors = []string{
+		asnData,
+		deviceAlert,
+		controllerHeartbeat,
+		inventoryData,
+		sensorConfigNotification,
+		schedulerRunState,
+	}
 )
 
 type myDB struct {
@@ -125,10 +139,19 @@ func main() {
 	// Connect to EdgeX zeroMQ bus
 	receiveZMQEvents(masterDB)
 
+	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis/5) * time.Millisecond)
+	defer aggregateDepartedTicker.Stop()
+	ageoutTicker := time.NewTicker(1 * time.Hour)
+	defer ageoutTicker.Stop()
+
+	go runBackgroundTasks(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
+
 	// Initiate webserver and routes
+	// NOTE: The call to `startWebServer` will block the main thread forever until an osSignal interrupt is received
 	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
 
 	log.WithField("Method", "main").Info("Completed.")
+
 }
 
 func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName string) {
@@ -395,48 +418,6 @@ func callDeleteTagCollection(masterDB *db.DB) error {
 	return tag.DeleteTagCollection(masterDB)
 }
 
-func triggerRules(triggerRulesEndpoint string, data interface{}) error {
-	timeout := time.Duration(config.AppConfig.EndpointConnectionTimedOutSeconds) * time.Second
-	client := &http.Client{
-		Timeout: timeout,
-	}
-
-	mData, err := json.Marshal(data)
-	if err != nil {
-		return errors.Wrapf(err, "problem marshalling the data")
-	}
-
-	// Make the POST to authenticate
-	request, err := http.NewRequest("POST", triggerRulesEndpoint, bytes.NewBuffer(mData))
-	if err != nil {
-		return errors.Wrapf(err, "unable to create http.NewRquest")
-	}
-	request.Header.Set("content-type", jsonApplication)
-
-	response, err := client.Do(request)
-	if err != nil {
-		return errors.Wrapf(err, "unable trigger rules: %s", triggerRulesEndpoint)
-	}
-	defer func() {
-		if respErr := response.Body.Close(); respErr != nil {
-			log.WithFields(log.Fields{
-				"Method": "triggerRules",
-				"Action": "response.Body.Close()",
-			}).Warning("Failed to close response.")
-		}
-	}()
-
-	if response.StatusCode != http.StatusOK {
-		responseData, err := ioutil.ReadAll(response.Body)
-		if err != nil {
-			return errors.Wrapf(err, "unable to ReadALL response.Body")
-		}
-		return errors.Wrapf(errors.New("execution error"), "StatusCode %d , Response %s",
-			response.StatusCode, string(responseData))
-	}
-	return nil
-}
-
 // POC only implementation
 func markDepartedIfUnseen(tag *jsonrpc.TagEvent, ageOuts map[string]int, currentTimeMillis int64) {
 	if tag.EventType == "cycle_count" {
@@ -472,12 +453,9 @@ func receiveZMQEvents(masterDB *db.DB) {
 		//Initialized EdgeX apps functionSDK
 		edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 		if err := edgexSdk.Initialize(); err != nil {
-			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v\n", err))
+			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
 			os.Exit(-1)
 		}
-
-		// Filter data by value descriptors
-		valueDescriptors := []string{asnData, inventoryEvent, deviceAlert, controllerHeartbeat}
 
 		edgexSdk.SetFunctionsPipeline(
 			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
@@ -505,6 +483,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatReceived", nil)
 	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatError", nil)
+	mRRSRawDataProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSInventoryDataError", nil)
 	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSEventsError", nil)
 	mRRSEventsTags := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSTags", nil)
 	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSAlertError", nil)
@@ -547,8 +526,8 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			logrus.Debugf("Received Heartbeat:\n%s", reading.Value)
 
 			hb := new(jsonrpc.Heartbeat)
-			if err := decodeJsonRpc(&reading, hb, &mRRSHeartbeatProcessingError); err != nil {
-				return false, nil
+			if err := jsonrpc.Decode(reading.Value, hb, &mRRSHeartbeatProcessingError); err != nil {
+				return false, err
 			}
 
 			if err := heartbeat.ProcessHeartbeat(hb, db.masterDB); err != nil {
@@ -558,22 +537,65 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			break
 
-		case inventoryEvent:
-			go func(reading *models.Reading, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
+		case sensorConfigNotification:
+			log.Debugf("Received sensor config notification:\n%s", reading.Value)
 
-				log.Debugf("Received tag event data:\n%s", reading.Value)
+			notification := new(jsonrpc.SensorConfigNotification)
+			if err := jsonrpc.Decode(reading.Value, notification, nil); err != nil {
+				return false, err
+			}
 
-				invEvent := new(jsonrpc.InventoryEvent)
-				if err := decodeJsonRpc(reading, invEvent, errorGauge); err != nil {
-					return
-				}
+			rsp := sensor.NewRSPFromConfigNotification(notification)
+			err := sensor.Upsert(db.masterDB, rsp)
+			if err != nil {
+				return false, errors.Wrapf(err, "unable to upsert sensor config notification for sensor %s", notification.Params.DeviceId)
+			}
+			break
 
-				err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
-				if err != nil {
-					errorHandler("error processing event data", err, errorGauge)
-				}
+		case schedulerRunState:
+			log.Debugf("Received scheduler run state notification:\n%s", reading.Value)
 
-			}(&reading, &mRRSEventsProcessingError, &mRRSEventsTags)
+			runState := new(jsonrpc.SchedulerRunState)
+			if err := jsonrpc.Decode(reading.Value, runState, nil); err != nil {
+				return false, err
+			}
+
+			tagprocessor.OnSchedulerRunState(runState)
+
+			break
+
+		case inventoryData:
+			log.Debugf("Received inventory_data message. msglen=%d", len(reading.Value))
+
+			invData := new(jsonrpc.InventoryData)
+			if err := jsonrpc.Decode(reading.Value, invData, &mRRSRawDataProcessingError); err != nil {
+				return false, err
+			}
+
+			//go func() {
+			//	sensorInfo, err := sensor.QueryBasicInfo(invData.Params.DeviceId)
+			//	if err != nil {
+			//		return
+			//	}
+			//	log.Infof("%+v", sensorInfo)
+			//}()
+
+			// todo: this should really just pass a channel down for the code to send the events back up to
+			invEvent, err := tagprocessor.ProcessInventoryData(db.masterDB, invData)
+			if err != nil {
+				return false, err
+			}
+
+			// ingest tag events
+			if invEvent != nil {
+				go func(invEvent *jsonrpc.InventoryEvent, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
+					err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
+					if err != nil {
+						errorHandler("error processing event data", err, errorGauge)
+					}
+				}(invEvent, &mRRSEventsProcessingError, &mRRSEventsTags)
+			}
+
 			break
 
 		case deviceAlert:
@@ -606,4 +628,35 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	}
 
 	return false, nil
+}
+
+// runBackgroundTasks is an infinite loop that processes timer tickers which are basically
+// a way to run code on a scheduled interval in golang
+func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
+	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+
+	for {
+		select {
+
+		case t := <-aggregateDepartedTicker.C:
+			log.Debugf("DoAggregateDepartedTask: %v", t)
+			// todo: this should really just pass a channel down for the code to send the events back up to
+			invEvent := tagprocessor.DoAggregateDepartedTask()
+			// ingest tag events
+			if invEvent!= nil && !invEvent.IsEmpty() {
+				go func(invEvent *jsonrpc.InventoryEvent) {
+					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
+					if err != nil {
+						errorHandler("error processing event data", err, nil)
+					}
+				}(invEvent)
+			}
+			break
+
+		case t := <-ageoutTicker.C:
+			log.Debugf("DoAgeoutTask: %v", t)
+			tagprocessor.DoAgeoutTask()
+			break
+		}
+	}
 }

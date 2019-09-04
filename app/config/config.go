@@ -20,6 +20,7 @@
 package config
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -44,7 +45,7 @@ type (
 		EndpointConnectionTimedOutSeconds                                                              int
 		AgeOuts                                                                                        map[string]int
 		EpcFilters                                                                                     []string
-		RulesUrl, TriggerRulesEndpoint, CloudConnectorUrl, CloudConnectorApiGatewayEndpoint            string // service endpionts
+		RulesUrl, TriggerRulesEndpoint, CloudConnectorUrl, CloudConnectorApiGatewayEndpoint            string // service endpoints
 		RfidAlertURL, RfidAlertMessageEndpoint                                                         string
 		ContraEpcPartition                                                                             int
 		ContextEventFilterProviderID                                                                   string
@@ -66,6 +67,13 @@ type (
 		UseComputedDailyTurnInConfidence                                                               bool
 		ProbabilisticAlgorithmPlugin                                                                   bool
 		TagDecoders                                                                                    []encodingscheme.TagDecoder
+
+		// todo: these should be int64, but that is NOT SUPPORTED by the config library
+		PosDepartedThresholdMillis, PosReturnThresholdMillis, AggregateDepartedThresholdMillis int
+		// todo: how does this relate to AgeOuts property above
+		AgeOutHours int
+
+		CoreCommandUrl string
 	}
 )
 
@@ -375,7 +383,47 @@ func InitConfig() error {
 		AppConfig.ProbabilisticAlgorithmPlugin = true
 	}
 
+	AppConfig.PosDepartedThresholdMillis = getOrDefaultInt(config, "posDepartedThresholdMillis", 3600000)
+	if AppConfig.PosDepartedThresholdMillis < 0 {
+		return fmt.Errorf("PosDepartedThresholdMillis should not be negative! PosDepartedThresholdMillis: %d", AppConfig.PosDepartedThresholdMillis)
+	}
+
+	AppConfig.PosReturnThresholdMillis = getOrDefaultInt(config, "posReturnThresholdMillis", 86400000)
+	if AppConfig.PosReturnThresholdMillis < 0 {
+		return fmt.Errorf("PosReturnThresholdMillis should not be negative! PosReturnThresholdMillis: %d", AppConfig.PosReturnThresholdMillis)
+	}
+
+	AppConfig.AggregateDepartedThresholdMillis = getOrDefaultInt(config, "aggregateDepartedThresholdMillis", 30000)
+	if AppConfig.AggregateDepartedThresholdMillis <= 0 {
+		return fmt.Errorf("AggregateDepartedThresholdMillis should be greater than 0! AggregateDepartedThresholdMillis: %d", AppConfig.AggregateDepartedThresholdMillis)
+	}
+
+	AppConfig.AgeOutHours = getOrDefaultInt(config, "ageOutHours", 336)
+	if AppConfig.AgeOutHours <= 0 {
+		return fmt.Errorf("AgeOutHours should be greater than 0! AgeOutHours: %d", AppConfig.AgeOutHours)
+	}
+
+	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
+
 	return nil
+}
+
+func getOrDefaultString(config *configuration.Configuration, path string, defaultValue string) string {
+	value, err := config.GetString(path)
+	if err != nil {
+		log.Debugf("%s was missing from configuration, setting to default value of %s", path, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+func getOrDefaultInt(config *configuration.Configuration, path string, defaultValue int) int {
+	value, err := config.GetInt(path)
+	if err != nil {
+		log.Debugf("%s was missing from configuration, setting to default value of %d", path, defaultValue)
+		return defaultValue
+	}
+	return value
 }
 
 func getTagDecoders(config *configuration.Configuration) ([]encodingscheme.TagDecoder, error) {
