@@ -276,7 +276,7 @@ func TestWithDataRetrieveOne(t *testing.T) {
 	}
 }
 
-func TestRetrieveOdataAll(t *testing.T) {
+func TestRetrieveOdataAllWithOdataQuery(t *testing.T) {
 
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
@@ -312,7 +312,7 @@ func TestRetrieveOdataAll(t *testing.T) {
 	}
 }
 
-func TestRetrieveAll(t *testing.T) {
+func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
 
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
@@ -337,7 +337,8 @@ func TestRetrieveAll(t *testing.T) {
 		t.Errorf("Unable to insert tags in bulk: %s", err.Error())
 	}
 
-	tags, err := RetrieveAll(copySession)
+	odataMap := make(map[string][]string)
+	tags, err := RetrieveOdataAll(copySession, odataMap)
 	if err != nil  {
 		t.Error("Error in retrieving tags")
 	} else if len(tags) != numOfSamples {

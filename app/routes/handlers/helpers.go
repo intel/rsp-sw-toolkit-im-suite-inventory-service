@@ -247,8 +247,9 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 
 	var tags []tag.Tag
 	var err error
+	odataMap := make(map[string][]string)
 
-	// if there is a request body
+	// if there is a request body validate the request
 	if request.ContentLength > 0 {
 		var mapping tag.RequestBody
 
@@ -260,21 +261,12 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 			web.Respond(ctx, writer, validationErrors, http.StatusBadRequest)
 			return nil
 		}
-
-		odataMap := make(map[string][]string)
 		odataMap = mapRequestToOdata(odataMap, &mapping)
-
-		tags, err = tag.RetrieveOdataAll(copySession, odataMap)
-		if err != nil {
-			mRetrieveErr.Update(1)
-			return err
-		}
-	} else {
-		tags, err = tag.RetrieveAll(copySession)
-		if err != nil {
-			mRetrieveErr.Update(1)
-			return err
-		}
+	}
+	tags, err = tag.RetrieveOdataAll(copySession, odataMap)
+	if err != nil {
+		mRetrieveErr.Update(1)
+		return err
 	}
 
 	if len(tags) > 0 {
@@ -299,22 +291,20 @@ func postToCloudInBatches(tags []tag.Tag) error {
 		range1 := 0
 		range2 := batchSize
 		lastBatch := false
+		var payload event.DataPayload
 		for {
 			if range2 < len(tags) {
-				payload := event.DataPayload{
+				payload = event.DataPayload{
 					TagEvent: tags[range1:range2],
 				}
-				if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
-					return errors.Wrap(err, "Error sending tags to cloud connector")
-				}
 			} else {
-				payload := event.DataPayload{
+				payload = event.DataPayload{
 					TagEvent: tags[range1:],
 				}
-				if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
-					return errors.Wrap(err, "Error sending tags to cloud connector")
-				}
 				lastBatch = true
+			}
+			if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+				return errors.Wrap(err, "Error sending tags to cloud connector")
 			}
 			if lastBatch {
 				break
@@ -350,7 +340,6 @@ func readAndValidateRequest(request *http.Request, schema string, v interface{})
 	}
 
 	if err = json.Unmarshal(body, &v); err != nil {
-		log.Info("Unmarshalling failed")
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
 

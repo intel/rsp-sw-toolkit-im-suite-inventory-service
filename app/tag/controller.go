@@ -129,14 +129,14 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 	return object, countType, pagingType, nil
 }
 
-// RetrieveOdataAll retrieves all tags from database based on Odata query
+// RetrieveOdataAll retrieves all tags from the database or retrieves based upon Odata query
 func RetrieveOdataAll(dbs *db.DB, query url.Values) ([]Tag, error) {
 
 	// Metrics
-	metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Attempt`, nil).Update(1)
-	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataNoLimit.Success`, nil)
-	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataNoLimit.Find-Error", nil)
-	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveOdataNoLimit.Find-Latency`, nil)
+	metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataAll.Attempt`, nil).Update(1)
+	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataAll.Success`, nil)
+	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataAll.Find-Error", nil)
+	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveOdataAll.Find-Latency`, nil)
 
 	var object []Tag
 
@@ -278,37 +278,6 @@ func RetrieveOne(dbs *db.DB, query url.Values) (Tag, error) {
 
 	mSuccess.Update(1)
 	return Tag{}, nil
-}
-
-// RetrieveAll retrieves all tags from the database
-func RetrieveAll(dbs *db.DB) ([]Tag, error) {
-
-	// Metrics
-	metrics.GetOrRegisterGauge(`Inventory.RetrieveAll.Attempt`, nil).Update(1)
-	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveAll.Success`, nil)
-	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveAll.Find-Error", nil)
-	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveAll.Find-Latency`, nil)
-
-	var object []Tag
-
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Find(nil).All(&object)
-	}
-
-	retrieveTimer := time.Now()
-	if err := dbs.Execute(tagCollection, execFunc); err != nil {
-		mFindErr.Update(1)
-		return nil, errors.Wrap(err, "Error in retrieving all the tags")
-	}
-	mFindLatency.Update(time.Since(retrieveTimer))
-
-	if len(object) > 0 {
-		mSuccess.Update(1)
-		return object, nil
-	}
-
-	mSuccess.Update(1)
-	return nil, nil
 }
 
 // Replace bulk upserts tags into database
