@@ -42,9 +42,9 @@ const (
 )
 
 // newEventPayload returns payload to send to cloud connector
-func newEventPayload(tagData []tag.Tag, controllerId string, sentOn int64, totalEventSegments int, eventSegmentNumber int, header http.Header) EventPayload {
+func newEventPayload(tagData []tag.Tag, controllerId string, sentOn int64, totalEventSegments int, eventSegmentNumber int, header http.Header) TagEventPayload {
 
-	eventPayload := EventPayload{
+	eventPayload := TagEventPayload{
 		Method:  http.MethodPost,
 		Headers: header,
 		IsAsync: false,

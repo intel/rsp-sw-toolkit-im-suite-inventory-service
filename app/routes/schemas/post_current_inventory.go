@@ -19,24 +19,11 @@
 
 package schemas
 
-// CurrentInventorySchema is required for request body validation
-const CurrentInventorySchema = `{
+const PostCurrentInventorySchema = `{
 	"type": "object",
-	"required": [
-		"facility_id"
-	],
 	"properties": {
-		"count_only": {
-			"type": "boolean"
-		},
 		"facility_id": {
 			"type": "string"
-		},
-		"cursor": {
-			"type": "string"
-		},
-		"size": {
-			"type": "integer"
 		},
 		"qualified_state": {
 			"type": "string"
@@ -49,9 +36,6 @@ const CurrentInventorySchema = `{
 		},
 		"endtime": {
 			"type": "integer"
-		},
-		"confidence": {
-			"type": "number"
 		}
 	},
 	"additionalProperties": false

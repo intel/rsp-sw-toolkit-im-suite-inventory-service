@@ -54,7 +54,7 @@ const (
 	numEpcDigits = numEpcBits / 4 // 4 bits per hex digit
 )
 
-// Retrieve retrieves All tags from database
+// Retrieve retrieves tags from database based on Odata query and a size limit
 //nolint:dupl
 func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountType, *PagingType, error) {
 
@@ -75,7 +75,6 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 		return countHandler(dbs)
 	}
 
-	// Apply size limit if needed
 	if len(query["$top"]) > 0 {
 
 		topVal, err := strconv.Atoi(query["$top"][0])
@@ -128,6 +127,37 @@ func Retrieve(dbs *db.DB, query url.Values, maxSize int) (interface{}, *CountTyp
 
 	mSuccess.Update(1)
 	return object, countType, pagingType, nil
+}
+
+// RetrieveOdataAll retrieves all tags from the database or retrieves based upon Odata query
+func RetrieveOdataAll(dbs *db.DB, query url.Values) ([]Tag, error) {
+
+	// Metrics
+	metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataAll.Attempt`, nil).Update(1)
+	mSuccess := metrics.GetOrRegisterGauge(`Inventory.RetrieveOdataAll.Success`, nil)
+	mFindErr := metrics.GetOrRegisterGauge("Inventory.RetrieveOdataAll.Find-Error", nil)
+	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.RetrieveOdataAll.Find-Latency`, nil)
+
+	var object []Tag
+
+	execFunc := func(collection *mgo.Collection) error {
+		return odata.ODataQuery(query, &object, collection)
+	}
+
+	retrieveTimer := time.Now()
+	if err := dbs.Execute(tagCollection, execFunc); err != nil {
+		mFindErr.Update(1)
+		return nil, errors.Wrap(err, "Error retrieving all tags based on odata query")
+	}
+	mFindLatency.Update(time.Since(retrieveTimer))
+
+	if len(object) > 0 {
+		mSuccess.Update(1)
+		return object, nil
+	}
+
+	mSuccess.Update(1)
+	return nil, nil
 }
 
 func countHandler(dbs *db.DB) (interface{}, *CountType, *PagingType, error) {

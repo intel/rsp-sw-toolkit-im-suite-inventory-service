@@ -276,6 +276,76 @@ func TestWithDataRetrieveOne(t *testing.T) {
 	}
 }
 
+func TestRetrieveOdataAllWithOdataQuery(t *testing.T) {
+
+	masterDb := dbHost.CreateDB(t)
+	defer masterDb.Close()
+
+	copySession := masterDb.CopySession()
+	defer copySession.Close()
+
+	tagArray := make([]Tag, 2)
+
+	var tag0 Tag
+	tag0.Epc = "303401D6A415B5C000000002"
+	tag0.FacilityID = "facility1"
+	tagArray[0] = tag0
+
+	var tag1 Tag
+	tag1.Epc = "303401D6A415B5C000000001"
+	tag0.FacilityID = "facility2"
+	tagArray[1] = tag1
+
+	err := Replace(copySession, &tagArray)
+	if err != nil {
+		t.Error("Unable to insert tags", err.Error())
+	}
+
+	odataMap := make(map[string][]string)
+	odataMap["$filter"] = append(odataMap["$filter"], "facility_id eq facility1")
+
+	tags, err := RetrieveOdataAll(copySession, odataMap)
+	if err != nil {
+		t.Error("Error in retrieving tags based on odata query")
+	} else if len(tags) != 1 {
+		t.Error("Expected one tag to be retrieved based on query")
+	}
+}
+
+func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
+
+	masterDb := dbHost.CreateDB(t)
+	defer masterDb.Close()
+
+	copySession := masterDb.CopySession()
+	defer copySession.Close()
+
+	numOfSamples := 600
+	tagSlice := make([]Tag, numOfSamples)
+	epcSlice := generateSequentialEpcs("3014", 0, int64(numOfSamples))
+
+	for i := 0; i < numOfSamples; i++ {
+		var tag Tag
+		tag.Epc = epcSlice[i]
+		tag.Source = "fixed"
+		tag.Event = "arrived"
+		tagSlice[i] = tag
+	}
+
+	err := Replace(copySession, &tagSlice)
+	if err != nil {
+		t.Errorf("Unable to insert tags in bulk: %s", err.Error())
+	}
+
+	odataMap := make(map[string][]string)
+	tags, err := RetrieveOdataAll(copySession, odataMap)
+	if err != nil  {
+		t.Error("Error in retrieving tags")
+	} else if len(tags) != numOfSamples {
+		t.Error("Number of tags in database and number of tags retrieved do not match")
+	}
+}
+
 func TestInsert(t *testing.T) {
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()

@@ -75,7 +75,7 @@ func TestTriggerCloudConnectorWithData(t *testing.T) {
 		var jsonData []byte
 		if request.URL.EscapedPath() == "/aws-cloud/invoke" {
 			var data []tag.Tag
-			var ccPayload EventPayload
+			var ccPayload TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Errorf(err.Error())
@@ -116,7 +116,7 @@ func TestTriggerCloudConnectorWithoutData(t *testing.T) {
 		var jsonData []byte
 		if request.URL.EscapedPath() == "/aws-cloud/invoke" {
 			var data []tag.Tag
-			var ccPayload EventPayload
+			var ccPayload TagEventPayload
 			body, err := ioutil.ReadAll(request.Body)
 			if err != nil {
 				t.Errorf(err.Error())

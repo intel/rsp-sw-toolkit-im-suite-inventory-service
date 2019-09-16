@@ -26,19 +26,15 @@ import (
 )
 
 //nolint[: dupl[, cyclo, ...]]
-func TestValidateCurrentInventoryRequest(t *testing.T) {
+func TestValidatePostCurrentInventoryRequest(t *testing.T) {
 	requestJSON := []byte(`{
 		"qualified_state":"sold",
-		"facility_id":"store001",
+		"facility_id": "store001",
 		"epc_state":"sold",
 		"starttime":1482624000000,
-		"endtime":1483228800000,
-		"confidence":0.75,
-		"cursor":"aGksIDovMSB0aGlz",
-		"size":500,
-		"count_only":true
+		"endtime":1483228800000
 	  }`)
-	result, err := ValidateSchemaRequest(requestJSON, CurrentInventorySchema)
+	result, err := ValidateSchemaRequest(requestJSON, PostCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
@@ -47,70 +43,26 @@ func TestValidateCurrentInventoryRequest(t *testing.T) {
 	}
 
 	invalidRequest := []byte(`{
-		"qualified_state":"sold"
+		"test":"sold"
 	  }`)
-	result, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
+	result, err = ValidateSchemaRequest(invalidRequest, PostCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
 	if result.Valid() {
-		t.Fatal("Failed to catch json schema validation error, required field 'facility_id'")
-	}
-
-	expectedString := `{
-		"errors": [
-			 {
-					"field": "facility_id",
-					"errortype": "required",
-					"value": {
-						 "qualified_state": "sold"
-					},
-					"description": "facility_id is required"
-			 }
-		]
- }`
-
-	data, _ := json.MarshalIndent(BuildErrorsString(result.Errors()), "", "   ")
-	actualString := string(data)
-	act := strings.Replace(actualString, " ", "", -1)
-	exp := strings.Replace(expectedString, " ", "", -1)
-	exp = strings.Replace(exp, "\t", "", -1)
-	if exp != act {
-		t.Errorf("Expected string is %v but got %v", expectedString, actualString)
+		t.Fatal("Failed to catch json schema validation error, no additional fields allowed'")
 	}
 
 	invalidRequest = []byte(`{
 		"qualified_state":"sold",
-		"facility_id":"store001",
-		"test":10,
-		"start":3948309,
-		"count_only":true
+		"facility_id": 1
 	  }`)
-	result, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
+	result, err = ValidateSchemaRequest(invalidRequest, PostCurrentInventorySchema)
 	if err != nil {
 		t.Errorf("Error validating the json schema %s", err)
 	}
 	if result.Valid() {
-		t.Fatal("Failed to catch json schema validation error, additional properties")
-	}
-
-	invalidRequest = []byte(`{
-		"qualified_state":1234,
-		"facility_id":"store001",
-		"count_only":true
-	  }`)
-	result, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
-	if err != nil {
-		t.Errorf("Error validating the json schema %s", err)
-	}
-	if result.Valid() {
-		t.Fatal("Failed to catch json schema validation error, qualified_state type is incorrect")
-	}
-
-	invalidRequest = []byte{}
-	_, err = ValidateSchemaRequest(invalidRequest, CurrentInventorySchema)
-	if err == nil {
-		t.Fatal("Failed to catch json schema validation error, request body cannot be empty")
+		t.Fatal("Failed to catch json schema validation error, facility_id type is wrong")
 	}
 }
 

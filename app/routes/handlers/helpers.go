@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"io"
 	"net/http"
 	"plugin"
@@ -207,10 +208,6 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 		return err
 	}
 
-	if err != nil {
-		return err
-	}
-
 	if len(tagSlice) > 0 {
 		if err := ApplyConfidence(copySession, &tagSlice, url); err != nil {
 			return err
@@ -232,6 +229,90 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 
 	web.Respond(ctx, writer, results, http.StatusOK)
 	mSuccess.Update(1)
+	return nil
+}
+
+// processPostRequest handles POST requests for sending inventory snapshot to the cloud connector
+func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, request *http.Request, writer http.ResponseWriter, url string) error {
+
+	// Metrics
+	metrics.GetOrRegisterGauge("Inventory.processPostRequest.Attempt", nil).Update(1)
+	startTime := time.Now()
+	defer metrics.GetOrRegisterTimer("Inventory.processPostRequest.Latency", nil).Update(time.Since(startTime))
+	mSuccess := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Success", nil)
+	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Retrieve-Error", nil)
+
+	copySession := MasterDB.CopySession()
+	defer copySession.Close()
+
+	var tags []tag.Tag
+	var err error
+	odataMap := make(map[string][]string)
+
+	// if there is a request body validate the request
+	if request.ContentLength > 0 {
+		var mapping tag.RequestBody
+
+		validationErrors, err := readAndValidateRequest(request, schema, &mapping)
+		if err != nil {
+			return err
+		}
+		if validationErrors != nil {
+			web.Respond(ctx, writer, validationErrors, http.StatusBadRequest)
+			return nil
+		}
+		odataMap = mapRequestToOdata(odataMap, &mapping)
+	}
+	tags, err = tag.RetrieveOdataAll(copySession, odataMap)
+	if err != nil {
+		mRetrieveErr.Update(1)
+		return err
+	}
+
+	if len(tags) > 0 {
+		if err := ApplyConfidence(copySession, &tags, url); err != nil {
+			return err
+		}
+		if err := postToCloudInBatches(tags); err != nil {
+			return err
+		}
+	}
+
+	web.Respond(ctx, writer, nil, http.StatusOK)
+	mSuccess.Update(1)
+	return nil
+}
+
+func postToCloudInBatches(tags []tag.Tag) error {
+	if config.AppConfig.CloudConnectorUrl != "" {
+		triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
+
+		batchSize := 500
+		range1 := 0
+		range2 := batchSize
+		lastBatch := false
+		var payload event.DataPayload
+		for {
+			if range2 < len(tags) {
+				payload = event.DataPayload{
+					TagEvent: tags[range1:range2],
+				}
+			} else {
+				payload = event.DataPayload{
+					TagEvent: tags[range1:],
+				}
+				lastBatch = true
+			}
+			if err := event.TriggerCloudConnector(payload.ControllerId, payload.SentOn, payload.TotalEventSegments, payload.EventSegmentNumber, payload.TagEvent, triggerCloudConnectorEndpoint); err != nil {
+				return errors.Wrap(err, "Error sending tags to cloud connector")
+			}
+			if lastBatch {
+				break
+			}
+			range1 = range2
+			range2 += batchSize
+		}
+	}
 	return nil
 }
 
@@ -258,7 +339,6 @@ func readAndValidateRequest(request *http.Request, schema string, v interface{})
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
 
-	// Unmarshal request as json
 	if err = json.Unmarshal(body, &v); err != nil {
 		return nil, errors.Wrap(web.ErrValidation, err.Error())
 	}
@@ -304,7 +384,9 @@ func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) m
 	if request.Size > 0 {
 		odataMap["$top"] = append(odataMap["$top"], strconv.Itoa(request.Size))
 	}
-	filterSlice = append(filterSlice, "facility_id eq '"+request.FacilityID+"'")
+	if request.FacilityID != "" {
+		filterSlice = append(filterSlice, "facility_id eq '"+request.FacilityID+"'")
+	}
 	if request.QualifiedState != "" {
 		filterSlice = append(filterSlice, "qualified_state eq '"+request.QualifiedState+"'")
 	}

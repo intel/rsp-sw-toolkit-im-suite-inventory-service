@@ -10,7 +10,7 @@ require (
 	github.com/pborman/uuid v1.2.0
 	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.0
-	github.impcloud.net/RSP-Inventory-Suite/expect v1.0.0
+	github.impcloud.net/RSP-Inventory-Suite/expect v1.0.1
 	github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper v0.0.0-20190313210115-0b51b1c07cb2
 	github.impcloud.net/RSP-Inventory-Suite/go-odata v0.0.0-20190313205301-6becc242e190
 	github.impcloud.net/RSP-Inventory-Suite/gojsonschema v0.0.0-20190328202319-524e56ea9f9a
