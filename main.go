@@ -66,8 +66,7 @@ const (
 	controllerHeartbeat      = "controller_heartbeat"
 	sensorConfigNotification = "sensor_config_notification"
 	schedulerRunState        = "scheduler_run_state"
-
-	inventoryServiceEvent = "inventory_service_event"
+	inventoryEvent           = "inventory_event"
 )
 
 var (
@@ -644,7 +643,7 @@ func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageout
 			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent := tagprocessor.DoAggregateDepartedTask()
 			// ingest tag events
-			if invEvent!= nil && !invEvent.IsEmpty() {
+			if invEvent != nil && !invEvent.IsEmpty() {
 				go func(invEvent *jsonrpc.InventoryEvent) {
 					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
 					if err != nil {

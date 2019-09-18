@@ -201,7 +201,7 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 					Readings: []models.Reading{
 						{
 							Device: invEvent.Params.ControllerId,
-							Name:   inventoryServiceEvent,
+							Name:   inventoryEvent,
 							Value:  string(payload),
 							Origin: currentTimeMillis,
 						},
