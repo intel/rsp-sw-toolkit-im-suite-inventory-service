@@ -39,5 +39,5 @@ Type = 'zero'
 EnableRemote = true
 
 [Binding]
- Type="messagebus"
- SubscribeTopic=""
+Type="messagebus"
+SubscribeTopic=""

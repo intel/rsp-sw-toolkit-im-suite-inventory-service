@@ -30,7 +30,6 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-
 	"net/http"
 	"os"
 	"os/signal"
@@ -67,6 +66,8 @@ const (
 	controllerHeartbeat      = "controller_heartbeat"
 	sensorConfigNotification = "sensor_config_notification"
 	schedulerRunState        = "scheduler_run_state"
+
+	inventoryServiceEvent = "inventory_service_event"
 )
 
 var (
@@ -79,6 +80,8 @@ var (
 		sensorConfigNotification,
 		schedulerRunState,
 	}
+
+	edgexSdk = &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 )
 
 type myDB struct {
@@ -449,15 +452,13 @@ func receiveZMQEvents(masterDB *db.DB) {
 	db := myDB{masterDB: masterDB}
 
 	go func() {
-
 		//Initialized EdgeX apps functionSDK
-		edgexSdk := &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 		if err := edgexSdk.Initialize(); err != nil {
 			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
 			os.Exit(-1)
 		}
 
-		edgexSdk.SetFunctionsPipeline(
+		_ = edgexSdk.SetFunctionsPipeline(
 			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
 			db.processEvents,
 		)
@@ -467,7 +468,6 @@ func receiveZMQEvents(masterDB *db.DB) {
 			edgexSdk.LoggingClient.Error("MakeItRun returned error: ", err.Error())
 			os.Exit(-1)
 		}
-
 	}()
 }
 
@@ -569,6 +569,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			invData := new(jsonrpc.InventoryData)
 			if err := jsonrpc.Decode(reading.Value, invData, &mRRSRawDataProcessingError); err != nil {
+				log.Warn(reading.Value)
 				return false, err
 			}
 

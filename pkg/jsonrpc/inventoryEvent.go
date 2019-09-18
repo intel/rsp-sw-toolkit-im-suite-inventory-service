@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	// todo: does this need to be defined by configuration (based on what the mqtt-device-service calls it)?
 	controllerId   = "rsp-controller"
 	inventoryEvent = "inventory_event"
 )

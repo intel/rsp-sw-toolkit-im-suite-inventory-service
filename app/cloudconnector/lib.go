@@ -5,11 +5,16 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 func SendEvent(invEvent *jsonrpc.InventoryEvent, tagData []tag.Tag) error {
-	// todo: what else to put in here? seems like the data structure DataPayload  is based on a SAF bus artifact??
+	// todo: do we need to handle chunkning the data into 250 item segements???
 	payload := event.DataPayload{
+		SentOn:helper.UnixMilliNow(),
+		ControllerId: invEvent.Params.ControllerId,
+		EventSegmentNumber: 1,
+		TotalEventSegments: 1,
 		TagEvent: tagData,
 	}
 	triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint

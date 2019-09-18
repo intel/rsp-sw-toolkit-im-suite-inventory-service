@@ -20,11 +20,18 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry/go-mod-core-contracts/clients"
+	"github.com/edgexfoundry/go-mod-core-contracts/clients/coredata"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/rules"
@@ -33,7 +40,9 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"reflect"
 	"time"
+	"unsafe"
 )
 
 // SkuMapping struct for the sku-mapping service
@@ -52,6 +61,11 @@ func NewSkuMapping(url string) SkuMapping {
 //nolint :gocyclo
 func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
 
+	numberOfTags := len(invEvent.Params.Data)
+	if numberOfTags == 0 {
+		return nil
+	}
+
 	mProcessTagLatency := metrics.GetOrRegisterTimer(`Inventory.ProcessTagData-Latency`, nil)
 	processTagTimer := time.Now()
 
@@ -61,8 +75,6 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 	// todo: is below comment still valid?
 	// POC only implementation
 	currentTimeMillis := helper.UnixMilliNow()
-
-	numberOfTags := len(invEvent.Params.Data)
 
 	if tagsGauge != nil {
 		(*tagsGauge).Add(int64(numberOfTags))
@@ -109,7 +121,6 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 
 		log.Trace("Previous and Current Tag State:\n")
 		log.Trace(tagStateChange)
-
 	}
 
 	log.Debugf("Filtered %d Tags.", tagsFiltered)
@@ -152,6 +163,61 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 				}
 			}()
 		}
+
+		go func() {
+			//tagEvents := make([]tag.Tag, len(tagStateChangeList))
+			//for _, tagChange := range tagStateChangeList {
+			//	tagEvents = append(tagEvents, tagChange.CurrentState)
+			//}
+
+			tagEvents := tagData
+
+			if len(tagEvents) > 0 {
+				log.Debugf("%+v", tagEvents)
+
+				correlation := uuid.New().String()
+				ctx := context.WithValue(context.Background(), clients.CorrelationHeader, correlation)
+				ctx = context.WithValue(ctx, clients.ContentType, clients.ContentTypeJSON)
+
+				payload, err := json.Marshal(event.DataPayload{
+					SentOn:             currentTimeMillis,
+					ControllerId:       invEvent.Params.ControllerId,
+					EventSegmentNumber: 1,
+					TotalEventSegments: 1,
+					TagEvent:           tagEvents,
+				})
+				if err != nil {
+					log.WithFields(log.Fields{
+						"Method": "processTagData",
+						"Action": "Publish to Core Data",
+						"Error":  fmt.Sprintf("%+v", err),
+					}).Error(err)
+					return
+				}
+
+				evt := models.Event{
+					Device: invEvent.Params.ControllerId,
+					Origin: currentTimeMillis,
+					Readings: []models.Reading{
+						{
+							Device: invEvent.Params.ControllerId,
+							Name:   inventoryServiceEvent,
+							Value:  string(payload),
+							Origin: currentTimeMillis,
+						},
+					},
+				}
+
+				eventClientValue := reflect.ValueOf(edgexSdk).Elem().FieldByName("edgexClients").FieldByName("EventClient")
+				eventClientValue = reflect.NewAt(eventClientValue.Type(), unsafe.Pointer(eventClientValue.UnsafeAddr())).Elem()
+				eventClient, ok := eventClientValue.Interface().(coredata.EventClient)
+				if !ok {
+					log.Error("Unable to cast to EventClient")
+					return
+				}
+				_, _ = eventClient.Add(&evt, ctx)
+			}
+		}()
 	}
 
 	mProcessTagLatency.Update(time.Since(processTagTimer))
