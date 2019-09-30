@@ -49,8 +49,15 @@ func NewRSPFromConfigNotification(notification *jsonrpc.SensorConfigNotification
 
 // AntennaAlias gets the string alias of an RSP based on the antenna port
 // format is DeviceId-AntennaId,  ie. RSP-150009-0
+// If there is an alias defined for that antenna port, use that instead
+// Note that each antenna port is supposed to refer to that index in the
+// rsp.Aliases slice
 func (rsp *RSP) AntennaAlias(antennaId int) string {
-	return rsp.DeviceId + "-" + strconv.Itoa(antennaId)
+	if len(rsp.Aliases) > antennaId {
+		return rsp.Aliases[antennaId]
+	} else {
+		return rsp.DeviceId + "-" + strconv.Itoa(antennaId)
+	}
 }
 
 // IsExitSensor returns true if this RSP has the EXIT personality
