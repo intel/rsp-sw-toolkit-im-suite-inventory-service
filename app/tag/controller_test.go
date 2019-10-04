@@ -339,7 +339,7 @@ func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
 
 	odataMap := make(map[string][]string)
 	tags, err := RetrieveOdataAll(copySession, odataMap)
-	if err != nil  {
+	if err != nil {
 		t.Error("Error in retrieving tags")
 	} else if len(tags) != numOfSamples {
 		t.Error("Number of tags in database and number of tags retrieved do not match")

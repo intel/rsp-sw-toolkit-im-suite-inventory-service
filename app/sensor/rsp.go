@@ -23,6 +23,7 @@ type RSP struct {
 	FacilityId   string      `json:"facility_id" bson:"facility_id"`
 	Personality  Personality `json:"personality" bson:"personality"`
 	Aliases      []string    `json:"aliases" bson:"aliases"`
+	UpdatedOn    int64       `json:"updated_on" bson:"updated_on"`
 	IsInDeepScan bool        `json:"-" bson:"-"`
 }
 
@@ -31,9 +32,15 @@ func NewRSP(deviceId string) *RSP {
 		DeviceId:    deviceId,
 		Personality: NoPersonality,
 		FacilityId:  DefaultFacility,
+		UpdatedOn:   0,
 	}
-	// setup a default alias for antenna 0
-	rsp.Aliases = []string{rsp.AntennaAlias(0)}
+	// setup a default alias for antennas 0-3
+	rsp.Aliases = []string{
+		rsp.AntennaAlias(0),
+		rsp.AntennaAlias(1),
+		rsp.AntennaAlias(2),
+		rsp.AntennaAlias(3),
+	}
 	return &rsp
 }
 

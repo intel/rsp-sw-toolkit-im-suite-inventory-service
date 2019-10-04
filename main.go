@@ -56,10 +56,12 @@ import (
 )
 
 const (
-	serviceKey = "inventory-service"
+	serviceKey    = "inventory-service"
 )
 
 const (
+	controllerReady = "controller_ready"
+
 	asnData                  = "ASN_data"
 	inventoryData            = "inventory_data"
 	deviceAlert              = "device_alert"
@@ -67,6 +69,7 @@ const (
 	sensorConfigNotification = "sensor_config_notification"
 	schedulerRunState        = "scheduler_run_state"
 	inventoryEvent           = "inventory_event"
+	controllerStatusUpdate   = "rsp_controller_status_update"
 )
 
 var (
@@ -78,6 +81,7 @@ var (
 		inventoryData,
 		sensorConfigNotification,
 		schedulerRunState,
+		controllerStatusUpdate,
 	}
 
 	edgexSdk = &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
@@ -147,6 +151,8 @@ func main() {
 	defer ageoutTicker.Stop()
 
 	go runBackgroundTasks(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
+
+	go sensor.QueryBasicInfoAllSensors(masterDB)
 
 	// Initiate webserver and routes
 	// NOTE: The call to `startWebServer` will block the main thread forever until an osSignal interrupt is received
@@ -517,8 +523,6 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}
 			mRRSASNEpcs.Add(1)
 
-			break
-
 		case controllerHeartbeat:
 			mRRSHeartbeatReceived.Update(1)
 
@@ -534,8 +538,6 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				return false, err
 			}
 
-			break
-
 		case sensorConfigNotification:
 			log.Debugf("Received sensor config notification:\n%s", reading.Value)
 
@@ -549,7 +551,6 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			if err != nil {
 				return false, errors.Wrapf(err, "unable to upsert sensor config notification for sensor %s", notification.Params.DeviceId)
 			}
-			break
 
 		case schedulerRunState:
 			log.Debugf("Received scheduler run state notification:\n%s", reading.Value)
@@ -560,8 +561,6 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}
 
 			tagprocessor.OnSchedulerRunState(runState)
-
-			break
 
 		case inventoryData:
 			log.Debugf("Received inventory_data message. msglen=%d", len(reading.Value))
@@ -596,8 +595,6 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				}(invEvent, &mRRSEventsProcessingError, &mRRSEventsTags)
 			}
 
-			break
-
 		case deviceAlert:
 			log.Debugf("Received device alert data:\n%s", reading.Value)
 
@@ -623,7 +620,18 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				}(&mRRSEventsProcessingError)
 			}
 
-			break
+		case controllerStatusUpdate:
+			log.Debugf("Received controller status update:\n%s", reading.Value)
+
+			notification := new(jsonrpc.ControllerStatusUpdate)
+			if err := jsonrpc.Decode(reading.Value, notification, nil); err != nil {
+				return false, err
+			}
+
+			if notification.Params.Status == controllerReady {
+				logrus.Info("rsp controller has been started, querying for all sensor basic info")
+				go sensor.QueryBasicInfoAllSensors(db.masterDB)
+			}
 		}
 	}
 

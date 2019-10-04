@@ -11,11 +11,11 @@ import (
 func SendEvent(invEvent *jsonrpc.InventoryEvent, tagData []tag.Tag) error {
 	// todo: do we need to handle chunkning the data into 250 item segements???
 	payload := event.DataPayload{
-		SentOn:helper.UnixMilliNow(),
-		ControllerId: invEvent.Params.ControllerId,
+		SentOn:             helper.UnixMilliNow(),
+		ControllerId:       invEvent.Params.ControllerId,
 		EventSegmentNumber: 1,
 		TotalEventSegments: 1,
-		TagEvent: tagData,
+		TagEvent:           tagData,
 	}
 	triggerCloudConnectorEndpoint := config.AppConfig.CloudConnectorUrl + config.AppConfig.CloudConnectorApiGatewayEndpoint
 
