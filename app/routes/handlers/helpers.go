@@ -48,9 +48,9 @@ import (
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients
 // this function can be reused by RRS endpoint and RRP endpoints with odata for multiple facilities
-func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
+func ApplyConfidence(session *db.DB, tags []tag.Tag, url string) error {
 
-	if len(*tags) == 0 {
+	if len(tags) == 0 {
 		return nil
 	}
 
@@ -77,12 +77,11 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 	var probInStore float64
 	var probExitError float64
 
-	for i := 0; i < len(*tags); i++ {
+	for i := 0; i < len(tags); i++ {
 		// Get coefficients
-		facilityID := (*tags)[i].FacilityID
-		var confidence float64
+		facilityID := tags[i].FacilityID
 		tagFacility, foundFacility := facilities[facilityID]
-		lastRead := (*tags)[i].LastRead
+		lastRead := tags[i].LastRead
 		if foundFacility {
 			dailyInvPerc = tagFacility.Coefficients.DailyInventoryPercentage
 			probUnreadToRead = tagFacility.Coefficients.ProbUnreadToRead
@@ -94,7 +93,7 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 			probInStore = config.AppConfig.ProbInStoreRead
 			probExitError = config.AppConfig.ProbExitError
 		}
-		gtin := (*tags)[i].ProductID
+		gtin := tags[i].ProductID
 
 		product, foundProduct := productDataMap[gtin]
 		if foundProduct {
@@ -207,7 +206,7 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 	}
 
 	if len(tagSlice) > 0 {
-		if err := ApplyConfidence(copySession, &tagSlice, url); err != nil {
+		if err := ApplyConfidence(copySession, tagSlice, url); err != nil {
 			return err
 		}
 	} else {
@@ -268,7 +267,7 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 	}
 
 	if len(tags) > 0 {
-		if err := ApplyConfidence(copySession, &tags, url); err != nil {
+		if err := ApplyConfidence(copySession, tags, url); err != nil {
 			return err
 		}
 		if err := postToCloudInBatches(tags); err != nil {
