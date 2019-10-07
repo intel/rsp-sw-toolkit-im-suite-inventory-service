@@ -125,27 +125,36 @@ func ApplyConfidence(session *db.DB, tags []tag.Tag, url string) error {
 			}
 		}
 
-		log.Tracef("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f", dailyInvPerc, probUnreadToRead, probInStore, probExitError)
-
-		// Load proprietary Intel probabilistic confidence algorithm
-		confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
-		if err != nil {
-			log.Warn("Intel Probabilistic Algorithm plugin not found. Setting Confidence to 0.")
-			(*tags)[i].Confidence = 0
-			return nil
-		}
-
-		calculateConfidence, err := confidencePlugin.Lookup("CalculateConfidence")
-		if err != nil {
-			log.Errorf("Unable to find calculate confidence function")
-		}
-
-		confidence = calculateConfidence.(func(float64, float64, float64, float64, int64, bool) float64)(
+		log.Tracef("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f",
+			dailyInvPerc, probUnreadToRead, probInStore, probExitError)
+		tags[i].Confidence = confidenceCalc(
 			dailyInvPerc, probUnreadToRead, probInStore, probExitError, lastRead, false)
-
-		(*tags)[i].Confidence = confidence
 	}
 	return nil
+}
+
+type confidenceFunc func(float64, float64, float64, float64, int64, bool) float64
+
+var confidenceCalc = confidenceFunc(zeroConfidence)
+
+func zeroConfidence(float64, float64, float64, float64, int64, bool) float64 {
+	return 0.0
+}
+
+func init() {
+	confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
+	if err != nil {
+		log.Warn("Intel Probabilistic Algorithm plugin not found; All Confidence values will be set to 0.")
+		return
+	}
+	calculateConfidence, err := confidencePlugin.Lookup("CalculateConfidence")
+	if err != nil {
+		log.Error("Unable to find CalculateConfidence function in plugin")
+		return
+	}
+	// Note: this panics if a plugin with this name & function exists, but the
+	// signature doesn't match
+	confidenceCalc = calculateConfidence.(confidenceFunc)
 }
 
 func UpdateForCycleCount(tags []tag.Tag) {
