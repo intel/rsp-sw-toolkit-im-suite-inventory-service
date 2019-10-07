@@ -14,7 +14,6 @@ import (
 
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
@@ -56,7 +55,7 @@ func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 			configConf := calculateConfidencePlugin(dailyInvPercConfig,
 				probUnreadToReadConfig,
 				probInStoreConfig,
-				probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+				probExitErrorConfig, val.LastRead, false)
 
 			log.Warn(configConf)
 			log.Warn(val.Confidence)
@@ -104,7 +103,7 @@ func TestApplyConfidenceFacilitiesDontMatch(t *testing.T) {
 			configConf := calculateConfidencePlugin(dailyInvPercConfig,
 				probUnreadToReadConfig,
 				probInStoreConfig,
-				probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+				probExitErrorConfig, val.LastRead, false)
 
 			if val.Confidence != configConf {
 				t.Errorf("Confidence not set correctly when no facility found")
@@ -163,7 +162,7 @@ func TestApplyConfidenceProductIdCoeffOverridesFacilityCoeffMatch(t *testing.T) 
 			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
 				facilityItem.Coefficients.ProbUnreadToRead,
 				facilityItem.Coefficients.ProbInStoreRead,
-				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+				facilityItem.Coefficients.ProbExitError, val.LastRead, false)
 
 			if val.Confidence == facilityConf {
 				// product identifier coefficients should override facility coefficients, thus confidence should not be equal
@@ -222,7 +221,7 @@ func TestApplyConfidenceProductIdCoeffNull(t *testing.T) {
 			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
 				facilityItem.Coefficients.ProbUnreadToRead,
 				facilityItem.Coefficients.ProbInStoreRead,
-				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+				facilityItem.Coefficients.ProbExitError, val.LastRead, false)
 
 			if val.Confidence != facilityConf {
 				// product identifier coefficients should override facility coefficients, thus confidence should not be equal
@@ -280,7 +279,7 @@ func TestApplyConfidenceProductIdCoeffOverridesSomeNull(t *testing.T) {
 			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
 				facilityItem.Coefficients.ProbUnreadToRead,
 				facilityItem.Coefficients.ProbInStoreRead,
-				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+				facilityItem.Coefficients.ProbExitError, val.LastRead, false)
 
 			if val.Confidence == facilityConf {
 				// product identifier coefficients should override facility coefficients, thus confidence should not be equal
@@ -341,7 +340,7 @@ func TestApplyConfidenceFacilityCoeffMatch(t *testing.T) {
 			facilityConf := calculateConfidencePlugin(facilityItem.Coefficients.DailyInventoryPercentage,
 				facilityItem.Coefficients.ProbUnreadToRead,
 				facilityItem.Coefficients.ProbInStoreRead,
-				facilityItem.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+				facilityItem.Coefficients.ProbExitError, val.LastRead, false)
 
 			if val.Confidence != facilityConf {
 				// product identifier coefficients should not override facility coefficients when they are equal to 0
@@ -403,12 +402,12 @@ func TestApplyConfidenceMixedTags(t *testing.T) {
 				facilityConf = calculateConfidencePlugin(fac.Coefficients.DailyInventoryPercentage,
 					fac.Coefficients.ProbUnreadToRead,
 					fac.Coefficients.ProbInStoreRead,
-					fac.Coefficients.ProbExitError, val.LastRead, contraepc.IsContraEpc(val))
+					fac.Coefficients.ProbExitError, val.LastRead, false)
 			} else {
 				facilityConf = calculateConfidencePlugin(dailyInvPercConfig,
 					probUnreadToReadConfig,
 					probInStoreConfig,
-					probExitErrorConfig, val.LastRead, contraepc.IsContraEpc(val))
+					probExitErrorConfig, val.LastRead, false)
 			}
 			if val.Confidence != facilityConf {
 				t.Error("Confidence not set correctly when facility found")
@@ -496,7 +495,7 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 					fac.Coefficients.ProbInStoreRead,
 					fac.Coefficients.ProbExitError,
 					val.LastRead,
-					contraepc.IsContraEpc(val))
+					false)
 
 				if val.Confidence == facilityConf {
 					t.Error("Confidence not set correctly when computed daily turn is present and facility is found")
@@ -508,7 +507,7 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 					fac.Coefficients.ProbInStoreRead,
 					fac.Coefficients.ProbExitError,
 					val.LastRead,
-					contraepc.IsContraEpc(val))
+					false)
 
 				if val.Confidence != expectedConf {
 					t.Error("Confidence not set correctly when computed daily turn is present and facility is found")
@@ -520,7 +519,7 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 					probInStoreConfig,
 					probExitErrorConfig,
 					val.LastRead,
-					contraepc.IsContraEpc(val))
+					false)
 
 				defaultConfidence := calculateConfidencePlugin(
 					dailyInvPercConfig,
@@ -528,7 +527,7 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 					probInStoreConfig,
 					probExitErrorConfig,
 					val.LastRead,
-					contraepc.IsContraEpc(val))
+					false)
 
 				if defaultConfidence == dailyTurnConfidence {
 					t.Error("Daily turn confidence and default confidence are the same value. This should not happen and means the test is invalid")

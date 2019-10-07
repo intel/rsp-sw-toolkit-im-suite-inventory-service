@@ -47,7 +47,6 @@ type (
 		EpcFilters                                                                                     []string
 		RulesUrl, TriggerRulesEndpoint, CloudConnectorUrl, CloudConnectorApiGatewayEndpoint            string // service endpoints
 		RfidAlertURL, RfidAlertMessageEndpoint                                                         string
-		ContraEpcPartition                                                                             int
 		ContextEventFilterProviderID                                                                   string
 		PurgingDays                                                                                    int
 		ServerReadTimeOutSeconds                                                                       int
@@ -176,11 +175,6 @@ func InitConfig() error {
 		log.Debugf("serverWriteTimeOutSeconds value %d exceeds the max value allowed, set to max value %d",
 			AppConfig.ServerWriteTimeOutSeconds, maxServerWriteTimeoutSeconds)
 		AppConfig.ServerWriteTimeOutSeconds = maxServerWriteTimeoutSeconds
-	}
-
-	AppConfig.ContraEpcPartition, err = config.GetInt("contraEpcPartition")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
 	// get the Provider id for the Context Event filter service so events are only received from that service.
@@ -427,14 +421,16 @@ func getOrDefaultInt(config *configuration.Configuration, path string, defaultVa
 }
 
 func getTagDecoders(config *configuration.Configuration) ([]encodingscheme.TagDecoder, error) {
+	var decoders []encodingscheme.TagDecoder
+
 	// always use SGTIN-96
-	decoders := []encodingscheme.TagDecoder{encodingscheme.SGTIN96Decoder()}
+	decoders = append(decoders, encodingscheme.NewSGTINDecoder(true))
 
 	// if configured, also use a proprietary extractor
 	var extractor encodingscheme.TagDecoder
 	extractor, err := parseProprietary(config)
 	if err != nil {
-		return decoders, err
+		return nil, err
 	}
 	if extractor != nil {
 		decoders = append(decoders, extractor)
@@ -443,21 +439,18 @@ func getTagDecoders(config *configuration.Configuration) ([]encodingscheme.TagDe
 }
 
 func parseProprietary(config *configuration.Configuration) (encodingscheme.TagDecoder, error) {
-	fields, err := config.GetString("proprietaryTagFormat")
-	if err != nil {
-		return nil, errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
-	}
-	if fields == "" {
-		log.Debug("skipping proprietary parsing, because no format is present")
-		return nil, nil
-	}
-
 	widths, err := config.GetString("proprietaryTagBitBoundary")
 	if err != nil {
 		return nil, errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 	if widths == "" {
-		return nil, errors.New("there's a proprietary tag format, but no boundaries")
+		log.Debug("skipping proprietary parsing, because no format is present")
+		return nil, nil
+	}
+
+	prodIdx, err := config.GetInt("proprietaryTagProductIdx")
+	if err != nil {
+		return nil, errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
 	authority, err := config.GetString("tagURIAuthorityName")
@@ -476,7 +469,7 @@ func parseProprietary(config *configuration.Configuration) (encodingscheme.TagDe
 		return nil, errors.New("there's a proprietary tag format, but no tagURIAuthorityDate")
 	}
 
-	return encodingscheme.NewProprietary(authority, date, fields, widths)
+	return encodingscheme.NewProprietary(authority, date, widths, prodIdx)
 }
 
 func parseCoefficients(AppConfig *variables, config *configuration.Configuration) error {
