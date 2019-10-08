@@ -21,8 +21,6 @@ package statemodel
 
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"github.impcloud.net/RSP-Inventory-Suite/tagcode/epc"
-	"log"
 	"strings"
 	"time"
 
@@ -51,15 +49,7 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 
 	if isNewTag {
 		currentState.Epc = newTagEvent.EpcCode
-		sgtin, err := epc.DecodeSGTINString(currentState.Epc)
-		if err != nil {
-			// TODO: why doesn't this code handle invalid tag data?
-			// TODO: why doesn't this code handle non-SGTIN-encoded tags?
-			log.Println(err)
-		} else {
-			currentState.ProductID, currentState.URI = sgtin.GTIN(), sgtin.URI()
-			currentState.FilterValue = int64(sgtin.Filter())
-		}
+		currentState.ProductID, currentState.URI, _ = tag.DecodeTagData(currentState.Epc)
 		currentState.Event = GetNewTagEvent(newTagEvent.EventType)
 		currentState.Arrived = newTagEvent.Timestamp
 		currentState.LocationHistory = []tag.LocationHistory{}
@@ -91,15 +81,7 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 		//if any existing tags do not have a gtin value
 		//call the update to populate it from its epc value
 		if len(currentState.ProductID) == 0 {
-			sgtin, err := epc.DecodeSGTINString(currentState.Epc)
-			if err != nil {
-				// TODO: why doesn't this code handle invalid tag data?
-				// TODO: why doesn't this code handle non-SGTIN-encoded tags?
-				log.Println(err)
-			} else {
-				currentState.ProductID, currentState.URI = sgtin.GTIN(), sgtin.URI()
-				currentState.FilterValue = int64(sgtin.Filter())
-			}
+			currentState.ProductID, currentState.URI, _ = tag.DecodeTagData(currentState.Epc)
 		}
 
 		if newTagEvent.EventType == CycleCountEvent && currentState.EpcState == PresentEpcState {

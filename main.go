@@ -250,7 +250,7 @@ func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.Gaug
 				// create a temporary tag so we can check if it's whitelisted
 				tempTag := tag.Tag{}
 				tempTag.Epc = asnEpc
-				_, tempTag.URI, _ = tag.DecodeTagData(asnEpc)
+				tempTag.ProductID, tempTag.URI, _ = tag.DecodeTagData(asnEpc)
 				// TODO: why aren't we checking for invalid tag encodings?
 
 				if len(config.AppConfig.EpcFilters) > 0 {
