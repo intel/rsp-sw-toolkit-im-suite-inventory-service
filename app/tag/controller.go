@@ -20,15 +20,16 @@
 package tag
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/mongo"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
@@ -404,22 +405,31 @@ func DeleteTagCollection(dbs *db.DB) error {
 // DecodeTagData extracts a ProductID and URI from tag data, according to the
 // configured tag decoders. If none of the decoders can successfully decode the
 // data, it returns `encodingInvalid` for both.
-func DecodeTagData(tagData string) (productID string, URI string) {
+func DecodeTagData(tagData string) (productID string, URI string, err error) {
+	productID, URI = encodingInvalid, encodingInvalid
+	tagDataBytes, err := hex.DecodeString(tagData)
+	if err != nil {
+		err = errors.Wrap(err, "tag data is not valid hex")
+		return
+	}
+
+	var decodingErrors []string
 	for idx, decoder := range config.AppConfig.TagDecoders {
-		var err error
-		if productID, URI, err = decoder.Decode(tagData); err == nil {
+		if productID, URI, err = decoder.Decode(tagDataBytes); err == nil {
 			return
 		}
-		log.Warnf("decoder %d (%s) unable to decode tag data: %s",
-			idx+1, decoder.Type(), err)
-		gaugeName := fmt.Sprintf("Inventory.DecodeTagData.%s", decoder.Type())
+		decodingErrors = append(decodingErrors,
+			fmt.Sprintf("decoder %d (%T) unable to decode tag data: %s",
+				idx+1, decoder, err))
+		gaugeName := fmt.Sprintf("Inventory.DecodeTagData.%T", decoder)
 		metrics.GetOrRegisterGauge(gaugeName, nil).Update(1)
 	}
 
-	log.Error("unable to decode tag data with any of the configured decoders")
-	metrics.GetOrRegisterGauge(`Inventory.DecodeTagData.CalculateProductCodeError`,
-		nil).Update(1)
-	return encodingInvalid, encodingInvalid
+	metrics.GetOrRegisterGauge(
+		`Inventory.DecodeTagData.CalculateProductCodeError`, nil).Update(1)
+	return encodingInvalid, encodingInvalid, errors.Errorf(
+		"unable to decode tag data with any of the configured decoders:\n\t%s",
+		strings.Join(decodingErrors, "\n\t"))
 }
 
 // performUpsert updates or inserts tags

@@ -22,7 +22,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"io"
 	"net/http"
@@ -39,7 +38,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/schemas"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
@@ -143,8 +141,8 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 			log.Errorf("Unable to find calculate confidence function")
 		}
 
-		confidence = calculateConfidence.(func(float64, float64, float64, float64, int64, bool) float64)(dailyInvPerc, probUnreadToRead, probInStore, probExitError,
-			lastRead, contraepc.IsContraEpc((*tags)[i]))
+		confidence = calculateConfidence.(func(float64, float64, float64, float64, int64, bool) float64)(
+			dailyInvPerc, probUnreadToRead, probInStore, probExitError, lastRead, false)
 
 		(*tags)[i].Confidence = confidence
 	}
@@ -468,85 +466,4 @@ func MapOfTags(tag *tag.Tag, selectFields map[string]bool) map[string]interface{
 		}
 	}
 	return mapTags
-}
-
-//nolint:gocyclo
-// cyclymatic complexity of 13, no need for further refactor.
-func generateContraEPC(data []contraepc.CreateContraEpcItem, copySession *db.DB) ([]tag.Tag, error) {
-
-	mInvalidInputErr := metrics.GetOrRegisterGauge("Inventory.generateContraEPC.InvalidInput-Error", nil)
-	mFindByEpcErr := metrics.GetOrRegisterGauge("Inventory.generateContraEPC.FindByEpc-Error", nil)
-	mGenerateContraEpcErr := metrics.GetOrRegisterGauge("Inventory.generateContraEPC.GenerateContraEpc-Error", nil)
-	mGenerateContraEpcTriesErr := metrics.GetOrRegisterGauge("Inventory.generateContraEPC.GenerateContraEpcTries-Error", nil)
-	mGenerateContraEpcLatency := metrics.GetOrRegisterTimer("Inventory.CreateContraEPC.GenerateContraEpc-Latency", nil)
-
-	tagData := make([]tag.Tag, len(data))
-	// A set of epcs we have already generated (to track uniqueness)
-	uniqueEpcs := make(map[string]bool)
-	for i, item := range data {
-		if item.Epc != "" {
-			if uniqueEpcs[item.Epc] {
-				mInvalidInputErr.Update(1)
-				return nil, errors.Wrap(web.ErrInvalidInput, "found multiple request items with the same epc")
-			}
-			// Make sure the epc is not already in the database
-			foundTag, err := tag.FindByEpc(copySession, item.Epc)
-			if err != nil {
-				mFindByEpcErr.Update(1)
-				return nil, errors.Wrap(err, "error checking database for existing tag")
-			}
-			if foundTag.IsTagReadByRspController() {
-				mInvalidInputErr.Update(1)
-				return nil, errors.Wrap(web.ErrInvalidInput, "tag with that epc already exists in the database")
-			}
-
-			// If this epc does not already exist, convert it to a Tag to insert into the db
-			tagData[i] = item.AsNewTag()
-			uniqueEpcs[item.Epc] = true
-		} else if item.Gtin != "" {
-			// How many times to attempt to generate a unique epc
-			tries := contraepc.MaxTries
-			generateContreEpcTimer := time.Now()
-			for tries > 0 {
-				// Generate a contra-epc based on the gtin provided
-				epc, err := contraepc.GenerateContraEPC(item.Gtin)
-				if err != nil {
-					mGenerateContraEpcErr.Update(1)
-					return nil, errors.Wrapf(err, "error generating contra-epc for gtin %s", item.Gtin)
-				}
-
-				// If the epc we generated is already pending use, try again
-				if uniqueEpcs[epc] {
-					tries--
-					continue
-				}
-
-				// If the epc we generated is already in the database, try again
-				foundTag, err := tag.FindByEpc(copySession, item.Epc)
-				if err != nil || foundTag.IsTagReadByRspController() {
-					tries--
-					continue
-				}
-
-				// Convert it to a Tag to insert into the db
-				item.Epc = epc
-				tagData[i] = item.AsNewTag()
-				uniqueEpcs[item.Epc] = true
-				break
-			}
-			mGenerateContraEpcLatency.Update(time.Since(generateContreEpcTimer))
-			if tries == 0 {
-				// internal server error
-				mGenerateContraEpcTriesErr.Update(1)
-				return nil, fmt.Errorf("unable to generate a unique contra-epc after %d tries for gtin %s",
-					contraepc.MaxTries, item.Gtin)
-			}
-		} else {
-			mInvalidInputErr.Update(1)
-			return nil, errors.Wrap(web.ErrInvalidInput, "missing epc or gtin")
-		}
-	}
-
-	return tagData, nil
-
 }

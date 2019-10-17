@@ -250,7 +250,8 @@ func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.Gaug
 				// create a temporary tag so we can check if it's whitelisted
 				tempTag := tag.Tag{}
 				tempTag.Epc = asnEpc
-				_, tempTag.URI = tag.DecodeTagData(asnEpc)
+				tempTag.ProductID, tempTag.URI, _ = tag.DecodeTagData(asnEpc)
+				// TODO: why aren't we checking for invalid tag encodings?
 
 				if len(config.AppConfig.EpcFilters) > 0 {
 					// ignore tags that don't match our filters
@@ -643,7 +644,7 @@ func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageout
 			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent := tagprocessor.DoAggregateDepartedTask()
 			// ingest tag events
-			if invEvent!= nil && !invEvent.IsEmpty() {
+			if invEvent != nil && !invEvent.IsEmpty() {
 				go func(invEvent *jsonrpc.InventoryEvent) {
 					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
 					if err != nil {

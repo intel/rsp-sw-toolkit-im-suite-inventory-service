@@ -339,7 +339,7 @@ func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
 
 	odataMap := make(map[string][]string)
 	tags, err := RetrieveOdataAll(copySession, odataMap)
-	if err != nil  {
+	if err != nil {
 		t.Error("Error in retrieving tags")
 	} else if len(tags) != numOfSamples {
 		t.Error("Number of tags in database and number of tags retrieved do not match")
@@ -740,38 +740,38 @@ func TestFindByEpc_notFound(t *testing.T) {
 }
 
 func TestCalculateGtin(t *testing.T) {
-	config.AppConfig.TagDecoders = []encodingscheme.TagDecoder{encodingscheme.SGTIN96Decoder()}
+	config.AppConfig.TagDecoders = []encodingscheme.TagDecoder{encodingscheme.NewSGTINDecoder(true)}
 	validEpc := "303402662C3A5F904C19939D"
-	gtin, _ := DecodeTagData(validEpc)
+	gtin, _, err := DecodeTagData(validEpc)
 	if gtin == UndefinedProductID {
-		t.Errorf("Error trying to calculate valid epc %s", validEpc)
+		t.Errorf("Error trying to calculate valid epc %s: %+v", validEpc, err)
 	}
 }
 
 func TestCalculateInvalidGtin(t *testing.T) {
 	setSGTINOnlyDecoderConfig()
 	epcSlice := generateSequentialEpcs("0014", 0, 1)
-	gtin, _ := DecodeTagData(epcSlice[0])
+	gtin, _, err := DecodeTagData(epcSlice[0])
 	if gtin != encodingInvalid {
-		t.Errorf("Unexpected result calculating invalid epc %s, expected %s", epcSlice[0], UndefinedProductID)
+		t.Errorf("Unexpected result calculating invalid epc %s, expected %s, got %s. error val was: %+v",
+			epcSlice[0], UndefinedProductID, gtin, err)
 	}
 }
 
 func setSGTINOnlyDecoderConfig() {
 	config.AppConfig.TagDecoders = []encodingscheme.TagDecoder{
-		encodingscheme.SGTIN96Decoder(),
+		encodingscheme.NewSGTINDecoder(true),
 	}
 }
 
 func setMixedDecoderConfig(t *testing.T) {
 	decoder, err := encodingscheme.NewProprietary(
-		"test.com", "2019-01-01",
-		"header.serialNumber.productID", "8.48.40")
+		"test.com", "2019-01-01", "8.48.40", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	config.AppConfig.TagDecoders = []encodingscheme.TagDecoder{
-		encodingscheme.SGTIN96Decoder(),
+		encodingscheme.NewSGTINDecoder(true),
 		decoder,
 	}
 }
@@ -779,31 +779,14 @@ func setMixedDecoderConfig(t *testing.T) {
 func TestCalculateProductCode(t *testing.T) {
 	setMixedDecoderConfig(t)
 	validEpc := "0F00000000000C00000014D2"
-	expectedWrin := "14D2"
-	productID, _ := DecodeTagData(validEpc)
+	expectedWrin := "00000014D2"
+	productID, _, err := DecodeTagData(validEpc)
 	if productID == UndefinedProductID {
-		t.Errorf("Error trying to calculate valid epc %s", validEpc)
+		t.Errorf("Error trying to calculate valid epc %s: %+v", validEpc, err)
 	}
 	if productID != expectedWrin {
-		t.Errorf("Error trying to calculate valid epc %s", validEpc)
-	}
-}
-
-func TestCalculateSGTINTagUrn(t *testing.T) {
-	setSGTINOnlyDecoderConfig()
-	_, uri := DecodeTagData("3034257BF400B7800004CB2F")
-	expectedURI := encodingscheme.EPCPureURIPrefix + "0614141.000734.314159"
-	if uri != expectedURI {
-		t.Errorf("Error trying to calculate uri.  Got %s, expected %s", uri, expectedURI)
-	}
-}
-
-func TestCalculateProprietaryTagUrn(t *testing.T) {
-	setMixedDecoderConfig(t)
-	expectedURI := "tag:test.com,2019-01-01:15.12.5330"
-	_, uri := DecodeTagData("0F00000000000C00000014D2")
-	if uri != expectedURI {
-		t.Errorf("Error trying to calculate uri.  Got %s, expected %s", uri, expectedURI)
+		t.Errorf("Error trying to calculate valid epc %s: wanted %s, got %s; err is: %+v",
+			validEpc, expectedWrin, productID, err)
 	}
 }
 
