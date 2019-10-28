@@ -127,34 +127,37 @@ func ApplyConfidence(session *db.DB, tags []tag.Tag, url string) error {
 
 		log.Tracef("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f",
 			dailyInvPerc, probUnreadToRead, probInStore, probExitError)
-		tags[i].Confidence = confidenceCalc(
-			dailyInvPerc, probUnreadToRead, probInStore, probExitError, lastRead, false)
+		tags[i].Confidence = confidenceCalc(dailyInvPerc, probUnreadToRead, probInStore, probExitError, lastRead)
 	}
 	return nil
 }
 
-type confidenceFunc func(float64, float64, float64, float64, int64, bool) float64
+type confidenceFunc func(float64, float64, float64, float64, int64) float64
 
 var confidenceCalc = confidenceFunc(zeroConfidence)
 
-func zeroConfidence(float64, float64, float64, float64, int64, bool) float64 {
+func zeroConfidence(_, _, _, _ float64, _ int64) float64 {
 	return 0.0
 }
 
-func init() {
+func loadConfidencePlugin() error {
 	confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
 	if err != nil {
-		log.Warn("Intel Probabilistic Algorithm plugin not found; All Confidence values will be set to 0.")
-		return
+		return errors.New("Intel Probabilistic Algorithm plugin not found; all Confidence values will be set to 0.")
 	}
 	calculateConfidence, err := confidencePlugin.Lookup("CalculateConfidence")
 	if err != nil {
-		log.Error("Unable to find CalculateConfidence function in plugin")
-		return
+		return errors.New("Unable to find CalculateConfidence function in plugin")
 	}
-	// Note: this panics if a plugin with this name & function exists, but the
-	// signature doesn't match
+	// panics if this plugin & function exists but signature doesn't match
 	confidenceCalc = calculateConfidence.(confidenceFunc)
+	return nil
+}
+
+func init() {
+	if err := loadConfidencePlugin(); err != nil {
+		log.Error(err)
+	}
 }
 
 func UpdateForCycleCount(tags []tag.Tag) {
@@ -202,7 +205,7 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 		return errors.Wrap(err, "Error retrieving Tag")
 	}
 
-	//If count only is requested
+	// If count only is requested
 	if count != nil && tags != nil {
 		mSuccess.Update(1)
 		web.Respond(ctx, writer, count, http.StatusOK)
@@ -380,7 +383,7 @@ func processUpdateRequest(ctx context.Context, MasterDB *db.DB, writer http.Resp
 	return nil
 }
 
-//nolint :gocyclo
+// nolint :gocyclo
 func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) map[string][]string {
 
 	var filterSlice []string
@@ -400,7 +403,7 @@ func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) m
 		filterSlice = append(filterSlice, "epc_state eq '"+request.EpcState+"'")
 	}
 	if request.Confidence != 0 {
-		//nolint :lll
+		// nolint :lll
 		filterSlice = append(filterSlice, "confidence ge "+strconv.FormatFloat(request.Confidence, 'f', -1, 64))
 	}
 	if request.ProductID != "" {
