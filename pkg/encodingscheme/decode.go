@@ -63,9 +63,6 @@ type proprietary struct {
 	prodIdx, prodHexWidth int
 }
 
-// ProductID is the label used for the product id field
-const ProductID = "productID"
-
 // NewProprietary returns a decoder for proprietary tag encodings, i.e., those
 // which are simply delimited by field widths. All tags with at least as much
 // data as the bittag's size will be decoded successfully.
