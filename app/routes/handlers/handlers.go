@@ -131,7 +131,7 @@ func (inve *Inventory) GetTags(ctx context.Context, writer http.ResponseWriter, 
 		// If $select not set, calculate confidence.
 		// if confidence is set in the $select, calculate confidence
 		if isConfidence || !isSelect {
-			if err := ApplyConfidence(copySession, tagSlice, inve.Url); err != nil {
+			if err := ApplyConfidence(copySession, &tagSlice, inve.Url); err != nil {
 				mConfidenceErr.Update(1)
 				return err
 			}
