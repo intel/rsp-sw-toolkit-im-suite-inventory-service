@@ -73,6 +73,8 @@ type (
 		AgeOutHours int
 
 		CoreCommandUrl string
+		EnableCORS     bool
+		CORSOrigin     string
 	}
 )
 
@@ -399,7 +401,19 @@ func InitConfig() error {
 
 	AppConfig.CoreCommandUrl = getOrDefaultString(config, "coreCommandUrl", "http://edgex-core-command:48082")
 
+	AppConfig.EnableCORS = getOrDefaultBool(config, "enableCORS", true)
+	AppConfig.CORSOrigin = getOrDefaultString(config, "corsOrigin", "*")
+
 	return nil
+}
+
+func getOrDefaultBool(config *configuration.Configuration, path string, defaultValue bool) bool {
+	value, err := config.GetBool(path)
+	if err != nil {
+		log.Debugf("%s was missing from configuration, setting to default value of %v", path, defaultValue)
+		return defaultValue
+	}
+	return value
 }
 
 func getOrDefaultString(config *configuration.Configuration, path string, defaultValue string) string {
