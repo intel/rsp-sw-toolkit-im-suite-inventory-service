@@ -20,7 +20,6 @@
 package statemodel
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"strings"
 	"time"
@@ -50,8 +49,7 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 
 	if isNewTag {
 		currentState.Epc = newTagEvent.EpcCode
-		currentState.ProductID, currentState.URI = tag.DecodeTagData(currentState.Epc)
-		currentState.FilterValue, _ = encodingscheme.GetItemFilter(currentState.Epc)
+		currentState.ProductID, currentState.URI, _ = tag.DecodeTagData(currentState.Epc)
 		currentState.Event = GetNewTagEvent(newTagEvent.EventType)
 		currentState.Arrived = newTagEvent.Timestamp
 		currentState.LocationHistory = []tag.LocationHistory{}
@@ -83,8 +81,7 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 		//if any existing tags do not have a gtin value
 		//call the update to populate it from its epc value
 		if len(currentState.ProductID) == 0 {
-			currentState.ProductID, _ = tag.DecodeTagData(currentState.Epc)
-			currentState.FilterValue, _ = encodingscheme.GetItemFilter(currentState.Epc)
+			currentState.ProductID, currentState.URI, _ = tag.DecodeTagData(currentState.Epc)
 		}
 
 		if newTagEvent.EventType == CycleCountEvent && currentState.EpcState == PresentEpcState {

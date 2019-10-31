@@ -1,6 +1,6 @@
 /*
  * INTEL CONFIDENTIAL
- * Copyright (2017) Intel Corporation.
+ * Copyright (2019) Intel Corporation.
  *
  * The source code contained or described herein and all documents related to the source code ("Material")
  * are owned by Intel Corporation or its suppliers or licensors. Title to the Material remains with
@@ -17,38 +17,22 @@
  * notice embedded in Materials by Intel or Intel's suppliers or licensors in any way.
  */
 
-package encodingscheme
+package middlewares
 
 import (
-	"strconv"
+	"context"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"net/http"
 )
 
-const (
-	EPCPureURIPrefix = "urn:epc:id:sgtin:"
-)
+// CORS middleware
+func CORS(origin string, next web.Handler) web.Handler {
+	return web.Handler(func(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+		writer.Header().Set("Access-Control-Allow-Origin", origin)
+		writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		writer.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding")
 
-type TagDecoder interface {
-	Decode(tagData string) (productID, URI string, err error)
-	Type() string
-}
-
-func GetEpcBytes(epc string) ([numEpcBytes]byte, error) {
-	epcBytes := [numEpcBytes]byte{}
-	for i := 0; i < len(epcBytes); i++ {
-		tempParse, err := strconv.ParseUint(epc[i*2:(i*2)+2], 16, 8)
-		if err != nil {
-			return epcBytes, err
-		}
-		epcBytes[i] = byte(tempParse) & 0xFF
-	}
-	return epcBytes, nil
-}
-
-func ZeroFill(data string, num int) string {
-	for {
-		if len(data) >= num {
-			return data[0:num]
-		}
-		data = "0" + data
-	}
+		err := next(ctx, writer, request)
+		return err
+	})
 }

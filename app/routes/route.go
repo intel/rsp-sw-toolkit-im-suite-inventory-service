@@ -721,122 +721,6 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 			"/inventory/search",
 			inventory.GetSearchByEpc,
 		},
-		//swagger:route POST /inventory/update/contraepc epc createContraEpc
-		//
-		// Creates synthetic contra EPC tags
-		//
-		// The contra-epc endpoint is used to create synthetic EPC tags (contra) to represent an item being transferred out, or a “negative” item to zero out an EPC still showing present in inventory. Body parameters shall be provided in request body in JSON format.<br><br>
-		//
-		// Example Input:
-		// ```
-		// {
-		// &#8195"data":[
-		// &#8195&#8195&#8195{
-		// &#9"facility_id":"fac01",
-		// &#9"gtin":"12345678901234"
-		// &#8195&#8195&#8195}
-		// &#8195]
-		// }
-		// ```
-		//
-		//
-		// + data  - Array of events
-		//    + facility_id  - Facility code or identifier
-		//    + gtin  - GTIN-14
-		//
-		//
-		// Example Response:
-		//
-		// ```
-		// {
-		// &#8195"results":[
-		// &#8195&#8195&#8195{
-		// &#9"epc":"30B48F2B38B9AAFEE91CA698",
-		// &#9"facility_id":"fac01",
-		// &#9"event_type":"arrival",
-		// &#9"timestamp":1495729703522,
-		// &#9"location":"contra-epc",
-		// &#9"epc_encode_format":"tbd"
-		// &#8195&#8195&#8195}
-		// &#8195]
-		// }
-		// ```
-		//
-		//
-		//
-		// + results  - Array of result objects
-		//    + epc  - SGTIN EPC code
-		//    + facility_id  - Facility ID
-		//    + event_type  - Event will be set to “arrival”
-		//    + timestamp  - Time in milliseconds epoch
-		//    + location  - Will be “contra-epc”
-		//    + epc_encode_format  - TBD
-		//
-		//
-		//     Consumes:
-		//     - application/json
-		//
-		//     Produces:
-		//     - application/json
-		//
-		//     Schemes: http
-		//
-		//     Responses:
-		//       200: body:resultsResponse
-		//       400: schemaValidation
-		//       403: forbidden
-		//       500: internalError
-		//       502: externalError
-		//       503: serviceUnavailable
-		//       504: externalServiceTimeout
-		//
-		{
-			"CreateContraEpc",
-			"POST",
-			"/inventory/update/contraepc",
-			inventory.CreateContraEPC,
-		},
-		//swagger:route DELETE /inventory/update/contraepc epc deleteContraEpc
-		//
-		// Deletes contra EPC records
-		//
-		// This endpoint allows a user to delete a contra EPC record; if the EPC is not a contra EPC, an error is returned. Body parameters shall be provided in request body in JSON format.<br><br>
-		//
-		// Example Input:
-		// ```
-		// {
-		// &#9"facility_id":"fac01",
-		// &#9"epc":"30B4D2FC54C484AB9E8C7868"
-		// }
-		// ```
-		//
-		// + facility_id  - Facility code or identifier
-		// + epc  - SGTIN-96 EPC
-		//
-		//
-		//     Consumes:
-		//     - application/json
-		//
-		//     Produces:
-		//     - application/json
-		//
-		//     Schemes: http
-		//
-		//     Responses:
-		//       200: body:resultsResponse
-		//       400: schemaValidation
-		//       403: forbidden
-		//       500: internalError
-		//       502: externalError
-		//       503: serviceUnavailable
-		//       504: externalServiceTimeout
-		//
-		{
-			"DeleteContraEpc",
-			"DELETE",
-			"/inventory/update/contraepc",
-			inventory.DeleteContraEPC,
-		},
 		//swagger:route PUT /inventory/update/epccontext epc setEpcContext
 		//
 		// Set EPC context
@@ -959,6 +843,9 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 		handler = middlewares.Recover(handler)
 		handler = middlewares.Logger(handler)
 		handler = middlewares.Bodylimiter(handler)
+		if config.AppConfig.EnableCORS {
+			handler = middlewares.CORS(config.AppConfig.CORSOrigin, handler)
+		}
 
 		router.
 			Methods(route.Method).

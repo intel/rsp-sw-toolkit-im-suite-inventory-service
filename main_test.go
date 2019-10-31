@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	"github.impcloud.net/RSP-Inventory-Suite/tagcode/epc"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +35,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/expect"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
@@ -432,7 +432,11 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	var tag0 tag.Tag
 	tag0.Epc = "303400C0E43FF48000000002"
-	uri, _ := encodingscheme.GetSGTINPureURI(tag0.Epc)
+	sgtin, err := epc.DecodeSGTINString(tag0.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	uri := sgtin.URI()
 	tag0.URI = uri
 	tag0.Tid = t.Name() + "0"
 	tag0.Source = "fixed"
@@ -442,7 +446,12 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	var tag1 tag.Tag
 	tag1.Epc = "30143639F8419145DB601597"
-	uri, _ = encodingscheme.GetSGTINPureURI(tag1.Epc)
+	tag0.Epc = "303400C0E43FF48000000002"
+	sgtin, err = epc.DecodeSGTINString(tag1.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	uri = sgtin.URI()
 	tag0.URI = uri
 	tag1.Tid = t.Name() + "1"
 	tag1.Source = "fixed"
@@ -452,7 +461,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
-	err := tag.Replace(masterDb, &tagArray)
+	err = tag.Replace(masterDb, &tagArray)
 	if err != nil {
 		t.Error("Unable to replace tags", err.Error())
 	}
@@ -559,8 +568,11 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	var tag0 tag.Tag
 	tag0.Epc = "30143639F8419145DB601567"
-	uri, _ := encodingscheme.GetSGTINPureURI(tag0.Epc)
-	tag0.URI = uri
+	sgtin, err := epc.DecodeSGTINString(tag0.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	tag0.URI = sgtin.URI()
 	tag0.Tid = t.Name() + "0"
 	tag0.Source = "fixed"
 	tag0.Event = statemodel.MovedEvent
@@ -569,8 +581,11 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	var tag1 tag.Tag
 	tag1.Epc = "30343639F8419145DB601443"
-	uri1, _ := encodingscheme.GetSGTINPureURI(tag1.Epc)
-	tag1.URI = uri1
+	sgtin, err = epc.DecodeSGTINString(tag1.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	tag1.URI = sgtin.URI()
 	tag1.Tid = t.Name() + "1"
 	tag1.Source = "fixed"
 	tag1.Event = statemodel.MovedEvent
@@ -579,8 +594,11 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	var tag2 tag.Tag
 	tag2.Epc = "3014032F440010C5407BA3FB"
-	uri2, _ := encodingscheme.GetSGTINPureURI(tag2.Epc)
-	tag2.URI = uri2
+	sgtin, err = epc.DecodeSGTINString(tag2.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	tag2.URI = sgtin.URI()
 	tag2.Tid = t.Name() + "0"
 	tag2.Source = "fixed"
 	tag2.Event = statemodel.MovedEvent
@@ -589,8 +607,11 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	var tag3 tag.Tag
 	tag3.Epc = "30143639F8419145DB601543"
-	uri3, _ := encodingscheme.GetSGTINPureURI(tag3.Epc)
-	tag3.URI = uri3
+	sgtin, err = epc.DecodeSGTINString(tag3.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	tag3.URI = sgtin.URI()
 	tag3.Tid = t.Name() + "1"
 	tag3.Source = "fixed"
 	tag3.Event = statemodel.MovedEvent
@@ -599,7 +620,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
-	err := tag.Replace(masterDb, &tagArray)
+	err = tag.Replace(masterDb, &tagArray)
 	if err != nil {
 		t.Error("Unable to replace tags", err.Error())
 	}
@@ -748,8 +769,11 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 
 	var tag0 tag.Tag
 	tag0.Epc = "30143639F8419145DB601529"
-	uri, _ := encodingscheme.GetSGTINPureURI(tag0.Epc)
-	tag0.URI = uri
+	sgtin, err := epc.DecodeSGTINString(tag0.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	tag0.URI = sgtin.URI()
 	tag0.Tid = t.Name() + "0"
 	tag0.Source = "fixed"
 	tag0.Event = statemodel.DepartedEvent
@@ -758,8 +782,11 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 
 	var tag1 tag.Tag
 	tag1.Epc = "30143639F8419145DB601565"
-	uri, _ = encodingscheme.GetSGTINPureURI(tag1.Epc)
-	tag1.URI = uri
+	sgtin, err = epc.DecodeSGTINString(tag1.Epc)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	tag1.URI = sgtin.URI()
 	tag1.Tid = t.Name() + "1"
 	tag1.Source = "fixed"
 	tag1.Event = statemodel.DepartedEvent
@@ -768,7 +795,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 
 	masterDb := dbHost.CreateDB(t)
 	defer masterDb.Close()
-	err := tag.Replace(masterDb, &tagArray)
+	err = tag.Replace(masterDb, &tagArray)
 	if err != nil {
 		t.Errorf("Unable to replace tags: %+v", err)
 	}

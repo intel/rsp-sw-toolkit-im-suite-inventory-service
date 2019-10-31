@@ -33,7 +33,6 @@ import (
 	"testing"
 	"time"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 
 	"github.com/globalsign/mgo"
@@ -41,11 +40,9 @@ import (
 	"github.com/pkg/errors"
 	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/contraepc"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (
@@ -714,30 +711,6 @@ func validateAll(fs []validateFunc) validateFunc {
 	}
 }
 
-func validateContraEpcs() validateFunc {
-	return func(_ *db.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
-		var js tagResponse
-		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
-			return errors.Wrap(err, "Unable to parse results as json!")
-		}
-
-		for _, contra := range js.Results {
-			if !contraepc.IsContraEpc(contra) {
-				return errors.New("result tag is not a contra-epc")
-			}
-
-			gtin, err := encodingscheme.GetGtin14(contra.Epc)
-			if err != nil {
-				return errors.Wrapf(err, "result gtin could not be computed for epc %s", contra.Epc)
-			}
-			if contra.ProductID != gtin {
-				return fmt.Errorf("expected contra-epc gtin to be %s, but was %s", gtin, contra.ProductID)
-			}
-		}
-		return nil
-	}
-}
-
 //nolint:unparam
 func validateSelectEpc(epc string) validateFunc {
 	return func(_ *db.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
@@ -1271,206 +1244,6 @@ func TestSearchByEpcNegative(t *testing.T) {
 	handler := web.Handler(inventory.GetSearchByEpc)
 
 	testHandlerHelper(searchEpcTests, "POST", handler, copySession, t)
-}
-
-func TestCreateContraEPC(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	epc := "30143639F809D845407C9C5C"
-	gtin := "00888446100818"
-	gtin2 := "00052177002189"
-	facility := "test-facility"
-
-	epcRecord := fmt.Sprintf(`{"epc": "%s", "facility_id": "%s"}`, epc, facility)
-	gtinRecord := fmt.Sprintf(`{"gtin": "%s", "facility_id": "%s"}`, gtin, facility)
-	gtinRecord2 := fmt.Sprintf(`{"gtin": "%s", "facility_id": "%s"}`, gtin2, facility)
-
-	// Create a large sample of 1000 input itmes
-	var gtin1000recs [1000]string
-	for i := 0; i < 1000; i++ {
-		gtin1000recs[i] = gtinRecord
-	}
-	gtin1000 := strings.Join(gtin1000recs[:], ",")
-
-	inputs := []inputTest{
-		{
-			title: "Empty request body",
-			input: []byte(``),
-			code:  []int{400},
-		},
-		{
-			title: "No facility_id",
-			input: []byte(fmt.Sprintf(`{"data": [{"epc": "%s"}]}`, epc)),
-			code:  []int{400},
-		},
-		{
-			title: "Missing gtin or epc",
-			input: []byte(fmt.Sprintf(`{"data": [{"facility_id": "%s"}]}`, facility)),
-			code:  []int{400},
-		},
-		{
-			title: "Not allowed gtin AND epc",
-			input: []byte(fmt.Sprintf(`{"data": [{"epc": "%s", "gtin": "%s", facility_id": "%s"}]}`,
-				epc, gtin, facility)),
-			code: []int{400},
-		},
-		{
-			title: "Invalid gtin length",
-			input: []byte(fmt.Sprintf(`{"data": [{"gtin": "1234", "facility_id": "%s"}]}`, facility)),
-			code:  []int{400},
-		},
-		{
-			title:   "Cannot add epc that already exists in database",
-			setup:   insertTag(tag.Tag{Epc: epc}),
-			input:   []byte(fmt.Sprintf(`{"data": [%s]}`, epcRecord)),
-			code:    []int{400},
-			destroy: deleteTag(epc),
-		},
-		{
-			title:   "Create 1 contra-epc record by epc",
-			input:   []byte(fmt.Sprintf(`{"data": [{"epc": "%s", "facility_id": "%s"}]}`, epc, facility)),
-			code:    []int{200},
-			destroy: deleteTag(epc),
-		},
-		{
-			title: "Create 1 contra-epc record by gtin",
-			setup: deleteAllTags(),
-			input: []byte(fmt.Sprintf(`{"data": [%s]}`, gtinRecord)),
-			code:  []int{200},
-			validate: validateAll([]validateFunc{
-				validateTagCount(1),
-				validateResultSize(1),
-				validateContraEpcs(),
-			}),
-			destroy: deleteAllTags(),
-		},
-		{
-			title: "Create 6 contra-epc record with 2 unique gtins",
-			setup: deleteAllTags(),
-			input: []byte(fmt.Sprintf(`{"data": [%s, %s, %s, %s, %s, %s]}`,
-				gtinRecord, gtinRecord, gtinRecord2, gtinRecord2, gtinRecord, gtinRecord2)),
-			code: []int{200},
-			validate: validateAll([]validateFunc{
-				validateTagCount(6),
-				validateResultSize(6),
-				validateContraEpcs(),
-			}),
-			destroy: deleteAllTags(),
-		},
-		{
-			title: "Create 1000 contra-epc records with same gtin (stress-test retries and randomness)",
-			setup: deleteAllTags(),
-			input: []byte(fmt.Sprintf(`{"data": [%s]}`, gtin1000)),
-			code:  []int{200},
-			validate: validateAll([]validateFunc{
-				validateTagCount(1000),
-				validateResultSize(1000),
-				validateContraEpcs(),
-			}),
-			destroy: deleteAllTags(),
-		},
-		{
-			title:   "Create 1001 contra-epcs: HTTP 400 Too many request items",
-			setup:   deleteAllTags(),
-			input:   []byte(fmt.Sprintf(`{"data": [%s, %s]}`, gtin1000, gtinRecord)),
-			code:    []int{400},
-			destroy: deleteAllTags(),
-		},
-		{
-			title: "Create 3 contra-epc records mixing gtin and epc",
-			setup: deleteAllTags(),
-			input: []byte(fmt.Sprintf(`{"data": [%s, %s, %s]}`,
-				gtinRecord, epcRecord, gtinRecord)),
-			code: []int{200},
-			validate: validateAll([]validateFunc{
-				validateTagCount(3),
-				validateResultSize(3),
-				validateContraEpcs(),
-			}),
-			destroy: deleteAllTags(),
-		},
-		{
-			title: "Do not allow 2 contra-epcs with the same epc",
-			input: []byte(fmt.Sprintf(`{"data": [%s, %s]}`, epcRecord, epcRecord)),
-			code:  []int{400},
-		},
-	}
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, ""}
-	handler := web.Handler(inventory.CreateContraEPC)
-	testHandlerHelper(inputs, "POST", handler, copySession, t)
-}
-
-func TestDeleteContraEPC(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	epc := "100683590000000000001106"
-	facility := "test-facility"
-
-	inputs := []inputTest{
-		{
-			title: "Empty request body",
-			input: []byte(``),
-			code:  []int{400},
-		},
-		{
-			title: "No facility id",
-			input: []byte(fmt.Sprintf(`{"epc": "%s"}`, epc)),
-			code:  []int{400},
-		},
-		{
-			title: "Invalid input type for facility_id",
-			input: []byte(fmt.Sprintf(`{"epc": "%s", "facility_id": 10}`, epc)),
-			code:  []int{400},
-		},
-		{
-			title: "No epc",
-			input: []byte(`{"facility_id": "test-facility" }`),
-			code:  []int{400},
-		},
-		{
-			title: "Invalid epc length",
-			input: []byte(`{"epc": "123"}`),
-			code:  []int{400},
-		},
-		{
-			title: "Valid input, but does not exist",
-			input: []byte(fmt.Sprintf(`{"epc": "%s", "facility_id": "%s"}`, epc, facility)),
-			code:  []int{204},
-		},
-		{
-			title:   "Unable to delete non-contra epc tags",
-			setup:   insertTag(tag.Tag{Epc: epc}),
-			input:   []byte(fmt.Sprintf(`{"epc": "%s", "facility_id": "%s"}`, epc, facility)),
-			code:    []int{400},
-			destroy: deleteTag(epc),
-		},
-		{
-			title: "Delete success",
-			setup: insertTag(tag.Tag{
-				Epc: epc,
-				LocationHistory: []tag.LocationHistory{
-					{
-						Location:  contraepc.Location,
-						Timestamp: helper.UnixMilliNow(),
-						Source:    contraepc.Source,
-					},
-				},
-			}),
-			input:   []byte(fmt.Sprintf(`{"epc": "%s", "facility_id": "%s"}`, epc, facility)),
-			code:    []int{204},
-			destroy: deleteTag(epc),
-		},
-	}
-
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
-	handler := web.Handler(inventory.DeleteContraEPC)
-	testHandlerHelper(inputs, "POST", handler, masterDB, t)
 }
 
 func TestUpdateCoefficientsPositive(t *testing.T) {
