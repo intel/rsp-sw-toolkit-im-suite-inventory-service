@@ -150,7 +150,7 @@ func loadConfidencePlugin() error {
 		return errors.New("Unable to find CalculateConfidence function in plugin")
 	}
 	// panics if this plugin & function exists but signature doesn't match
-	confidenceCalc = calculateConfidence.(confidenceFunc)
+	confidenceCalc = calculateConfidence.(func(float64, float64, float64, float64, int64) float64)
 	return nil
 }
 
