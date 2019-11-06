@@ -52,5 +52,7 @@
   "posReturnThresholdMillis": 86400000,
   "aggregateDepartedThresholdMillis": 30000,
   "ageOutHours": 336,
-  "coreCommandUrl": "http://edgex-core-command:48082"
+  "coreCommandUrl": "http://edgex-core-command:48082",
+  "enableCORS": true,
+  "corsOrigin": "*"
 }

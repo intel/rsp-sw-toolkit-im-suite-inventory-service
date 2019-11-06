@@ -843,6 +843,9 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 		handler = middlewares.Recover(handler)
 		handler = middlewares.Logger(handler)
 		handler = middlewares.Bodylimiter(handler)
+		if config.AppConfig.EnableCORS {
+			handler = middlewares.CORS(config.AppConfig.CORSOrigin, handler)
+		}
 
 		router.
 			Methods(route.Method).
