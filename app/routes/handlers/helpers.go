@@ -48,11 +48,10 @@ import (
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients
 // this function can be reused by RRS endpoint and RRP endpoints with odata for multiple facilities
-func ApplyConfidence(session *db.DB, tagsPtr *[]tag.Tag, url string) error {
-	if tagsPtr == nil || len(*tagsPtr) == 0 {
+func ApplyConfidence(session *db.DB, tags []tag.Tag, url string) error {
+	if len(tags) == 0 {
 		return nil
 	}
-	tags := *tagsPtr
 
 	// Getting coefficients from database by facilityID
 	facilities, err := facility.CreateFacilityMap(session)
@@ -212,13 +211,13 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 		return nil
 	}
 
-	tagSlice, err := unmarshallTagsInterface(tags)
+	tagSlice, err := unmarshalTagsInterface(tags)
 	if err != nil {
 		return err
 	}
 
 	if len(tagSlice) > 0 {
-		if err := ApplyConfidence(copySession, &tagSlice, url); err != nil {
+		if err := ApplyConfidence(copySession, tagSlice, url); err != nil {
 			return err
 		}
 	} else {
@@ -279,7 +278,7 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 	}
 
 	if len(tags) > 0 {
-		if err := ApplyConfidence(copySession, &tags, url); err != nil {
+		if err := ApplyConfidence(copySession, tags, url); err != nil {
 			return err
 		}
 		if err := postToCloudInBatches(tags); err != nil {
@@ -325,8 +324,8 @@ func postToCloudInBatches(tags []tag.Tag) error {
 	return nil
 }
 
-func unmarshallTagsInterface(tags interface{}) ([]tag.Tag, error) {
-
+func unmarshalTagsInterface(tags interface{}) ([]tag.Tag, error) {
+	// todo: don't marshal/unmarshal... this is a hack
 	tagsBytes, err := json.Marshal(tags)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshaling []interface{} to []bytes")
