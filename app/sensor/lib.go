@@ -21,6 +21,9 @@ const (
 
 // refreshSensorBasicInfo forces a call out to the RSP Controller to retrieve the sensor basic info (facility, personality, aliases, etc)
 func refreshSensorBasicInfo(dbs *db.DB, deviceId string, insertDefaultsOnError bool) (*RSP, error) {
+	copySession := dbs.CopySession()
+	defer copySession.Close()
+
 	rsp := NewRSP(deviceId)
 
 	// this is a new sensor, try and obtain the actual info from the RSP Controller
@@ -45,7 +48,7 @@ func refreshSensorBasicInfo(dbs *db.DB, deviceId string, insertDefaultsOnError b
 		rsp.UpdatedOn = helper.UnixMilliNow()
 	}
 
-	if err = Upsert(dbs, rsp); err != nil {
+	if err = Upsert(copySession, rsp); err != nil {
 		return nil, err
 	}
 

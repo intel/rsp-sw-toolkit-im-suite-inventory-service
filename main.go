@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
@@ -56,7 +57,7 @@ import (
 )
 
 const (
-	serviceKey    = "inventory-service"
+	serviceKey = "inventory-service"
 )
 
 const (
@@ -83,16 +84,32 @@ var (
 		schedulerRunState,
 		controllerStatusUpdate,
 	}
-
-	edgexSdk = &appsdk.AppFunctionsSDK{ServiceKey: serviceKey}
 )
 
-type myDB struct {
-	masterDB *db.DB
+type inventoryApp struct {
+	masterDB        *db.DB
+	skuMapping      SkuMapping
+	edgexSdk        *appsdk.AppFunctionsSDK
+	edgexSdkContext *appcontext.Context
+	invEventChannel chan *jsonrpc.InventoryEvent
+	done            chan bool
+}
+
+func newInyentoryApp(masterDB *db.DB) *inventoryApp {
+	return &inventoryApp{
+		masterDB:        masterDB,
+		skuMapping:      NewSkuMapping(config.AppConfig.MappingSkuUrl),
+		edgexSdk:        &appsdk.AppFunctionsSDK{ServiceKey: serviceKey},
+		invEventChannel: make(chan *jsonrpc.InventoryEvent, 10),
+		done:            make(chan bool),
+	}
+}
+
+func init() {
+
 }
 
 func main() {
-
 	mDBIndexesError := metrics.GetOrRegisterGauge("Inventory.Main.DBIndexesError", nil)
 	mConfigurationError := metrics.GetOrRegisterGauge("Inventory.Main.ConfigurationError", nil)
 	mDatabaseRegisterError := metrics.GetOrRegisterGauge("Inventory.Main.DatabaseRegisterError", nil)
@@ -142,15 +159,14 @@ func main() {
 		verifyProbabilisticPlugin()
 	}
 
+	invApp := newInyentoryApp(masterDB)
+
 	// Connect to EdgeX zeroMQ bus
-	receiveZMQEvents(masterDB)
+	go invApp.receiveZMQEvents()
 
-	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis/5) * time.Millisecond)
-	defer aggregateDepartedTicker.Stop()
-	ageoutTicker := time.NewTicker(1 * time.Hour)
-	defer ageoutTicker.Stop()
+	go invApp.processScheduledTasks()
 
-	go runBackgroundTasks(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
+	go invApp.processInventoryEventChannel()
 
 	go sensor.QueryBasicInfoAllSensors(masterDB)
 
@@ -453,50 +469,66 @@ func initMetrics() {
 	}
 }
 
-func receiveZMQEvents(masterDB *db.DB) {
-
-	db := myDB{masterDB: masterDB}
-
-	go func() {
-		//Initialized EdgeX apps functionSDK
-		if err := edgexSdk.Initialize(); err != nil {
-			edgexSdk.LoggingClient.Error(fmt.Sprintf("SDK initialization failed: %v", err))
-			os.Exit(-1)
-		}
-
-		_ = edgexSdk.SetFunctionsPipeline(
-			transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
-			db.processEvents,
-		)
-
-		err := edgexSdk.MakeItRun()
-		if err != nil {
-			edgexSdk.LoggingClient.Error("MakeItRun returned error: ", err.Error())
-			os.Exit(-1)
-		}
-	}()
-}
-
-func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
-	if len(params) < 1 {
-		return false, nil
+func (invApp *inventoryApp) receiveZMQEvents() {
+	//Initialized EdgeX apps functionSDK
+	if err := invApp.edgexSdk.Initialize(); err != nil {
+		logrus.Errorf("SDK initialization failed: %v", err)
+		os.Exit(-1)
 	}
 
-	event := params[0].(models.Event)
+	_ = invApp.edgexSdk.SetFunctionsPipeline(
+		invApp.contextGrabber,
+		transforms.NewFilter(valueDescriptors).FilterByValueDescriptor,
+		invApp.processEvents,
+	)
+
+	err := invApp.edgexSdk.MakeItRun()
+	if err != nil {
+		logrus.Errorf("MakeItRun returned error: %v", err)
+		os.Exit(-1)
+	}
+}
+
+// contextGrabber does what it sounds like, it grabs the app-functions-sdk's appcontext.Context. This is needed
+// because the context is not available outside of a pipeline without using reflection and unsafe pointers
+func (invApp *inventoryApp) contextGrabber(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
+	if invApp.edgexSdkContext == nil {
+		invApp.edgexSdkContext = edgexcontext
+		logrus.Debug("grabbed app-functions-sdk context")
+	}
+
+	if len(params) < 1 {
+		return false, errors.New("no event received")
+	}
+
+	existingEvent, ok := params[0].(models.Event)
+	if !ok {
+		return false, errors.New("type received is not an Event")
+	}
+
+	return true, existingEvent
+}
+
+func (invApp *inventoryApp) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
+	if len(params) < 1 {
+		return false, errors.New("no event received")
+	}
+
+	event, ok := params[0].(models.Event)
+	if !ok {
+		return false, errors.New("type received is not an Event")
+	}
 	if len(event.Readings) < 1 {
-		return false, nil
+		return false, errors.New("event contains no Readings")
 	}
 
 	mRRSHeartbeatReceived := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatReceived", nil)
 	mRRSHeartbeatProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSHeartbeatError", nil)
 	mRRSRawDataProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSInventoryDataError", nil)
 	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSEventsError", nil)
-	mRRSEventsTags := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSTags", nil)
 	mRRSAlertError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSAlertError", nil)
 	mRRSResetEventReceived := metrics.GetOrRegisterGaugeCollection("Inventory.receiveZMQEvents.RRSResetEventReceived", nil)
 	mRRSASNEpcs := metrics.GetOrRegisterGaugeCollection("Inventory.processShippingNotice.RRSASNEpcs", nil)
-
-	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
 	for _, reading := range event.Readings {
 		switch reading.Name {
@@ -514,7 +546,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			logrus.Debugf("ASN data received: %s", string(data))
 
-			if err := processShippingNotice(data, db.masterDB, &mRRSASNEpcs); err != nil {
+			if err := processShippingNotice(data, invApp.masterDB, &mRRSASNEpcs); err != nil {
 				log.WithFields(log.Fields{
 					"Method": "processShippingNotice",
 					"Action": "ASN data ingestion",
@@ -534,7 +566,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				return false, err
 			}
 
-			if err := heartbeat.ProcessHeartbeat(hb, db.masterDB); err != nil {
+			if err := heartbeat.ProcessHeartbeat(hb, invApp.masterDB); err != nil {
 				errorHandler("error processing heartbeat data", err, &mRRSHeartbeatProcessingError)
 				return false, err
 			}
@@ -548,7 +580,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			}
 
 			rsp := sensor.NewRSPFromConfigNotification(notification)
-			err := sensor.Upsert(db.masterDB, rsp)
+			err := sensor.Upsert(invApp.masterDB, rsp)
 			if err != nil {
 				return false, errors.Wrapf(err, "unable to upsert sensor config notification for sensor %s", notification.Params.DeviceId)
 			}
@@ -572,29 +604,11 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 				return false, err
 			}
 
-			//go func() {
-			//	sensorInfo, err := sensor.QueryBasicInfo(invData.Params.DeviceId)
-			//	if err != nil {
-			//		return
-			//	}
-			//	log.Infof("%+v", sensorInfo)
-			//}()
-
-			// todo: this should really just pass a channel down for the code to send the events back up to
-			invEvent, err := tagprocessor.ProcessInventoryData(db.masterDB, invData)
+			invEvent, err := tagprocessor.ProcessInventoryData(invApp.masterDB, invData)
 			if err != nil {
 				return false, err
 			}
-
-			// ingest tag events
-			if invEvent != nil {
-				go func(invEvent *jsonrpc.InventoryEvent, errorGauge *metrics.Gauge, eventGauge *metrics.GaugeCollection) {
-					err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", eventGauge)
-					if err != nil {
-						errorHandler("error processing event data", err, errorGauge)
-					}
-				}(invEvent, &mRRSEventsProcessingError, &mRRSEventsTags)
-			}
+			invApp.invEventChannel <- invEvent
 
 		case deviceAlert:
 			log.Debugf("Received device alert data:\n%s", reading.Value)
@@ -608,7 +622,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 			if rrsAlert.IsInventoryUnloadAlert() {
 				mRRSResetEventReceived.Add(1)
 				go func(errorGauge *metrics.Gauge) {
-					err := callDeleteTagCollection(db.masterDB)
+					err := callDeleteTagCollection(invApp.masterDB)
 					if err != nil {
 						errorHandler("error calling delete tag collection", err, errorGauge)
 						return
@@ -631,7 +645,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 			if notification.Params.Status == controllerReady {
 				logrus.Info("rsp controller has been started, querying for all sensor basic info")
-				go sensor.QueryBasicInfoAllSensors(db.masterDB)
+				go sensor.QueryBasicInfoAllSensors(invApp.masterDB)
 			}
 		}
 	}
@@ -639,33 +653,82 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 	return false, nil
 }
 
-// runBackgroundTasks is an infinite loop that processes timer tickers which are basically
-// a way to run code on a scheduled interval in golang
-func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
-	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
+func (invApp *inventoryApp) processInventoryEventChannel() {
+	mRRSEventsProcessingError := metrics.GetOrRegisterGauge("Inventory.receiveZMQEvents.RRSEventsError", nil)
 
 	for {
 		select {
+		case <-invApp.done:
+			log.Info("done called. stopping inventory event channel processing")
+			close(invApp.invEventChannel)
+			return
+
+		case invEvent := <-invApp.invEventChannel:
+			if invEvent != nil && !invEvent.IsEmpty() {
+				err := invApp.skuMapping.processTagData(invApp, invEvent, "fixed", nil)
+				if err != nil {
+					errorHandler("error processing event data", err, &mRRSEventsProcessingError)
+				}
+			}
+		}
+	}
+}
+
+// processScheduledTasks is an infinite loop that processes timer tickers which are basically
+// a way to run code on a scheduled interval in golang
+func (invApp *inventoryApp) processScheduledTasks() {
+	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis/5) * time.Millisecond)
+	ageoutTicker := time.NewTicker(1 * time.Hour)
+
+	for {
+		select {
+		case <-invApp.done:
+			log.Info("done called. stopping scheduled tasks")
+			aggregateDepartedTicker.Stop()
+			ageoutTicker.Stop()
+			return
 
 		case t := <-aggregateDepartedTicker.C:
 			log.Debugf("DoAggregateDepartedTask: %v", t)
-			// todo: this should really just pass a channel down for the code to send the events back up to
 			invEvent := tagprocessor.DoAggregateDepartedTask()
 			// ingest tag events
-			if invEvent != nil && !invEvent.IsEmpty() {
-				go func(invEvent *jsonrpc.InventoryEvent) {
-					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
-					if err != nil {
-						errorHandler("error processing event data", err, nil)
-					}
-				}(invEvent)
-			}
+			invApp.invEventChannel <- invEvent
 			break
 
 		case t := <-ageoutTicker.C:
 			log.Debugf("DoAgeoutTask: %v", t)
 			tagprocessor.DoAgeoutTask()
 			break
+		}
+	}
+}
+
+func (invApp *inventoryApp) pushEventsToCoreData(sentOn int64, controllerId string, tagEvents []tag.Tag) {
+	if len(tagEvents) > 0 {
+		log.Debugf("%+v", tagEvents)
+
+		payload, err := json.Marshal(event.DataPayload{
+			SentOn:             sentOn,
+			ControllerId:       controllerId,
+			EventSegmentNumber: 1,
+			TotalEventSegments: 1,
+			TagEvent:           tagEvents,
+		})
+		if err != nil {
+			log.WithFields(log.Fields{
+				"Method": "pushEventsToCoreData",
+				"Action": "Publish Events to Core Data",
+				"Error":  fmt.Sprintf("%+v", err),
+			}).Error(err)
+			return
+		}
+
+		if invApp.edgexSdkContext == nil {
+			log.Error("unable to push event to core data due to app-functions-sdk context has not been grabbed yet")
+			return
+		}
+		if _, err = invApp.edgexSdkContext.PushToCoreData(controllerId, inventoryEvent, string(payload)); err != nil {
+			log.Errorf("unable to push inventory event to core-data: %v", err)
 		}
 	}
 }

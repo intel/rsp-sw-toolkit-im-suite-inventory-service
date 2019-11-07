@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	inventory   = make(map[string]*Tag) // todo: TreeMap?
+	inventory   = make(map[string]*Tag)
 	exitingTags = make(map[string][]*Tag)
 
 	weighter = newRssiAdjuster()
@@ -26,13 +26,6 @@ const (
 	epcEncodeFormat = "tbd"
 )
 
-// TODO: Clear exiting tags on run state change notification from the gateway?
-//public void onScheduleRunState(ScheduleRunState _current, SchedulerSummary _summary) {
-//log.info("onScheduleRunState: {}", _current);
-//clearExiting();
-//scheduleRunState = _current;
-//}
-
 // ProcessInventoryData todo: desc
 func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
 	copySession := dbs.CopySession()
@@ -43,8 +36,8 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 		return nil, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}
 
-	logrus.Debugf("deviceId: %s, personality: %s, isExit: %v, isPOS: %v, aliases: %v",
-		rsp.DeviceId, rsp.Personality, rsp.IsExitSensor(), rsp.IsPOSSensor(), rsp.Aliases)
+	logrus.Debugf("sentOn: %v, deviceId: %s, facId: %s, reads: %d, personality: %s, aliases: %v, offset: %v ms",
+		invData.Params.SentOn, rsp.DeviceId, invData.Params.FacilityId, len(invData.Params.Data), rsp.Personality, rsp.Aliases, helper.UnixMilliNow()-invData.Params.SentOn)
 
 	facId := invData.Params.FacilityId
 
@@ -59,13 +52,13 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 	invEvent := jsonrpc.NewInventoryEvent()
 
 	for _, read := range invData.Params.Data {
-		processReadData(copySession, invEvent, &read, rsp)
+		processReadData(invEvent, &read, rsp)
 	}
 
 	return invEvent, nil
 }
 
-func processReadData(dbs *db.DB, invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
+func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
 	inventoryMutex.Lock()
 
 	tag, exists := inventory[read.Epc]
@@ -215,8 +208,6 @@ func doTagReturn(invEvent *jsonrpc.InventoryEvent, tag *Tag, prev *previousTag) 
 	tag.setState(Present)
 }
 
-// todo: when to call this? on a schedule???
-// todo: it looks like rsp-controller just calls it on start and stop???
 func DoAgeoutTask() int {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
@@ -237,8 +228,6 @@ func DoAgeoutTask() int {
 	return numRemoved
 }
 
-// todo: when to call this? on schedule?
-// todo: rsp-controller call its at 1/5 the timeout interval
 func DoAggregateDepartedTask() *jsonrpc.InventoryEvent {
 	inventoryMutex.Lock()
 	defer inventoryMutex.Unlock()
