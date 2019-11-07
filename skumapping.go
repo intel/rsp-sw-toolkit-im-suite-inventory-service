@@ -128,7 +128,7 @@ func (skuMapping SkuMapping) processTagData(invApp *inventoryApp, invEvent *json
 			return errors.Wrap(err, "error replacing tags")
 		}
 
-		if err := handlers.ApplyConfidence(copySession, &tagData, skuMapping.url); err != nil {
+		if err := handlers.ApplyConfidence(copySession, tagData, skuMapping.url); err != nil {
 			return err
 		}
 
