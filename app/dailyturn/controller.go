@@ -147,13 +147,13 @@ func ProcessIncomingASNList(dbs *db.DB, asnList []tag.AdvanceShippingNotice) {
 }
 
 // CreateHistoryMap builds a map[string] based of array of product ids for search efficiency
-func CreateHistoryMap(dbs *db.DB, tags *[]tag.Tag) map[string]History {
+func CreateHistoryMap(dbs *db.DB, tags []tag.Tag) map[string]History {
 	historyMap := make(map[string]History)
 
 	log.Debugf("Creating daily turn history map")
 
-	for i := 0; i < len(*tags); i++ {
-		productId := (*tags)[i].ProductID
+	for i := 0; i < len(tags); i++ {
+		productId := tags[i].ProductID
 
 		if _, alreadyExists := historyMap[productId]; alreadyExists == true {
 			// skip lookup for products we already have

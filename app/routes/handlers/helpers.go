@@ -48,11 +48,11 @@ import (
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients
 // this function can be reused by RRS endpoint and RRP endpoints with odata for multiple facilities
-func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
-
-	if len(*tags) == 0 {
+func ApplyConfidence(session *db.DB, tagsPtr *[]tag.Tag, url string) error {
+	if tagsPtr == nil || len(*tagsPtr) == 0 {
 		return nil
 	}
+	tags := *tagsPtr
 
 	// Getting coefficients from database by facilityID
 	facilities, err := facility.CreateFacilityMap(session)
@@ -77,12 +77,11 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 	var probInStore float64
 	var probExitError float64
 
-	for i := 0; i < len(*tags); i++ {
+	for i := 0; i < len(tags); i++ {
 		// Get coefficients
-		facilityID := (*tags)[i].FacilityID
-		var confidence float64
+		facilityID := tags[i].FacilityID
 		tagFacility, foundFacility := facilities[facilityID]
-		lastRead := (*tags)[i].LastRead
+		lastRead := tags[i].LastRead
 		if foundFacility {
 			dailyInvPerc = tagFacility.Coefficients.DailyInventoryPercentage
 			probUnreadToRead = tagFacility.Coefficients.ProbUnreadToRead
@@ -94,7 +93,7 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 			probInStore = config.AppConfig.ProbInStoreRead
 			probExitError = config.AppConfig.ProbExitError
 		}
-		gtin := (*tags)[i].ProductID
+		gtin := tags[i].ProductID
 
 		product, foundProduct := productDataMap[gtin]
 		if foundProduct {
@@ -126,27 +125,39 @@ func ApplyConfidence(session *db.DB, tags *[]tag.Tag, url string) error {
 			}
 		}
 
-		log.Tracef("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f", dailyInvPerc, probUnreadToRead, probInStore, probExitError)
-
-		// Load proprietary Intel probabilistic confidence algorithm
-		confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
-		if err != nil {
-			log.Warn("Intel Probabilistic Algorithm plugin not found. Setting Confidence to 0.")
-			(*tags)[i].Confidence = 0
-			return nil
-		}
-
-		calculateConfidence, err := confidencePlugin.Lookup("CalculateConfidence")
-		if err != nil {
-			log.Errorf("Unable to find calculate confidence function")
-		}
-
-		confidence = calculateConfidence.(func(float64, float64, float64, float64, int64, bool) float64)(
-			dailyInvPerc, probUnreadToRead, probInStore, probExitError, lastRead, false)
-
-		(*tags)[i].Confidence = confidence
+		log.Tracef("DailyInvPerc = %f, probUnreadToRead = %f, probInStore = %f, probExitError = %f",
+			dailyInvPerc, probUnreadToRead, probInStore, probExitError)
+		tags[i].Confidence = confidenceCalc(dailyInvPerc, probUnreadToRead, probInStore, probExitError, lastRead)
 	}
 	return nil
+}
+
+type confidenceFunc func(float64, float64, float64, float64, int64) float64
+
+var confidenceCalc = confidenceFunc(zeroConfidence)
+
+func zeroConfidence(_, _, _, _ float64, _ int64) float64 {
+	return 0.0
+}
+
+func loadConfidencePlugin() error {
+	confidencePlugin, err := plugin.Open("/plugin/inventory-probabilistic-algo")
+	if err != nil {
+		return errors.New("Intel Probabilistic Algorithm plugin not found; all Confidence values will be set to 0.")
+	}
+	calculateConfidence, err := confidencePlugin.Lookup("CalculateConfidence")
+	if err != nil {
+		return errors.New("Unable to find CalculateConfidence function in plugin")
+	}
+	// panics if this plugin & function exists but signature doesn't match
+	confidenceCalc = calculateConfidence.(func(float64, float64, float64, float64, int64) float64)
+	return nil
+}
+
+func init() {
+	if err := loadConfidencePlugin(); err != nil {
+		log.Error(err)
+	}
 }
 
 func UpdateForCycleCount(tags []tag.Tag) {
@@ -194,7 +205,7 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 		return errors.Wrap(err, "Error retrieving Tag")
 	}
 
-	//If count only is requested
+	// If count only is requested
 	if count != nil && tags != nil {
 		mSuccess.Update(1)
 		web.Respond(ctx, writer, count, http.StatusOK)
@@ -372,7 +383,7 @@ func processUpdateRequest(ctx context.Context, MasterDB *db.DB, writer http.Resp
 	return nil
 }
 
-//nolint :gocyclo
+// nolint :gocyclo
 func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) map[string][]string {
 
 	var filterSlice []string
@@ -392,7 +403,7 @@ func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) m
 		filterSlice = append(filterSlice, "epc_state eq '"+request.EpcState+"'")
 	}
 	if request.Confidence != 0 {
-		//nolint :lll
+		// nolint :lll
 		filterSlice = append(filterSlice, "confidence ge "+strconv.FormatFloat(request.Confidence, 'f', -1, 64))
 	}
 	if request.ProductID != "" {
