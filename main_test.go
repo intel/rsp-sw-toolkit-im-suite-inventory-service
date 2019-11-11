@@ -236,7 +236,7 @@ func TestDataProcessHandheld(t *testing.T) {
 	config.AppConfig.CloudConnectorUrl = testServer.URL
 
 	// insert data as handheld
-	if err := skuMapping.processTagData(JSONSample, masterDb, "handheld", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "handheld", nil); err != nil {
 		t.Errorf("error processing data %+v", err)
 	}
 }
@@ -288,7 +288,7 @@ func TestDataProcessFixedAllRulesTriggered(t *testing.T) {
 	JSONSample := getJSONDepartedSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -361,7 +361,7 @@ func TestDataProcessFixedNoOoSRulesTriggered(t *testing.T) {
 	JSONSample := getJSONDepartedSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -495,7 +495,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -679,10 +679,10 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
    }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample1, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample1, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
-	if err := skuMapping.processTagData(JSONSample2, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample2, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -829,7 +829,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %+v", err)
 	}
 
@@ -929,7 +929,7 @@ func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
 	JSONSample := getJSONCycleCountSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %+v", err)
 	}
 
@@ -1014,7 +1014,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
    }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(JSONSample, masterDb, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 

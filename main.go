@@ -95,7 +95,7 @@ type inventoryApp struct {
 	done            chan bool
 }
 
-func newInyentoryApp(masterDB *db.DB) *inventoryApp {
+func newInventoryApp(masterDB *db.DB) *inventoryApp {
 	return &inventoryApp{
 		masterDB:        masterDB,
 		skuMapping:      NewSkuMapping(config.AppConfig.MappingSkuUrl),
@@ -159,7 +159,7 @@ func main() {
 		verifyProbabilisticPlugin()
 	}
 
-	invApp := newInyentoryApp(masterDB)
+	invApp := newInventoryApp(masterDB)
 
 	// Connect to EdgeX zeroMQ bus
 	go invApp.receiveZMQEvents()

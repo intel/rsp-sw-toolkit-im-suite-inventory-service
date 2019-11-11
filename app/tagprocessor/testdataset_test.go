@@ -79,7 +79,7 @@ func (ds *testDataset) readTag(tagIndex int, rsp *sensor.RSP, rssi int, times in
 	ds.setRssi(tagIndex, rssi)
 
 	for i := 0; i < times; i++ {
-		processReadData(ds.copySession, ds.inventoryEvent, ds.tagReads[tagIndex], rsp)
+		processReadData(ds.inventoryEvent, ds.tagReads[tagIndex], rsp)
 	}
 }
 
