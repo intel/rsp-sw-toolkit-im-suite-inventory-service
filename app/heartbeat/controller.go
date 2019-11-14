@@ -1,11 +1,11 @@
 package heartbeat
 
 import (
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
+	"database/sql"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 )
 
-func ProcessHeartbeat(hb *jsonrpc.Heartbeat, masterDB *db.DB) error {
+func ProcessHeartbeat(hb *jsonrpc.Heartbeat, masterDB *sql.DB) error {
 
 	// todo: heartbeat does not contain this data anymore
 	//// Default coefficients

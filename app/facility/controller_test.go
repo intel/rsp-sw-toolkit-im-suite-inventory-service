@@ -20,16 +20,15 @@
 package facility
 
 import (
+	"database/sql"
+	"fmt"
+	"github.com/lib/pq"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"net/url"
 	"os"
 	"reflect"
 	"testing"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 )
 
@@ -57,10 +56,23 @@ func TestNoDataRetrieve(t *testing.T) {
 		t.Error("Unable to retrieve facilities")
 	}
 }
+
+func clearAllData(t *testing.T, db *sql.DB) {
+	selectQuery := fmt.Sprintf(`DELETE FROM %s`,
+		pq.QuoteIdentifier(facilitiesTable),
+	)
+
+	_, err := db.Exec(selectQuery)
+	if err != nil {
+		t.Errorf("Unable to delete data from %s table: %s", facilitiesTable, err)
+	}
+}
+
 func TestWithDataRetrieve(t *testing.T) {
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
 
+	clearAllData(t, dbs)
 	insertSample(t, dbs)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10&$select=name,age")
@@ -83,6 +95,20 @@ func TestWithDataRetrieve(t *testing.T) {
 
 	if facilitySlice.Len() <= 0 {
 		t.Error("Unable to retrieve facilities")
+	}
+}
+
+func insertSample(t *testing.T, db *sql.DB) {
+	insertSampleCustom(t, db, t.Name())
+}
+
+func insertSampleCustom(t *testing.T, db *sql.DB, sampleID string) {
+	var facility Facility
+
+	facility.Name = sampleID
+
+	if err := insert(db, facility); err != nil {
+		t.Error("Unable to insert facility", err)
 	}
 }
 
@@ -133,6 +159,8 @@ func TestRetrieveInlinecount(t *testing.T) {
 func TestInsert(t *testing.T) {
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
+
+	clearAllData(t, dbs)
 	insertSample(t, dbs)
 }
 
@@ -140,6 +168,8 @@ func TestInsert(t *testing.T) {
 func TestDelete(t *testing.T) {
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
+
+	clearAllData(t, dbs)
 
 	// have to insert something before we can delete it
 	insertSample(t, dbs)
@@ -162,14 +192,14 @@ func TestInsertFacilities(t *testing.T) {
 
 	facilities = append(facilities, facility)
 
-	var coefficientes Coefficients
+	var coefficients Coefficients
 	// Random coefficient values
-	coefficientes.DailyInventoryPercentage = 0.1
-	coefficientes.ProbExitError = 0.1
-	coefficientes.ProbInStoreRead = 0.1
-	coefficientes.ProbUnreadToRead = 0.1
+	coefficients.DailyInventoryPercentage = 0.1
+	coefficients.ProbExitError = 0.1
+	coefficients.ProbInStoreRead = 0.1
+	coefficients.ProbUnreadToRead = 0.1
 
-	if err := Insert(dbs, &facilities, coefficientes); err != nil {
+	if err := Insert(dbs, &facilities, coefficients); err != nil {
 		t.Errorf("error inserting facilities %s", err.Error())
 	}
 }
@@ -178,12 +208,17 @@ func TestUpdateExistingItem(t *testing.T) {
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
 
+	clearAllData(t, dbs)
 	insertSampleCustom(t, dbs, "TestUpdateExistingItem")
 	// Mock data
-	updatedBody := make(map[string]interface{})
-	updatedBody["dailyinventorypercentage"] = 0.15
+	var updateFacility Facility
+	updateFacility.Name = "TestUpdateExistingItem"
+	updateFacility.Coefficients.DailyInventoryPercentage = 0.15
+	updateFacility.Coefficients.ProbUnreadToRead = 0.15
+	updateFacility.Coefficients.ProbInStoreRead = 0.15
+	updateFacility.Coefficients.ProbExitError = 0.15
 
-	if err := UpdateCoefficients(dbs, "TestUpdateExistingItem", updatedBody); err != nil {
+	if err := UpdateCoefficients(dbs, updateFacility); err != nil {
 		if err == web.ErrNotFound {
 			t.Error("Facility NOT FOUND")
 		} else {
@@ -213,41 +248,20 @@ func TestUpdate_nonExistItem(t *testing.T) {
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
 
+	clearAllData(t, dbs)
 	// Mock data
-	updatedBody := make(map[string]interface{})
-	updatedBody["dailyinventorypercentage"] = 0.10
+	var updateFacility Facility
+	updateFacility.Name = "TestUpdateExistingItem"
+	updateFacility.Coefficients.DailyInventoryPercentage = 0.15
+	updateFacility.Coefficients.ProbUnreadToRead = 0.15
+	updateFacility.Coefficients.ProbInStoreRead = 0.15
+	updateFacility.Coefficients.ProbExitError = 0.15
 
-	if err := UpdateCoefficients(dbs, "facility", updatedBody); err != nil {
+	if err := UpdateCoefficients(dbs, updateFacility); err != nil {
 		if err == web.ErrNotFound {
 			t.Log("Facility NOT FOUND")
 		} else {
 			t.Errorf("error updating facility: %s", err.Error())
 		}
-	}
-}
-
-func insertSample(t *testing.T, mydb *db.DB) {
-	insertSampleCustom(t, mydb, t.Name())
-}
-
-func insertSampleCustom(t *testing.T, mydb *db.DB, sampleID string) {
-	var facility Facility
-
-	facility.Name = sampleID
-
-	if err := insert(mydb, facility); err != nil {
-		t.Error("Unable to insert facility")
-	}
-}
-
-//nolint: dupl
-func clearAllData(t *testing.T, mydb *db.DB) {
-	execFunc := func(collection *mgo.Collection) error {
-		_, err := collection.RemoveAll(bson.M{})
-		return err
-	}
-
-	if err := mydb.Execute(facilityCollection, execFunc); err != nil {
-		t.Error("Unable to delete collection")
 	}
 }

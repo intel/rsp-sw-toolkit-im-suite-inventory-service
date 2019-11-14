@@ -23,9 +23,9 @@ package facility
 //swagger:model Facility
 type Facility struct {
 	// Facility name
-	Name string `json:"name"`
+	Name string `json:"name"  db:"name"`
 	// The coefficients used in the probabilistic inventory algorithm
-	Coefficients Coefficients `json:"coefficients"`
+	Coefficients Coefficients `json:"coefficients"  db:"coefficients"`
 }
 
 // CountType represents a wrapper for count and inlinecount
@@ -45,13 +45,13 @@ type Response struct {
 // Coefficients represents a set of attributes to calculate confidence
 type Coefficients struct {
 	// Percent of inventory that is sold daily
-	DailyInventoryPercentage float64 `json:"dailyinventorypercentage"`
+	DailyInventoryPercentage float64 `json:"dailyinventorypercentage" db:"dailyinventorypercentage"`
 	// Probability of an unreadable tag becoming readable again each day (i.e. moved or retagged)
-	ProbUnreadToRead float64 `json:"probunreadtoread"`
+	ProbUnreadToRead float64 `json:"probunreadtoread" db:"probunreadtoread"`
 	// Probability of a tag in the store being read by the overhead sensor each day
-	ProbInStoreRead float64 `json:"probinstoreread"`
+	ProbInStoreRead float64 `json:"probinstoreread" db:"probinstoreread"`
 	// Probability of an exit error (missed 'departed' event) occurring
-	ProbExitError float64 `json:"probexiterror"`
+	ProbExitError float64 `json:"probexiterror" db:"probexiterror"`
 }
 
 // RequestBody represents a struct for the requestBody to Update facility collection

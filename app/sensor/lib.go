@@ -1,11 +1,11 @@
 package sensor
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"io/ioutil"
@@ -19,7 +19,7 @@ const (
 // GetOrCreateRSP returns a pointer to an RSP if found in the DB, and if
 // not found in the DB, a record will be created and added, then returned to the caller
 // error is only non-nil when there is an issue communicating with the DB
-func GetOrCreateRSP(dbs *db.DB, deviceId string) (*RSP, error) {
+func GetOrCreateRSP(dbs *sql.DB, deviceId string) (*RSP, error) {
 	rsp, err := FindRSP(dbs, deviceId)
 	if err != nil {
 		return nil, err

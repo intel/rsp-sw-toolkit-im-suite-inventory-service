@@ -39,7 +39,8 @@ const (
 
 type (
 	variables struct {
-		ServiceName, ConnectionString, DatabaseName, LoggingLevel, Port                                string
+		ServiceName, LoggingLevel, Port                                         					   string
+		DbHost, DbPort, DbUser, DbPass, DbSSLMode, DbName                                              string
 		TelemetryEndpoint, TelemetryDataStoreName                                                      string
 		DailyInventoryPercentage, ProbUnreadToRead, ProbInStoreRead, ProbExitError                     float64 // Coefficients
 		EndpointConnectionTimedOutSeconds                                                              int
@@ -96,17 +97,37 @@ func InitConfig() error {
 		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
-	AppConfig.ConnectionString, err = helper.GetSecret("connectionString")
+	AppConfig.DbHost, err = config.GetString("dbHost")
 	if err != nil {
-		AppConfig.ConnectionString, err = config.GetString("connectionString")
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	AppConfig.DbPort, err = config.GetString("dbPort")
+	if err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	AppConfig.DbUser, err = config.GetString("dbUser")
+	if err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	AppConfig.DbName, err = config.GetString("dbName")
+	if err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	AppConfig.DbSSLMode, err = config.GetString("dbSSLMode")
+	if err != nil {
+		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
+	}
+
+	AppConfig.DbPass, err = helper.GetSecret("dbPass")
+	if err != nil {
+		AppConfig.DbPass, err = config.GetString("dbPass")
 		if err != nil {
 			return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 		}
-	}
-
-	AppConfig.DatabaseName, err = config.GetString("databaseName")
-	if err != nil {
-		return errors.Wrapf(err, "Unable to load config variables: %s", err.Error())
 	}
 
 	// ageOutString is optional
@@ -568,3 +589,42 @@ func parseAgeOuts(ageOutString string) (map[string]int, error) {
 
 	return ageOuts, nil
 }
+
+// DbSchema postgreSQL db schema
+const DbSchema = `
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS tags (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	data JSONB	
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_epc
+ON tags ((data->>'epc'));
+
+CREATE TABLE IF NOT EXISTS handheldevents (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	data JSONB	
+);
+
+CREATE TABLE IF NOT EXISTS rspconfig (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	data JSONB	
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_device_id
+ON rspconfig ((data->>'device_id'));
+
+CREATE TABLE IF NOT EXISTS facilities (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	data JSONB	
+);
+
+CREATE TABLE IF NOT EXISTS dailyturnhistory (
+	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+	data JSONB	
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_product_id
+ON dailyturnhistory ((data->>'product_id'));
+`

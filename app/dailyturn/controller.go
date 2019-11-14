@@ -20,46 +20,67 @@
 package dailyturn
 
 import (
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
+	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"reflect"
+
+	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"time"
 )
 
 const (
-	historyCollection = "dailyturnhistory"
-	tagCollection     = "tags"
+	historyTable    = "dailyturnhistory"
+	tagsTable       = "tags"
+	jsonb           = "data"
+	productIdColumn = "product_id"
+	eventColumn     = "event"
+	lastReadColumn  = "last_read"
+	departedEvent   = "departed"
 )
 
 type PresentOrDepartedResults struct {
-	ProductId    string `bson:"_id"`
-	DepartedTags int    `bson:"departedTags"`
-	PresentTags  int    `bson:"presentTags"`
+	ProductId    string `db:"_id"`
+	DepartedTags int    `db:"departedTags"`
+	PresentTags  int    `db:"presentTags"`
 }
 
-func Upsert(dbs *db.DB, history History) error {
+func Upsert(dbs *sql.DB, history History) error {
 	// Metrics
 	metrics.GetOrRegisterGaugeCollection(`Inventory.DailyTurn.Upsert.Attempt`, nil).Add(1)
 	mSuccess := metrics.GetOrRegisterGaugeCollection(`Inventory.DailyTurn.Upsert.Success`, nil)
 	mUpsertErr := metrics.GetOrRegisterGaugeCollection(`Inventory.DailyTurn.Upsert.Error`, nil)
 	mUpsertLatency := metrics.GetOrRegisterTimer(`Inventory.DailyTurn.Upsert.Latency`, nil)
 
-	execFunc := func(collection *mgo.Collection) error {
-		_, err := collection.Upsert(bson.M{"product_id": history.ProductID}, history)
+	obj, err := json.Marshal(history)
+	if err != nil {
 		return err
 	}
 
-	upsertTimer := time.Now()
-	err := dbs.Execute(historyCollection, execFunc)
-	mUpsertLatency.Update(time.Since(upsertTimer))
+	upsertStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s) 
+									 ON CONFLICT (( %s  ->> %s )) 
+									 DO UPDATE SET %s = %s.%s || %s; `,
+		pq.QuoteIdentifier(historyTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(productIdColumn),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(historyTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+	)
 
+	upsertTimer := time.Now()
+	_, err = dbs.Exec(upsertStmt)
+	mUpsertLatency.Update(time.Since(upsertTimer))
 	if err != nil {
 		mUpsertErr.Add(1)
 		return errors.Wrap(err, "db.dailyturnhistory.Upsert()")
@@ -69,7 +90,7 @@ func Upsert(dbs *db.DB, history History) error {
 	return nil
 }
 
-func computeDailyTurnRecord(dbs *db.DB, productId string) error {
+func computeDailyTurnRecord(dbs *sql.DB, productId string) error {
 	history, err := FindHistoryByProductId(dbs, productId)
 	if err != nil {
 		return err
@@ -125,7 +146,7 @@ func computeDailyTurnRecord(dbs *db.DB, productId string) error {
 // new tags into the database. The reason for this is we don't want to double count EPCs already
 // in the database by simply adding quantity to the inventory count, so we let the inventory count
 // fill up via the processing already in place.
-func ProcessIncomingASNList(dbs *db.DB, asnList []tag.AdvanceShippingNotice) {
+func ProcessIncomingASNList(dbs *sql.DB, asnList []tag.AdvanceShippingNotice) {
 	// Metrics
 	metrics.GetOrRegisterGaugeCollection(`Inventory.DailyTurn.ProcessIncomingASNList.Attempt`, nil).Add(1)
 	mProcessLatency := metrics.GetOrRegisterTimer(`Inventory.DailyTurn.ProcessIncomingASNList.Process-Latency`, nil)
@@ -147,7 +168,7 @@ func ProcessIncomingASNList(dbs *db.DB, asnList []tag.AdvanceShippingNotice) {
 }
 
 // CreateHistoryMap builds a map[string] based of array of product ids for search efficiency
-func CreateHistoryMap(dbs *db.DB, tags []tag.Tag) map[string]History {
+func CreateHistoryMap(dbs *sql.DB, tags []tag.Tag) map[string]History {
 	historyMap := make(map[string]History)
 
 	log.Debugf("Creating daily turn history map")
@@ -174,85 +195,118 @@ func CreateHistoryMap(dbs *db.DB, tags []tag.Tag) map[string]History {
 
 // FindHistoryByProductId searches DB for tag based on the productId value
 // Returns the History if found or empty History if it does not exist
-func FindHistoryByProductId(dbs *db.DB, productId string) (History, error) {
+func FindHistoryByProductId(dbs *sql.DB, productId string) (History, error) {
 
 	// Metrics
 	metrics.GetOrRegisterGaugeCollection(`Inventory.FindHistoryByProductId.Attempt`, nil).Add(1)
-	mSuccess := metrics.GetOrRegisterGaugeCollection(`Inventory.FindHistoryByProductId.Success`, nil)
-	mNotFound := metrics.GetOrRegisterGaugeCollection(`Inventory.FindHistoryByProductId.NotFound`, nil)
-	mFindErr := metrics.GetOrRegisterGaugeCollection(`Inventory.FindHistoryByProductId.Find-Error`, nil)
+	mSuccess := metrics.GetOrRegisterGauge(`Inventory.FindHistoryByProductId.Success`, nil)
+	mFindErr := metrics.GetOrRegisterGauge(`Inventory.FindHistoryByProductId.Find-Error`, nil)
 	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.FindHistoryByProductId.Find-Latency`, nil)
+	mNotFound := metrics.GetOrRegisterGauge(`Inventory.FindHistoryByProductId.NotFound`, nil)
 
 	var history History
 
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Find(bson.M{"product_id": productId}).One(&history)
-	}
+	selectQuery := fmt.Sprintf(`SELECT %s FROM %s WHERE %s ->> %s = %s LIMIT 1`,
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(historyTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(productIdColumn),
+		pq.QuoteLiteral(productId),
+	)
+
 	retrieveTimer := time.Now()
-	if err := dbs.Execute(historyCollection, execFunc); err != nil {
-		// If the error was because item does not exist, return empty History and no error
-		if err == mgo.ErrNotFound {
-			mNotFound.Add(1)
+	if err := dbs.QueryRow(selectQuery).Scan(&history); err != nil {
+
+		if err == sql.ErrNoRows {
+			mNotFound.Update(1)
 			return History{}, nil
 		}
-		mFindErr.Add(1)
-		return History{}, errors.Wrap(err, "db.dailyturnhistory.find()")
+		mFindErr.Update(1)
+		return History{}, err
 	}
+
 	mFindLatency.Update(time.Since(retrieveTimer))
 
-	mSuccess.Add(1)
+	mSuccess.Update(1)
 	return history, nil
 }
 
-func FindPresentOrDepartedTagsSinceTimestamp(dbs *db.DB, productId string, sinceTimestamp int64) (PresentOrDepartedResults, error) {
+func FindPresentOrDepartedTagsSinceTimestamp(db *sql.DB, productId string, sinceTimestamp int64) (PresentOrDepartedResults, error) {
 	// Metrics
 	metrics.GetOrRegisterGaugeCollection(`Inventory.FindPresentOrDepartedTagsSinceTimestamp.Attempt`, nil).Add(1)
 	mSuccess := metrics.GetOrRegisterGaugeCollection(`Inventory.FindPresentOrDepartedTagsSinceTimestamp.Success`, nil)
-	mNotFound := metrics.GetOrRegisterGaugeCollection(`Inventory.FindPresentOrDepartedTagsSinceTimestamp.NotFound`, nil)
-	mFindErr := metrics.GetOrRegisterGaugeCollection(`Inventory.FindPresentOrDepartedTagsSinceTimestamp.Find-Error`, nil)
+	mCountErr := metrics.GetOrRegisterGaugeCollection(`Inventory.FindPresentOrDepartedTagsSinceTimestamp.Find-Error`, nil)
 	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.FindPresentOrDepartedTagsSinceTimestamp.Find-Latency`, nil)
 
 	result := PresentOrDepartedResults{}
-
-	execFunc := func(collection *mgo.Collection) error {
-		// product_id == productId && last_read > 0 && ( event != departed || last_read > sinceTimestamp )
-		return collection.Pipe([]bson.M{{
-			"$match": bson.M{
-				"$and": []bson.M{
-					{"product_id": bson.M{"$eq": productId}},
-					{"last_read": bson.M{"$gt": 0}},
-					{
-						"$or": []bson.M{
-							{"event": bson.M{"$ne": "departed"}},
-							{"last_read": bson.M{"$gt": sinceTimestamp}},
-						},
-					},
-				},
-			}}, {
-			"$group": bson.M{
-				"_id": "$product_id",
-				"presentTags": bson.M{"$sum": bson.M{"$cond": []interface{}{
-					bson.M{"$ne": []string{"$event", "departed"}}, 1, 0,
-				}}},
-				"departedTags": bson.M{"$sum": bson.M{"$cond": []interface{}{
-					bson.M{"$eq": []string{"$event", "departed"}}, 1, 0,
-				}}},
-			}},
-		}).One(&result)
-	}
-
+	var count int
 	retrieveTimer := time.Now()
-	if err := dbs.Execute(tagCollection, execFunc); err != nil {
-		if err == mgo.ErrNotFound {
-			mNotFound.Add(1)
-			return PresentOrDepartedResults{}, nil
-		}
+	timestamp := fmt.Sprintf("%v", sinceTimestamp)
 
-		mFindErr.Add(1)
-		return PresentOrDepartedResults{}, errors.Wrap(err, "db.tags.aggregate()")
-	}
+	// query for not departed i.e. present tags
+	selectStmt := fmt.Sprintf("SELECT count(*) FROM %s WHERE %s ->> %s = %s" +
+		"AND %s ->> %s != %s AND (%s ->> %s)::numeric > '0'",
+		pq.QuoteIdentifier(tagsTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(productIdColumn),
+		pq.QuoteLiteral(productId),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(eventColumn),
+		pq.QuoteLiteral(departedEvent),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(lastReadColumn),
+	)
+
+	row := db.QueryRow(selectStmt)
+	err := row.Scan(&count)
 	mFindLatency.Update(time.Since(retrieveTimer))
+	if err != nil {
+		mCountErr.Add(1)
+		return PresentOrDepartedResults{}, err
+	} else {
+		result.PresentTags = count
+		mSuccess.Add(1)
+	}
 
-	mSuccess.Add(1)
-	return result, nil
+	// query for departed tags
+	selectStmt = fmt.Sprintf("SELECT count(*) FROM %s  WHERE %s ->> %s = %s"+
+		"AND %s ->> %s = %s AND (%s ->> %s)::numeric > %s",
+		pq.QuoteIdentifier(tagsTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(productIdColumn),
+		pq.QuoteLiteral(productId),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(eventColumn),
+		pq.QuoteLiteral(departedEvent),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(lastReadColumn),
+		pq.QuoteLiteral(timestamp),
+	)
+
+	row = db.QueryRow(selectStmt)
+	err = row.Scan(&count)
+	mFindLatency.Update(time.Since(retrieveTimer))
+	if err != nil {
+		mCountErr.Add(1)
+		return PresentOrDepartedResults{}, err
+	} else {
+		result.DepartedTags = count
+		mSuccess.Add(1)
+		return result, nil
+	}
+}
+
+// Value implements driver.Valuer interfaces
+func (history History) Value() (driver.Value, error) {
+	return json.Marshal(history)
+}
+
+// Scan implements sql.Scanner interfaces
+func (history *History) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, history)
 }

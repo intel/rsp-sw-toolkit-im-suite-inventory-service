@@ -20,10 +20,10 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
@@ -48,9 +48,9 @@ func NewSkuMapping(url string) SkuMapping {
 	}
 }
 
-// processTagData inserts data from context sensing broker into database
+// processTagData inserts data from Edgex into database
 //nolint :gocyclo
-func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, masterDB *db.DB, source string, tagsGauge *metrics.GaugeCollection) error {
+func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, masterDB *sql.DB, source string, tagsGauge *metrics.GaugeCollection) error {
 
 	mProcessTagLatency := metrics.GetOrRegisterTimer(`Inventory.ProcessTagData-Latency`, nil)
 	processTagTimer := time.Now()
@@ -116,14 +116,12 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 
 	// If at least 1 tag passed the whitelist, then insert
 	if len(tagData) > 0 {
-		copySession := masterDB.CopySession()
-		defer copySession.Close()
 
-		if err := tag.Replace(copySession, &tagData); err != nil {
+		if err := tag.Replace(masterDB, tagData); err != nil {
 			return errors.Wrap(err, "error replacing tags")
 		}
 
-		if err := handlers.ApplyConfidence(copySession, tagData, skuMapping.url); err != nil {
+		if err := handlers.ApplyConfidence(masterDB, tagData, skuMapping.url); err != nil {
 			return err
 		}
 

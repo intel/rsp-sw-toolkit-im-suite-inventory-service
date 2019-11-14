@@ -20,10 +20,8 @@
 package tag
 
 import (
-	"reflect"
-	"time"
-
 	"encoding/json"
+	"reflect"
 
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 )
@@ -59,8 +57,6 @@ type Tag struct {
 	EpcState string `json:"epc_state" bson:"epc_state"`
 	// Customer defined state
 	QualifiedState string `json:"qualified_state" bson:"qualified_state"`
-	// Time to live, used for db purging - always in sync with last read
-	TTL time.Time `json:"ttl"`
 	// Customer defined context
 	EpcContext string `json:"epc_context" bson:"epc_context"`
 	// Probability item is actually present
@@ -78,21 +74,21 @@ type LocationHistory struct {
 
 // IsEqual compares 2 tag structures
 // nolint :gocyclo
-func (source Tag) IsEqual(target Tag) bool {
-	if source.URI == target.URI &&
-		source.Epc == target.Epc &&
-		source.EpcEncodeFormat == target.EpcEncodeFormat &&
-		source.Event == target.Event &&
-		source.FacilityID == target.FacilityID &&
-		source.Tid == target.Tid &&
-		source.Arrived == target.Arrived &&
-		source.LastRead == target.LastRead &&
-		source.Source == target.Source &&
-		reflect.DeepEqual(source.LocationHistory, target.LocationHistory) &&
-		source.QualifiedState == target.QualifiedState &&
-		source.EpcState == target.EpcState &&
-		source.EpcContext == target.EpcContext &&
-		source.ProductID == target.ProductID {
+func (tag Tag) IsEqual(target Tag) bool {
+	if tag.URI == target.URI &&
+		tag.Epc == target.Epc &&
+		tag.EpcEncodeFormat == target.EpcEncodeFormat &&
+		tag.Event == target.Event &&
+		tag.FacilityID == target.FacilityID &&
+		tag.Tid == target.Tid &&
+		tag.Arrived == target.Arrived &&
+		tag.LastRead == target.LastRead &&
+		tag.Source == target.Source &&
+		reflect.DeepEqual(tag.LocationHistory, target.LocationHistory) &&
+		tag.QualifiedState == target.QualifiedState &&
+		tag.EpcState == target.EpcState &&
+		tag.EpcContext == target.EpcContext &&
+		tag.ProductID == target.ProductID {
 		return true
 	}
 	return false
@@ -152,8 +148,8 @@ type CountType struct {
 }
 
 // IsEmpty determines if a tag is empty
-func (source Tag) IsEmpty() bool {
-	return reflect.DeepEqual(source, Tag{})
+func (tag Tag) IsEmpty() bool {
+	return reflect.DeepEqual(tag, Tag{})
 }
 
 // IsShippingNoticeEntry is function to determine if a tag in the DB was the
@@ -161,26 +157,25 @@ func (source Tag) IsEmpty() bool {
 // between tags inserted by a tag read versus those that resulted from an ASN.
 // NOTE: This DOES NOT determine that a tag *has* a shipping notice -- instead,
 // it determines that a tag *only exists because* of a shipping notice.
-func (source Tag) IsShippingNoticeEntry() bool {
-	if source.EpcContext == "" ||
-		source.ProductID != "" ||
-		source.FilterValue != 0 ||
-		source.Tid != "" ||
-		source.EpcEncodeFormat != "" ||
-		source.FacilityID != config.AppConfig.AdvancedShippingNoticeFacilityID ||
-		source.Event != "" ||
-		source.Arrived != 0 ||
-		source.LastRead != 0 ||
-		source.Source != "" ||
-		len(source.LocationHistory) != 0 ||
-		source.EpcState != "" ||
-		source.QualifiedState != "" {
+func (tag Tag) IsShippingNoticeEntry() bool {
+	if tag.EpcContext == "" ||
+		tag.FilterValue != 0 ||
+		tag.Tid != "" ||
+		tag.EpcEncodeFormat != "" ||
+		tag.FacilityID != config.AppConfig.AdvancedShippingNoticeFacilityID ||
+		tag.Event != "" ||
+		tag.Arrived != 0 ||
+		tag.LastRead != 0 ||
+		tag.Source != "" ||
+		len(tag.LocationHistory) != 0 ||
+		tag.EpcState != "" ||
+		tag.QualifiedState != "" {
 		return false
 	}
 
 	// check if it can be deserialized as ASNData
 	var asn ASNContext
-	if err := json.Unmarshal([]byte(source.EpcContext), &asn); err != nil {
+	if err := json.Unmarshal([]byte(tag.EpcContext), &asn); err != nil {
 		// ignore unmarshal errors from this; we don't care
 		return false
 	}
@@ -190,8 +185,8 @@ func (source Tag) IsShippingNoticeEntry() bool {
 }
 
 // IsTagReadByRspController returns true if a tag was read by the RSP Controller, versus a result of ASN
-func (source Tag) IsTagReadByRspController() bool {
-	return !source.IsEmpty() && !source.IsShippingNoticeEntry()
+func (tag Tag) IsTagReadByRspController() bool {
+	return !tag.IsEmpty() && !tag.IsShippingNoticeEntry()
 }
 
 // TagStateChange is the model to capture the previous and current state of a tag

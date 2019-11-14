@@ -20,26 +20,21 @@
 package handheldevent
 
 import (
+	"database/sql"
+	"fmt"
+	"github.com/lib/pq"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"net/url"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
-
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-
 	"time"
-
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 )
 
 var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
-	dbHost = integrationtest.InitHost("handHeldEvent_test")
+	dbHost = integrationtest.InitHost("handheldEvent_test")
 	os.Exit(m.Run())
 }
 
@@ -99,6 +94,7 @@ func TestRetrieveCount(t *testing.T) {
 
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
+
 	insertSample(t, dbs)
 
 	_, count, err := Retrieve(dbs, testURL.Query())
@@ -137,6 +133,7 @@ func TestRetrieveInlinecount(t *testing.T) {
 func TestInsert(t *testing.T) {
 	dbs := dbHost.CreateDB(t)
 	defer dbs.Close()
+
 	insertSample(t, dbs)
 }
 
@@ -159,110 +156,25 @@ func TestInsertHandHeldEvents(t *testing.T) {
 	}
 }
 
-func insertSample(t *testing.T, mydb *db.DB) {
+func insertSample(t *testing.T, db *sql.DB) {
 	var eventData HandheldEvent
 
 	eventData.Event = "FullScanStart"
 	eventData.Timestamp = time.Now().Unix()
 
-	if err := Insert(mydb, eventData); err != nil {
+	if err := Insert(db, eventData); err != nil {
 		t.Error("Unable to insert handheld Event")
 	}
 }
 
 //nolint:dupl
-func clearAllData(t *testing.T, mydb *db.DB) {
-	execFunc := func(collection *mgo.Collection) error {
-		_, err := collection.RemoveAll(bson.M{})
-		return err
+func clearAllData(t *testing.T, db *sql.DB) {
+	selectQuery := fmt.Sprintf(`DELETE FROM %s`,
+		pq.QuoteIdentifier(handheldEventsTable),
+	)
+
+	_, err := db.Exec(selectQuery)
+	if err != nil {
+		t.Errorf("Unable to delete data from %s: %s", handheldEventsTable, err)
 	}
-
-	if err := mydb.Execute(collection, execFunc); err != nil {
-		t.Error("Unable to delete collection")
-	}
-}
-
-func TestUpdateTTLIndex(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
-
-	ttlIndex := "ttl"
-	purgingSeconds := 1800
-
-	// Add index before updating
-	if err := addIndex(t, dbs, ttlIndex); err != nil {
-		t.Errorf("Error addIndex(): %s", err.Error())
-	}
-
-	if err := UpdateTTLIndexForHandheldEvents(dbs, purgingSeconds); err != nil {
-		t.Errorf("Error UpdateTTLIndexForHandheldEvents(): %s", err.Error())
-	}
-
-	execFunc := func(collection *mgo.Collection) error {
-		indexes, err := collection.Indexes()
-		if err != nil {
-			return err
-		}
-		// check if ttl index was updated
-		for i, v := range indexes {
-			if strings.Contains(v.Name, ttlIndex) {
-				updatedExpireTime := int(v.ExpireAfter / time.Second)
-				if updatedExpireTime != purgingSeconds {
-					t.Error("Update of ttl index failed expected", purgingSeconds, "got", updatedExpireTime)
-				}
-			} else if i == (len(indexes) - 1) {
-				t.Error("ttl index not found")
-			}
-
-		}
-		return nil
-	}
-
-	if err := dbs.Execute(collection, execFunc); err != nil {
-		t.Error("UpdateTTLIndexForHandheldEvents test failed", err.Error())
-	}
-
-	// Clear data and negative testing
-	if err := dropIndex(t, dbs, ttlIndex); err != nil {
-		t.Errorf("Error dropIndex(): %s", err.Error())
-	}
-
-	err := UpdateTTLIndexForHandheldEvents(dbs, purgingSeconds)
-	if err == nil {
-		t.Error("Update should have failed as ttl index does not exist")
-	}
-}
-
-func addIndex(t *testing.T, mydb *db.DB, indexName string) error {
-
-	index := mgo.Index{
-		Key:         []string{indexName},
-		Unique:      false,
-		DropDups:    false,
-		Background:  false,
-		ExpireAfter: time.Duration(60) * time.Second,
-	}
-
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.EnsureIndex(index)
-	}
-
-	if err := mydb.Execute(collection, execFunc); err != nil {
-		t.Error("Add index failed", err.Error())
-	}
-
-	return nil
-}
-
-func dropIndex(t *testing.T, mydb *db.DB, index string) error {
-
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.DropIndex(index)
-	}
-
-	if err := mydb.Execute(collection, execFunc); err != nil {
-		t.Error("Drop index failed", err.Error())
-	}
-
-	return nil
 }

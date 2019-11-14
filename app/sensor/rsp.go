@@ -19,10 +19,10 @@ const (
 )
 
 type RSP struct {
-	DeviceId     string      `json:"device_id" bson:"device_id"`
-	FacilityId   string      `json:"facility_id" bson:"facility_id"`
-	Personality  Personality `json:"personality" bson:"personality"`
-	Aliases      []string    `json:"aliases" bson:"aliases"`
+	DeviceId     string      `json:"device_id" db:"device_id"`
+	FacilityId   string      `json:"facility_id" db:"facility_id"`
+	Personality  Personality `json:"personality" db:"personality"`
+	Aliases      []string    `json:"aliases" db:"aliases"`
 	IsInDeepScan bool        `json:"-" bson:"-"`
 }
 

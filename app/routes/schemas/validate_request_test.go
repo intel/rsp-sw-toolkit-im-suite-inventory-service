@@ -67,46 +67,34 @@ func TestValidatePostCurrentInventoryRequest(t *testing.T) {
 }
 
 //nolint: dupl
-func TestValidateMissingTagsRequest(t *testing.T) {
+func TestValidateDeleteEpcContextRequest(t *testing.T) {
 	//nolint: dupl
 	requestJSON := []byte(`{
 		"facility_id":"store001",
-		"time":1483228800000,
-		"confidence":0.75,
-		"cursor":"aGksIDovMSB0aGlz",
-		"size":500,
-		"count_only":true
+		"epc":"30143639F84191AD22900204"
 	  }`)
-	result, _ := ValidateSchemaRequest(requestJSON, MissingTagsSchema)
+	result, _ := ValidateSchemaRequest(requestJSON, DeleteEpcContextSchema)
 	if !result.Valid() {
 		t.Errorf("Validation of Json schema failed %s", result.Errors())
 	}
 
 	invalidRequest := []byte(`{
-		"confidence":0.75
+		"facility_id":"store001"
 	  }`)
-	result, _ = ValidateSchemaRequest(invalidRequest, MissingTagsSchema)
+	result, _ = ValidateSchemaRequest(invalidRequest, DeleteEpcContextSchema)
 	if result.Valid() {
-		t.Fatal("Failed to catch json schema validation error, required field 'facility_id'")
+		t.Fatal("Failed to catch json schema validation error, required field 'epc'")
 	}
 
 	expectedString := `{
 		"errors": [
 		   {
-			  "field": "time",
+			  "field": "epc",
 			  "errortype": "required",
 			  "value": {
-				 "confidence": 0.75
+				"facility_id":"store001"
 			  },
-			  "description": "time is required"
-		   },
-		   {
-			  "field": "facility_id",
-			  "errortype": "required",
-			  "value": {
-				 "confidence": 0.75
-			  },
-			  "description": "facility_id is required"
+			  "description": "epc is required"
 		   }
 		]
 	 }`
@@ -122,12 +110,10 @@ func TestValidateMissingTagsRequest(t *testing.T) {
 
 	invalidRequest = []byte(`{
 		"facility_id":"store001",
-		"time":1483228800000,
-		"test":10,
-		"start":3948309,
-		"count_only":true
+		"epc":"30143639F84191AD22900204",
+		"test":10
 	  }`)
-	result, _ = ValidateSchemaRequest(invalidRequest, MissingTagsSchema)
+	result, _ = ValidateSchemaRequest(invalidRequest, DeleteEpcContextSchema)
 	if result.Valid() {
 		t.Fatal("Failed to catch json schema validation error, additional properties")
 	}

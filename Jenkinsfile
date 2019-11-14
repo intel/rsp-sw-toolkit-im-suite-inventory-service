@@ -1,6 +1,6 @@
 rrpBuildGoCode {
     projectKey = 'inventory-service'
-    testDependencies = ['mongo']
+    testDependencies = ['postgres']
     dockerBuildOptions = ['--squash', '--build-arg GIT_COMMIT=$GIT_COMMIT']
     testStepsInParallel = false
     buildImage = 'amr-registry.caas.intel.com/rrp/ci-go-build-image:1.12.0-alpine'

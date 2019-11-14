@@ -20,23 +20,32 @@
 package facility
 
 import (
+	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+	"github.com/lib/pq"
+	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/postgresql"
 	"net/url"
-	"reflect"
 	"time"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
 	"github.com/pkg/errors"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/mongo"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
-const facilityCollection = "facilities"
+const facilitiesTable = "facilities"
+const jsonb = "data"
+const nameColumn = "name"
+const coefficientsColumn = "coefficients"
+
+type facilityDataWrapper struct {
+	ID   []uint8  `db:"id" json:"id"`
+	Data Facility `db:"data" json:"data"`
+}
 
 // Update receives a facility_id(name) and body to be updated in the facility collection
-func UpdateCoefficients(dbs *db.DB, facilityID string, body map[string]interface{}) error {
+func UpdateCoefficients(dbs *sql.DB, facility Facility) error {
 
 	// Metrics
 	metrics.GetOrRegisterGauge(`Inventory.Update-Facility.Attempt`, nil).Update(1)
@@ -44,28 +53,41 @@ func UpdateCoefficients(dbs *db.DB, facilityID string, body map[string]interface
 	mUpdateErr := metrics.GetOrRegisterGauge(`Inventory.Update-Facility.Update-Error`, nil)
 	mErrNotFound := metrics.GetOrRegisterGauge(`Inventory.Update-Facility.NotFound-Error`, nil)
 	mUpdateLatency := metrics.GetOrRegisterTimer(`Inventory.Update-Facility.Update-Latency`, nil)
-	mEmptyBodyErr := metrics.GetOrRegisterGauge(`Inventory.Update-Facility.EmptyBody-Error`, nil)
 
-	if body == nil {
-		mEmptyBodyErr.Update(1)
-		return errors.Wrap(web.ErrInvalidInput, "body request cannot be empty")
+	coefficients, err := json.Marshal(facility.Coefficients)
+	if err != nil {
+		return err
 	}
 
-	selector := bson.M{"name": facilityID}
-
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Update(selector, bson.M{"$set": bson.M{"coefficients": body}})
-	}
+	upsertClause := fmt.Sprintf(`UPDATE %s SET %s = jsonb_set(%s, '{%s}', %s)
+					WHERE %s ->> %s = %s`,
+		pq.QuoteIdentifier(facilitiesTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(coefficientsColumn),
+		pq.QuoteLiteral(string(coefficients)),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(nameColumn),
+		pq.QuoteLiteral(facility.Name),
+	)
 
 	updateTimer := time.Now()
-	if err := dbs.Execute(facilityCollection, execFunc); err != nil {
-		if err == mgo.ErrNotFound {
-			mErrNotFound.Update(1)
-			return web.ErrNotFound
-		}
+	result, err := dbs.Exec(upsertClause)
+	if err != nil {
 		mUpdateErr.Update(1)
-		return errors.Wrap(err, "db.facility.Update()")
+		return err
 	}
+	updatedRow, err := result.RowsAffected()
+
+	if err != nil {
+		mUpdateErr.Update(1)
+		return err
+	}
+	if updatedRow == 0 {
+		mErrNotFound.Update(1)
+		return web.ErrNotFound
+	}
+
 	mUpdateLatency.Update(time.Since(updateTimer))
 
 	mSuccess.Update(1)
@@ -74,78 +96,94 @@ func UpdateCoefficients(dbs *db.DB, facilityID string, body map[string]interface
 
 // Retrieve retrieves All facilities from database
 //nolint:dupl
-func Retrieve(dbs *db.DB, query url.Values) (interface{}, *CountType, error) {
+func Retrieve(dbs *sql.DB, query url.Values) (interface{}, *CountType, error) {
 
 	// Metrics
 	metrics.GetOrRegisterGauge(`Inventory.Retrieve-Facility.Attempt`, nil).Update(1)
 	mSuccess := metrics.GetOrRegisterGauge(`Inventory.Retrieve-Facility.Success`, nil)
-	mFindErr := metrics.GetOrRegisterGauge("Inventory.Retrieve-Facility.Find-Error", nil)
+	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.Retrieve-Facility.Find-Error", nil)
 	mInputErr := metrics.GetOrRegisterGauge("Inventory.Retrieve-Facility.Input-Error", nil)
 	mCountErr := metrics.GetOrRegisterGauge("Inventory.Retrieve-Facility.Count-Error", nil)
-	mFindLatency := metrics.GetOrRegisterTimer(`Inventory.Retrieve-Facility.Find-Latency`, nil)
-	mCountLatency := metrics.GetOrRegisterTimer(`Inventory.Retrieve-Facility.Count-Latency`, nil)
+	mRetrieveLatency := metrics.GetOrRegisterTimer(`Inventory.Retrieve-Facility.Find-Latency`, nil)
 
-	var object []interface{}
-
-	count := query["$count"]
+	countQuery := query["$count"]
 
 	// If count is true, return count number
-	if len(count) > 0 && len(query) < 2 {
+	if len(countQuery) > 0 && len(query) < 2 {
 
 		var count int
-		var err error
+		selectStmt := fmt.Sprintf(`SELECT count(*) from %s`,
+			pq.QuoteIdentifier(facilitiesTable),
+		)
 
-		execFunc := func(collection *mgo.Collection) (int, error) {
-			return odata.ODataCount(collection)
-		}
-
-		countTimer := time.Now()
-		if count, err = dbs.ExecuteCount(facilityCollection, execFunc); err != nil {
+		row := dbs.QueryRow(selectStmt)
+		err := row.Scan(&count)
+		if err != nil {
 			mCountErr.Update(1)
-			return nil, nil, errors.Wrap(err, "db.facilities.Count()")
+			return nil, nil, err
 		}
-		mCountLatency.Update(time.Since(countTimer))
 
 		mSuccess.Update(1)
 		return nil, &CountType{Count: &count}, nil
 	}
 
 	// Else, run filter query and return slice of Facilities
-	execFunc := func(collection *mgo.Collection) error {
-		return odata.ODataQuery(query, &object, collection)
-	}
-
 	retrieveTimer := time.Now()
-	if err := dbs.Execute(facilityCollection, execFunc); err != nil {
+
+	// Run OData PostgreSQL
+	rows, err := odata.ODataSQLQuery(query, facilitiesTable, jsonb, dbs)
+	if err != nil {
 		if errors.Cause(err) == odata.ErrInvalidInput {
 			mInputErr.Update(1)
 			return nil, nil, errors.Wrap(web.ErrInvalidInput, err.Error())
 		}
-		mFindErr.Update(1)
-		return nil, nil, errors.Wrap(err, "db.facilities.find()")
+		return nil, nil, errors.Wrap(err, "error in retrieving facilities")
 	}
-	mFindLatency.Update(time.Since(retrieveTimer))
 
-	// Check if inlinecount is set
-	inlineCount := query["$inlinecount"]
-	var inCount int
-	if len(inlineCount) > 0 {
-		if inlineCount[0] == "allpages" {
-			resultSlice := reflect.ValueOf(object)
-			inCount = resultSlice.Len()
-			return object, &CountType{Count: &inCount}, nil
+	mRetrieveLatency.Update(time.Since(retrieveTimer))
+	defer rows.Close()
+
+	facilitySlice := make([]Facility, 0)
+
+	inlineCount := 0
+
+	// Loop through the results and append them to a slice
+	for rows.Next() {
+
+		facilityDataWrapper := new(facilityDataWrapper)
+		err := rows.Scan(&facilityDataWrapper.ID, &facilityDataWrapper.Data)
+		if err != nil {
+			mRetrieveErr.Update(1)
+			return nil, nil, err
 		}
+		facilitySlice = append(facilitySlice, facilityDataWrapper.Data)
+		inlineCount++
+
+	}
+	if err = rows.Err(); err != nil {
+		mRetrieveErr.Update(1)
+		return nil, nil, err
+	}
+
+	// Check if $inlinecount or $count is set in combination with $filter
+	isInlineCount := query["$inlinecount"]
+
+	if len(isInlineCount) > 0 && isInlineCount[0] == "allpages" {
+		mSuccess.Update(1)
+		return facilitySlice, &CountType{Count: &inlineCount}, nil
+	} else if len(countQuery) > 0 {
+		mSuccess.Update(1)
+		return nil, &CountType{Count: &inlineCount}, nil
 	}
 
 	mSuccess.Update(1)
-	return object, nil, nil
-
+	return facilitySlice, nil, nil
 }
 
 // Insert receives a slice of Facility and coefficients defaults.
 // if facility is not in the database, inserts facility with default coefficients
 // if facility is in database, skip it.
-func Insert(dbs *db.DB, facilities *[]Facility, coefficients Coefficients) error {
+func Insert(dbs *sql.DB, facilities *[]Facility, coefficients Coefficients) error {
 
 	// Metrics
 	metrics.GetOrRegisterGauge(`Inventory.Insert-Facility.Attempt`, nil).Update(1)
@@ -167,7 +205,7 @@ func Insert(dbs *db.DB, facilities *[]Facility, coefficients Coefficients) error
 	insertTimer := time.Now()
 	for _, facItem := range *facilities {
 
-		// If facility is not in the dababase, set default coefficient and insert it into db
+		// If facility is not in the database, set default coefficients and insert it
 		// Skip if facility already stored in database
 		if _, ok := facilitiesInDb[facItem.Name]; !ok {
 			facItem.Coefficients.DailyInventoryPercentage = coefficients.DailyInventoryPercentage
@@ -187,7 +225,7 @@ func Insert(dbs *db.DB, facilities *[]Facility, coefficients Coefficients) error
 }
 
 // CreateFacilityMap builds a map[string] based of array of facilities for search efficiency
-func CreateFacilityMap(dbs *db.DB) (map[string]Facility, error) {
+func CreateFacilityMap(dbs *sql.DB) (map[string]Facility, error) {
 
 	metrics.GetOrRegisterGauge(`Inventory.CreateFacilityMap.Attempt`, nil).Update(1)
 	mSuccess := metrics.GetOrRegisterGauge(`Inventory.CreateFacilityMap.Success`, nil)
@@ -207,9 +245,9 @@ func CreateFacilityMap(dbs *db.DB) (map[string]Facility, error) {
 		return nil, nil
 	}
 
-	facMap := make(map[string]Facility, len(*facilities))
+	facMap := make(map[string]Facility, len(facilities))
 
-	for _, item := range *facilities {
+	for _, item := range facilities {
 		facMap[item.Name] = item
 	}
 
@@ -218,34 +256,53 @@ func CreateFacilityMap(dbs *db.DB) (map[string]Facility, error) {
 
 }
 
-func findAll(dbs *db.DB) (*[]Facility, error) {
+func findAll(dbs *sql.DB) ([]Facility, error) {
 
-	var facilities []Facility
+	selectQuery := fmt.Sprintf(`SELECT %s FROM %s`,
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(facilitiesTable),
+	)
 
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Find(nil).All(&facilities)
+	rows, err := dbs.Query(selectQuery)
+	if err != nil {
+		return nil, err
 	}
+	defer rows.Close()
 
-	if err := dbs.Execute(facilityCollection, execFunc); err != nil {
-		return nil, errors.Wrap(err, "db.facilities.find.All()")
+	var facilitySlice []Facility
+
+	for rows.Next() {
+
+		facilityDataWrapper := new(facilityDataWrapper)
+		err := rows.Scan(&facilityDataWrapper.Data)
+		if err != nil {
+			return nil, err
+		}
+		facilitySlice = append(facilitySlice, facilityDataWrapper.Data)
+
 	}
-
-	if len(facilities) == 0 {
-		return nil, nil
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
-
-	return &facilities, nil
-
+	return facilitySlice, nil
 }
 
-func insert(dbs *db.DB, facility Facility) error {
+func insert(dbs *sql.DB, facility Facility) error {
 
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Insert(facility)
+	obj, err := json.Marshal(facility)
+	if err != nil {
+		return err
 	}
 
-	if err := dbs.Execute(facilityCollection, execFunc); err != nil {
-		return errors.Wrap(err, "db.facility.insert()")
+	insertStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s); `,
+		pq.QuoteIdentifier(facilitiesTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+	)
+
+	_, err = dbs.Exec(insertStmt)
+	if err != nil {
+		return errors.Wrap(err, "error in inserting facility")
 	}
 
 	return nil
@@ -253,7 +310,7 @@ func insert(dbs *db.DB, facility Facility) error {
 
 // Delete removes facility based on name
 // nolint :dupl
-func Delete(dbs *db.DB, name string) error {
+func Delete(dbs *sql.DB, name string) error {
 
 	// Metrics
 	metrics.GetOrRegisterGauge(`Inventory.Delete-Facility.Attempt`, nil).Update(1)
@@ -262,21 +319,39 @@ func Delete(dbs *db.DB, name string) error {
 	mErrNotFound := metrics.GetOrRegisterGauge(`Inventory.Delete-Facility.NotFound-Error`, nil)
 	mDeleteLatency := metrics.GetOrRegisterTimer(`Inventory.Delete-Facility.Delete-Latency`, nil)
 
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Remove(bson.M{"name": name})
-	}
+	selectQuery := fmt.Sprintf(`DELETE FROM %s WHERE %s ->> %s = %s;`,
+		pq.QuoteIdentifier(facilitiesTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(nameColumn),
+		pq.QuoteLiteral(name),
+	)
 
 	deleteTimer := time.Now()
-	if err := dbs.Execute(facilityCollection, execFunc); err != nil {
-		if err == mgo.ErrNotFound {
+	if _, err := dbs.Exec(selectQuery); err != nil {
+		if err == sql.ErrNoRows {
 			mErrNotFound.Update(1)
 			return web.ErrNotFound
 		}
 		mDeleteErr.Update(1)
-		return errors.Wrap(err, "db.facility.Delete()")
+		return errors.Wrap(err, "error in deleting facility")
 	}
 	mDeleteLatency.Update(time.Since(deleteTimer))
 
 	mSuccess.Update(1)
 	return nil
+}
+
+// Value implements driver.Valuer interfaces
+func (facility Facility) Value() (driver.Value, error) {
+	return json.Marshal(facility)
+}
+
+// Scan implements sql.Scanner interfaces
+func (facility *Facility) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, facility)
 }

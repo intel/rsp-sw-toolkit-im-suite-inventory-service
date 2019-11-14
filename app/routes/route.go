@@ -20,10 +20,10 @@
 package routes
 
 import (
+	"database/sql"
 	"github.com/gorilla/mux"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/middlewares"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
@@ -38,7 +38,7 @@ type Route struct {
 }
 
 // NewRouter creates the routes for GET and POST
-func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
+func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 
 	inventory := handlers.Inventory{MasterDB: masterDB, MaxSize: maxSize, Url: config.AppConfig.MappingSkuUrl}
 
@@ -334,107 +334,6 @@ func NewRouter(masterDB *db.DB, maxSize int) *mux.Router {
 			"POST",
 			"/inventory/query/current",
 			inventory.PostCurrentInventory,
-		},
-		//swagger:route POST /inventory/query/missingtags missingtags getMissingTags
-		//
-		// Retrieves missing tag data
-		//
-		// Returns a list of unique tags that have not been read by a reader since a defined timestamp. Body parameters shall be provided in request body in JSON format.<br><br>
-		//
-		// Example Input:
-		// ```
-		// {
-		// &#9"facility_id":"store99",
-		// &#9"time":1495575432000,
-		// &#9"confidence":.5,
-		// &#9"cursor":"abcd1023abcd",
-		// &#9"size":500,
-		// &#9"count_only":false
-		// }
-		// ```
-		//
-		// + facility_id  - Return only facilities provided
-		// + time  - "Not read since" time in epoch milliseconds
-		// + confidence  - Minimum probability items must meet
-		// + cursor  - Cursor from previous response used to retrieve next page of results
-		// + size  - Number of results per page
-		// + count_only  - Return only tag count
-		//
-		//
-		// Example Response:
-		// ```
-		// {
-		// 	&#8195"paging":{
-		// 	&#8195&#8195&#8195"cursor":"string"
-		// 	&#8195},
-		// 	&#8195&#8195"results":[
-		// 	&#8195&#8195{
-		// 	&#9"epc":"string",
-		// 	&#9"facility_id":"string",
-		// 	&#9"event":"string",
-		// 	&#9"gtin":"string",
-		// 	&#9"last_read":0,
-		// 	&#9"arrived":0,
-		// 	&#9"epc_state":"string",
-		// 	&#9"confidence":0,
-		// 	&#9"encode_format":"string",
-		// 	&#9"tid":"string",
-		// 	&#9"qualified_state":"string",
-		// 	&#9"epc_context":"string",
-		// 	&#9"location_history":[
-		// 	&#9&#8195&#8195{
-		// 	&#9&#9"location":"string",
-		// 	&#9&#9"timestamp":0
-		// 	&#9&#8195&#8195}
-		// 	&#9]
-		// 	&#8195&#8195}
-		// 	&#8195]
-		// }
-		// ```
-		//
-		//
-		// + paging  - Paging object
-		//   + cursor  - Cursor used to get next page of results
-		// + results  - Array of result objects
-		//   + epc  - SGTIN EPC code
-		//   + facility_id  - Facility ID
-		//   + event  - Last event recorded for tag
-		//   + gtin  - GTIN-14 decoded from EPC
-		//   + last_read  - Tag last read Time in milliseconds epoch
-		//   + arrived  - Arrival time in milliseconds epoch
-		//   + epc_state  - Current state of tag, either 'present' or 'departed'
-		//   + confidence  - Probability item is in inventory
-		//   + encode_format  -
-		//   + tid  - Tag manufacturer ID
-		//   + qualified_state  - Customer defined state
-		//   + epc_context  - Customer defined context
-		//   + location_history  - Array of objects showing tag history
-		//      + location - Location of tag at below time
-		//      + timestamp - Time in milliseconds epoch
-		//
-		//
-		//     Consumes:
-		//     - application/json
-		//
-		//     Produces:
-		//     - application/json
-		//
-		//     Schemes: http
-		//
-		//     Responses:
-		//       200: body:resultsResponse
-		//       400: schemaValidation
-		//       403: forbidden
-		//       500: internalError
-		//       502: externalError
-		//       503: serviceUnavailable
-		//       504: externalServiceTimeout
-		//
-		{
-			"GetMissingTags",
-			"POST",
-			"/inventory/query/missingtags",
-			inventory.GetMissingTags,
 		},
 		//swagger:route POST /inventory/query/searchbygtin searchbygtin searchByGtin
 		//

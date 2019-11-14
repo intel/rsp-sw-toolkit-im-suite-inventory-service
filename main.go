@@ -22,38 +22,35 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
+	"github.com/edgexfoundry/app-functions-sdk-go/appsdk"
 	"github.com/edgexfoundry/app-functions-sdk-go/pkg/transforms"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	_ "github.com/lib/pq"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tagprocessor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	reporter "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics-influxdb"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"time"
-
-	"github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/globalsign/mgo"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/edgexfoundry/app-functions-sdk-go/appcontext"
-	"github.com/edgexfoundry/app-functions-sdk-go/appsdk"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
-	reporter "github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics-influxdb"
 )
 
 const (
@@ -81,15 +78,15 @@ var (
 	}
 )
 
-type myDB struct {
-	masterDB *db.DB
+type mainDB struct {
+	masterDB *sql.DB
 }
 
 func main() {
 
-	mDBIndexesError := metrics.GetOrRegisterGauge("Inventory.Main.DBIndexesError", nil)
 	mConfigurationError := metrics.GetOrRegisterGauge("Inventory.Main.ConfigurationError", nil)
-	mDatabaseRegisterError := metrics.GetOrRegisterGauge("Inventory.Main.DatabaseRegisterError", nil)
+	mDbConnError := metrics.GetOrRegisterGauge("Inventory.Main.DB-ConnectionError", nil)
+	mDbConnection := metrics.GetOrRegisterGauge("Inventory.Main.DB-Connection", nil)
 
 	// Ensure simple text format
 	log.SetFormatter(&log.TextFormatter{
@@ -111,50 +108,49 @@ func main() {
 		"Action": "Start",
 	}).Info("Starting inventory service...")
 
-	dbName := config.AppConfig.DatabaseName
-	dbHost := config.AppConfig.ConnectionString + "/" + dbName
+	// Connection to POSTGRES database
+	log.WithFields(log.Fields{"Method": "main", "Action": "Start"}).Info("Connecting to database...")
 
-	// Connect to mongodb
-	log.WithFields(log.Fields{
-		"Method": "main",
-		"Action": "Start",
-		"Host":   config.AppConfig.DatabaseName,
-	}).Info("Registering a new master db...")
+	db, err := dbSetup(config.AppConfig.DbHost,
+		config.AppConfig.DbPort,
+		config.AppConfig.DbUser, config.AppConfig.DbPass,
+		config.AppConfig.DbName,
+	)
+	if err != nil {
+		mDbConnError.Update(1)
+		log.WithFields(log.Fields{
+			"Method":  "main",
+			"Action":  "Start database",
+			"Message": err.Error(),
+		}).Fatal("Unable to connect to database.")
+	}
+	defer db.Close()
+	mDbConnection.Update(1)
 
-	masterDB, err := db.NewSession(dbHost, 5*time.Second)
-	fatalErrorHandler("Unable to register a new master db.", err, &mDatabaseRegisterError)
-
-	// Close master db
-	defer masterDB.Close()
-
-	// Prepares database indexes
-	prepDBErr := prepareDB(masterDB)
-	errorHandler("error creating indexes", prepDBErr, &mDBIndexesError)
-
-	// Verify IA when using Probabilistic Algorithm plugin
+	// Verify Intel Architecture(IA) when using Probabilistic Algorithm plugin
 	if config.AppConfig.ProbabilisticAlgorithmPlugin {
 		verifyProbabilisticPlugin()
 	}
 
 	// Connect to EdgeX zeroMQ bus
-	receiveZMQEvents(masterDB)
+	receiveZMQEvents(db)
 
 	aggregateDepartedTicker := time.NewTicker(time.Duration(config.AppConfig.AggregateDepartedThresholdMillis/5) * time.Millisecond)
 	defer aggregateDepartedTicker.Stop()
 	ageoutTicker := time.NewTicker(1 * time.Hour)
 	defer ageoutTicker.Stop()
 
-	go runBackgroundTasks(&myDB{masterDB: masterDB}, aggregateDepartedTicker, ageoutTicker)
+	go runBackgroundTasks(mainDB{masterDB: db}, aggregateDepartedTicker, ageoutTicker)
 
 	// Initiate webserver and routes
 	// NOTE: The call to `startWebServer` will block the main thread forever until an osSignal interrupt is received
-	startWebServer(masterDB, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
+	startWebServer(db, config.AppConfig.Port, config.AppConfig.ResponseLimit, config.AppConfig.ServiceName)
 
 	log.WithField("Method", "main").Info("Completed.")
 
 }
 
-func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName string) {
+func startWebServer(masterDB *sql.DB, port string, responseLimit int, serviceName string) {
 
 	// Start Webserver and pass additional data
 	router := routes.NewRouter(masterDB, responseLimit)
@@ -217,11 +213,11 @@ func startWebServer(masterDB *db.DB, port string, responseLimit int, serviceName
 }
 
 // processShippingNotice processes the list of epcs (shipping notice).  If the epc does not exist in the DB
-// an entry is created with a default facility config.AppConfig.AdvancedShippingNoticeFacilityID,
-// a ttl of now, and epc context of the designated value to identify it as a shipping notice
+// an entry is created with a default facility config.AppConfig.AdvancedShippingNoticeFacilityID
+// and epc context of the designated value to identify it as a shipping notice
 // config.AppConfig.AdvancedShippingNotice.  If the epc does exist, then only epc context value is updated
 // with config.AppConfig.AdvancedShippingNotice
-func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.GaugeCollection) error {
+func processShippingNotice(data []byte, masterDB *sql.DB, tagsGauge *metrics.GaugeCollection) error {
 
 	var incomingDataSlice []tag.AdvanceShippingNotice
 	decoder := json.NewDecoder(bytes.NewBuffer(data))
@@ -229,13 +225,10 @@ func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.Gaug
 		return errors.Wrap(err, "unable to Decode data")
 	}
 
-	copySession := masterDB.CopySession()
 	// do this before inserting the data into the database
-	dailyturn.ProcessIncomingASNList(copySession, incomingDataSlice)
-	copySession.Close()
+	dailyturn.ProcessIncomingASNList(masterDB, incomingDataSlice)
 
 	var tagData []tag.Tag
-	ttlTime := time.Now()
 
 	for _, asn := range incomingDataSlice {
 		if asn.ID == "" || asn.EventTime == "" || asn.SiteID == "" || asn.Items == nil {
@@ -273,7 +266,7 @@ func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.Gaug
 				}
 
 				// If the tag exists, update it with the new EPCContext.
-				// If it is new, insert it with default TTL/FacilityID
+				// If it is new, insert it with default FacilityID
 				// Note: If bottlenecks may need to redesign to eliminate large number
 				// of queries to DB currently this will make a call to the DB PER tag
 				tagFromDB, err := tag.FindByEpc(masterDB, tempTag.Epc)
@@ -284,7 +277,6 @@ func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.Gaug
 				} else {
 					if tagFromDB.IsEmpty() {
 						// Tag is not in database, add with defaults
-						tempTag.TTL = ttlTime
 						tempTag.FacilityID = config.AppConfig.AdvancedShippingNoticeFacilityID
 						tempTag.EpcContext = string(asnContextBytes)
 						tagData = append(tagData, tempTag)
@@ -297,124 +289,16 @@ func processShippingNotice(data []byte, masterDB *db.DB, tagsGauge *metrics.Gaug
 			}
 		}
 		if len(tagData) > 0 {
-			copySession := masterDB.CopySession()
-			if err := tag.Replace(copySession, &tagData); err != nil {
+			if err := tag.Replace(masterDB, tagData); err != nil {
 				return errors.Wrap(err, "error replacing tags")
 			}
-			copySession.Close()
 		}
 	}
 
 	return nil
 }
 
-// PrepareDB prepares the database with indexes
-func prepareDB(dbs *db.DB) error {
-
-	copySession := dbs.CopySession()
-	defer copySession.Close()
-
-	purgingDays := config.AppConfig.PurgingDays
-	// Convert days into seconds
-	purgingSeconds := purgingDays * 24 * 60 * 60
-
-	indexes := make(map[string][]mgo.Index)
-
-	// tags purging and query indices
-	indexes["tags"] = []mgo.Index{
-		{
-			Key:        []string{"uri"},
-			Unique:     true,
-			DropDups:   false,
-			Background: false,
-		},
-		{
-			Key:        []string{"epc"},
-			Unique:     true,
-			DropDups:   false,
-			Background: false,
-		},
-		{
-			Key:         []string{"ttl"},
-			Unique:      false,
-			DropDups:    false,
-			Background:  false,
-			ExpireAfter: time.Duration(purgingSeconds) * time.Second,
-		},
-		{
-			Key:        []string{"productId"},
-			Unique:     false,
-			DropDups:   false,
-			Background: false,
-		},
-		{
-			Key:        []string{"event"},
-			Unique:     false,
-			DropDups:   false,
-			Background: false,
-		},
-		{
-			Key:        []string{"filter_value"},
-			Unique:     false,
-			DropDups:   false,
-			Background: false,
-		},
-	}
-	// handheldevents purging indices
-	indexes["handheldevents"] = []mgo.Index{
-		{
-			Key:        []string{"timestamp"},
-			Unique:     false,
-			DropDups:   false,
-			Background: false,
-		},
-		{
-			Key:         []string{"ttl"},
-			Unique:      false,
-			DropDups:    false,
-			Background:  false,
-			ExpireAfter: time.Duration(purgingSeconds) * time.Second,
-		},
-	}
-
-	for collectionName, indexes := range indexes {
-
-		for _, index := range indexes {
-			execFuncAddIndex := func(collection *mgo.Collection) error {
-				log.Infof("Adding Index %s to collection %s.", index.Key[0], collection.Name)
-				return collection.EnsureIndex(index)
-			}
-
-			execFuncDropIndex := func(collection *mgo.Collection) error {
-				log.Infof("Dropping Index %s from collection %s in order to recreate it.", index.Key[0], collection.Name)
-				return collection.DropIndex(index.Key[0])
-			}
-
-			if err := copySession.Execute(collectionName, execFuncAddIndex); err != nil {
-				// Couldn't add the index so drop it and try to add it again, if that doesn't work exit.
-				log.Errorf("Unable to add Index %v to collection %s %s", index, collectionName, err.Error())
-
-				// try to drop the index
-				if err := copySession.Execute(collectionName, execFuncDropIndex); err != nil {
-					log.Errorf("Unable to drop Index %v to collection %s %s", index, collectionName, err.Error())
-				}
-
-				// try to add the index after it's been dropped
-				if err := copySession.Execute(collectionName, execFuncAddIndex); err != nil {
-					return errors.Wrapf(err, "Unable to add Index %v to collection %s", index, collectionName)
-				}
-			}
-		}
-	}
-	log.WithFields(log.Fields{
-		"Method": "config.PrepareDB",
-		"Action": "Start",
-	}).Info("Prepared database indexes...")
-
-	return nil
-}
-
-func callDeleteTagCollection(masterDB *db.DB) error {
+func callDeleteTagCollection(masterDB *sql.DB) error {
 	log.Debug("received request to delete tag db collection...")
 	return tag.DeleteTagCollection(masterDB)
 }
@@ -445,9 +329,9 @@ func initMetrics() {
 	}
 }
 
-func receiveZMQEvents(masterDB *db.DB) {
+func receiveZMQEvents(masterDB *sql.DB) {
 
-	db := myDB{masterDB: masterDB}
+	db := mainDB{masterDB: masterDB}
 
 	go func() {
 
@@ -472,7 +356,7 @@ func receiveZMQEvents(masterDB *db.DB) {
 	}()
 }
 
-func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
+func (db mainDB) processEvents(edgexcontext *appcontext.Context, params ...interface{}) (bool, interface{}) {
 	if len(params) < 1 {
 		return false, nil
 	}
@@ -633,7 +517,7 @@ func (db myDB) processEvents(edgexcontext *appcontext.Context, params ...interfa
 
 // runBackgroundTasks is an infinite loop that processes timer tickers which are basically
 // a way to run code on a scheduled interval in golang
-func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
+func runBackgroundTasks(db mainDB, aggregateDepartedTicker *time.Ticker, ageoutTicker *time.Ticker) {
 	skuMapping := NewSkuMapping(config.AppConfig.MappingSkuUrl)
 
 	for {
@@ -646,7 +530,7 @@ func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageout
 			// ingest tag events
 			if invEvent != nil && !invEvent.IsEmpty() {
 				go func(invEvent *jsonrpc.InventoryEvent) {
-					err := skuMapping.processTagData(invEvent, mydb.masterDB, "fixed", nil)
+					err := skuMapping.processTagData(invEvent, db.masterDB, "fixed", nil)
 					if err != nil {
 						errorHandler("error processing event data", err, nil)
 					}
@@ -660,4 +544,29 @@ func runBackgroundTasks(mydb *myDB, aggregateDepartedTicker *time.Ticker, ageout
 			break
 		}
 	}
+}
+
+func dbSetup(host, port, user, password, dbname string) (*sql.DB, error) {
+
+	// Connect to PostgreSQL database
+	psqlConfig := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+
+	db, err := sql.Open(dbname, psqlConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	log.Info("Connected to postgreSQL database...")
+
+	// Create tables and indexes
+	_, errExec := db.Exec(config.DbSchema)
+	if errExec != nil {
+		return nil, errExec
+	}
+
+	return db, nil
 }

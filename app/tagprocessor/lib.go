@@ -1,9 +1,9 @@
 package tagprocessor
 
 import (
+	"database/sql"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
@@ -34,11 +34,9 @@ const (
 //}
 
 // ProcessInventoryData todo: desc
-func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
-	copySession := dbs.CopySession()
-	defer copySession.Close()
+func ProcessInventoryData(dbs *sql.DB, invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
 
-	rsp, err := sensor.GetOrCreateRSP(copySession, invData.Params.DeviceId)
+	rsp, err := sensor.GetOrCreateRSP(dbs, invData.Params.DeviceId)
 	if err != nil {
 		return nil, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}
@@ -59,13 +57,13 @@ func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.
 	invEvent := jsonrpc.NewInventoryEvent()
 
 	for _, read := range invData.Params.Data {
-		processReadData(copySession, invEvent, &read, rsp)
+		processReadData(invEvent, &read, rsp)
 	}
 
 	return invEvent, nil
 }
 
-func processReadData(dbs *db.DB, invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
+func processReadData(invEvent *jsonrpc.InventoryEvent, read *jsonrpc.TagRead, rsp *sensor.RSP) {
 	inventoryMutex.Lock()
 
 	tag, exists := inventory[read.Epc]

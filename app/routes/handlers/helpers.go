@@ -21,8 +21,10 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"io"
 	"net/http"
 	"plugin"
@@ -31,24 +33,25 @@ import (
 	"strings"
 	"time"
 
+	//"time"
+
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/schemas"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients
 // this function can be reused by RRS endpoint and RRP endpoints with odata for multiple facilities
-func ApplyConfidence(session *db.DB, tags []tag.Tag, url string) error {
+func ApplyConfidence(session *sql.DB, tags []tag.Tag, url string) error {
+
 	if len(tags) == 0 {
 		return nil
 	}
@@ -169,7 +172,7 @@ func UpdateForCycleCount(tags []tag.Tag) {
 
 // processGetRequest handles the request for retrieving tags
 //nolint:lll
-func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, request *http.Request, writer http.ResponseWriter, url string) error {
+func processGetRequest(ctx context.Context, schema string, masterDB *sql.DB, request *http.Request, writer http.ResponseWriter, url string) error {
 
 	// Metrics
 	metrics.GetOrRegisterGauge("Inventory.processGetRequest.Attempt", nil).Update(1)
@@ -179,9 +182,6 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 
 	mSuccess := metrics.GetOrRegisterGauge("Inventory.GetTags.Success", nil)
 	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.GetTags.Retrieve-Error", nil)
-
-	copySession := MasterDB.CopySession()
-	defer copySession.Close()
 
 	var mapping tag.RequestBody
 
@@ -198,7 +198,7 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 
 	odataMap := make(map[string][]string)
 	odataMap = mapRequestToOdata(odataMap, &mapping)
-	tags, count, cursor, err := tag.Retrieve(copySession, odataMap, 250) // Per RRS documentation, size limit of 250
+	tags, count, err := tag.Retrieve(masterDB, odataMap, 250) // Per RRS documentation, size limit of 250
 	if err != nil {
 		mRetrieveErr.Update(1)
 		return errors.Wrap(err, "Error retrieving Tag")
@@ -217,7 +217,7 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 	}
 
 	if len(tagSlice) > 0 {
-		if err := ApplyConfidence(copySession, tagSlice, url); err != nil {
+		if err := ApplyConfidence(masterDB, tagSlice, url); err != nil {
 			return err
 		}
 	} else {
@@ -231,9 +231,10 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 		results.Count = count.Count
 	}
 
-	if cursor != nil && cursor.Cursor != "" {
+	// For the upcoming release cursor is not a priority
+	/*if cursor != nil && cursor.Cursor != "" {
 		results.PagingType = cursor
-	}
+	}*/
 
 	web.Respond(ctx, writer, results, http.StatusOK)
 	mSuccess.Update(1)
@@ -241,7 +242,7 @@ func processGetRequest(ctx context.Context, schema string, MasterDB *db.DB, requ
 }
 
 // processPostRequest handles POST requests for sending inventory snapshot to the cloud connector
-func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, request *http.Request, writer http.ResponseWriter, url string) error {
+func processPostRequest(ctx context.Context, schema string, masterDB *sql.DB, request *http.Request, writer http.ResponseWriter, url string) error {
 
 	// Metrics
 	metrics.GetOrRegisterGauge("Inventory.processPostRequest.Attempt", nil).Update(1)
@@ -249,9 +250,6 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 	defer metrics.GetOrRegisterTimer("Inventory.processPostRequest.Latency", nil).Update(time.Since(startTime))
 	mSuccess := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Success", nil)
 	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.PostCurrentInventory.Retrieve-Error", nil)
-
-	copySession := MasterDB.CopySession()
-	defer copySession.Close()
 
 	var tags []tag.Tag
 	var err error
@@ -271,14 +269,14 @@ func processPostRequest(ctx context.Context, schema string, MasterDB *db.DB, req
 		}
 		odataMap = mapRequestToOdata(odataMap, &mapping)
 	}
-	tags, err = tag.RetrieveOdataAll(copySession, odataMap)
+	tags, err = tag.RetrieveOdataAll(masterDB, odataMap)
 	if err != nil {
 		mRetrieveErr.Update(1)
 		return err
 	}
 
 	if len(tags) > 0 {
-		if err := ApplyConfidence(copySession, tags, url); err != nil {
+		if err := ApplyConfidence(masterDB, tags, url); err != nil {
 			return err
 		}
 		if err := postToCloudInBatches(tags); err != nil {
@@ -366,13 +364,10 @@ func readAndValidateRequest(request *http.Request, schema string, v interface{})
 
 // processUpdateRequest handles the request that needs database updating
 // nolint :lll
-func processUpdateRequest(ctx context.Context, MasterDB *db.DB, writer http.ResponseWriter, selectorMap map[string]interface{},
-	objectMap map[string]interface{}) error {
+func processUpdateRequest(ctx context.Context, masterDB *sql.DB, writer http.ResponseWriter, epc string,
+	facilityId string, object map[string]string) error {
 
-	copySession := MasterDB.CopySession()
-	defer copySession.Close()
-
-	err := tag.Update(copySession, selectorMap, objectMap)
+	err := tag.Update(masterDB, epc, facilityId, object)
 	if err != nil {
 		return errors.Wrap(err, "Error updating Tag")
 	}
