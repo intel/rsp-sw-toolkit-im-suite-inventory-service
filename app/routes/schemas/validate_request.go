@@ -22,8 +22,8 @@ package schemas
 import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-gojsonschema"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/gojsonschema"
 )
 
 // ValidateSchemaRequest validates the api request body with the required json schema

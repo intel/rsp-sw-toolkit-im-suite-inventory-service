@@ -1,9 +1,9 @@
 package tagprocessor
 
 import (
+	"database/sql"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
@@ -27,11 +27,9 @@ const (
 )
 
 // ProcessInventoryData todo: desc
-func ProcessInventoryData(dbs *db.DB, invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
-	copySession := dbs.CopySession()
-	defer copySession.Close()
+func ProcessInventoryData(dbs *sql.DB, invData *jsonrpc.InventoryData) (*jsonrpc.InventoryEvent, error) {
 
-	rsp, err := sensor.GetOrCreateRSP(copySession, invData.Params.DeviceId)
+	rsp, err := sensor.GetOrCreateRSP(dbs, invData.Params.DeviceId)
 	if err != nil {
 		return nil, errors.Wrapf(err, "issue trying to retrieve sensor %s from database", invData.Params.DeviceId)
 	}

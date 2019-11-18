@@ -2,10 +2,10 @@ package tagprocessor
 
 import (
 	"fmt"
+	_ "github.com/lib/pq"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-	"log"
 	"os"
 	"testing"
 )
@@ -13,10 +13,7 @@ import (
 var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
-	if err := config.InitConfig(); err != nil {
-		log.Fatal(err)
-	}
-	dbHost = integrationtest.InitHost("tagprocessing_test")
+	dbHost = integrationtest.InitHost("lib_test")
 	os.Exit(m.Run())
 }
 

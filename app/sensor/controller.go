@@ -1,22 +1,40 @@
 package sensor
 
 import (
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
+	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"time"
 )
 
 const (
-	rspCollection = "rspconfig"
-	deviceIdField = "device_id"
+	rspConfigTable = "rspconfig"
+	jsonb          = "data"
+	deviceIdColumn = "device_id"
 )
+
+// Value implements driver.Valuer interfaces
+func (rsp *RSP) Value() (driver.Value, error) {
+	return json.Marshal(rsp)
+}
+
+// Scan implements sql.Scanner interfaces
+func (rsp *RSP) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, rsp)
+}
 
 // FindRSP searches DB for RSP based on the device_id value
 // Returns the RSP if found or empty RSP if it does not exist
-func FindRSP(dbs *db.DB, deviceId string) (*RSP, error) {
+func FindRSP(dbs *sql.DB, deviceId string) (*RSP, error) {
 	retrieveTimer := time.Now()
 
 	// Metrics
@@ -27,16 +45,21 @@ func FindRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 
 	rsp := new(RSP)
 
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Find(bson.M{deviceIdField: deviceId}).One(rsp)
-	}
-	if err := dbs.Execute(rspCollection, execFunc); err != nil {
-		// If the error was because item does not exist, return empty struct and no error
-		if err == mgo.ErrNotFound {
+	selectQuery := fmt.Sprintf(`SELECT %s FROM %s WHERE %s ->> %s = %s LIMIT 1`,
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(rspConfigTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(deviceIdColumn),
+		pq.QuoteLiteral(deviceId),
+	)
+
+	if err := dbs.QueryRow(selectQuery).Scan(&rsp); err != nil {
+		if err == sql.ErrNoRows {
 			return nil, nil
 		}
+
 		mFindErr.Update(1)
-		return nil, errors.Wrapf(err, "db.%s.find()", rspCollection)
+		return nil, errors.Wrapf(err, "error in finding rsp")
 	}
 
 	mSuccess.Update(1)
@@ -45,7 +68,8 @@ func FindRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 
 // Upsert takes a pointer to an rsp config and either adds it to the DB if it is new,
 // or updates its values if it is existing
-func Upsert(dbs *db.DB, rsp *RSP) error {
+func Upsert(dbs *sql.DB, rsp *RSP) error {
+
 	upsertTimer := time.Now()
 
 	// Metrics
@@ -54,16 +78,29 @@ func Upsert(dbs *db.DB, rsp *RSP) error {
 	mUpsertErr := metrics.GetOrRegisterGaugeCollection(`Sensor.RSP.Upsert.Error`, nil)
 	defer metrics.GetOrRegisterTimer(`Sensor.RSP.Upsert.Latency`, nil).Update(time.Since(upsertTimer))
 
-	execFunc := func(collection *mgo.Collection) error {
-		_, err := collection.Upsert(bson.M{deviceIdField: rsp.DeviceId}, rsp)
-		return err
+	obj, err := json.Marshal(rsp)
+	if err != nil {
+		return errors.Wrapf(err, "error in marshalling an rsp before upsert")
 	}
 
-	err := dbs.Execute(rspCollection, execFunc)
+	upsertStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s) 
+									 ON CONFLICT (( %s  ->> %s )) 
+									 DO UPDATE SET %s = %s.%s || %s; `,
+		pq.QuoteIdentifier(rspConfigTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(deviceIdColumn),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(rspConfigTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+	)
 
+	_, err = dbs.Exec(upsertStmt)
 	if err != nil {
 		mUpsertErr.Add(1)
-		return errors.Wrapf(err, "db.%s.Upsert()", rspCollection)
+		return errors.Wrapf(err, "error in upserting an rsp")
 	}
 
 	mSuccess.Add(1)

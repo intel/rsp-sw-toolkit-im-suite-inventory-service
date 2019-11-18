@@ -1,7 +1,11 @@
 {
   "serviceName": "Inventory Service",
-  "connectionString": "mongodb://127.0.0.1:27017",
-  "databaseName": "inventory",
+  "dbHost": "postgres",
+  "dbUser": "postgres",
+  "dbPass": "",
+  "dbPort": "5432",
+  "dbName": "postgres",
+  "dbSSLMode": "disable",
   "loggingLevel": "debug",
   "ageOuts": "front:10,back:60",
   "epcFilters": [],

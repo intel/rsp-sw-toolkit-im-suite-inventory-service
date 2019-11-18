@@ -1,10 +1,10 @@
 package tagprocessor
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
@@ -16,21 +16,18 @@ type testDataset struct {
 	tags           []*Tag
 	readTimeOrig   int64
 	inventoryEvent *jsonrpc.InventoryEvent
-	masterDb       *db.DB
-	copySession    *db.DB
+	masterDb       *sql.DB
 }
 
-func newTestDataset(masterDb *db.DB, tagCount int) testDataset {
+func newTestDataset(masterDb *sql.DB, tagCount int) testDataset {
 	ds := testDataset{
 		masterDb:    masterDb,
-		copySession: masterDb.CopySession(),
 	}
 	ds.initialize(tagCount)
 	return ds
 }
 
 func (ds *testDataset) close() {
-	ds.copySession.Close()
 	ds.masterDb.Close()
 }
 

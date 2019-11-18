@@ -1,11 +1,11 @@
 package sensor
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
@@ -20,10 +20,7 @@ const (
 )
 
 // refreshSensorBasicInfo forces a call out to the RSP Controller to retrieve the sensor basic info (facility, personality, aliases, etc)
-func refreshSensorBasicInfo(dbs *db.DB, deviceId string, insertDefaultsOnError bool) (*RSP, error) {
-	copySession := dbs.CopySession()
-	defer copySession.Close()
-
+func refreshSensorBasicInfo(dbs *sql.DB, deviceId string, insertDefaultsOnError bool) (*RSP, error) {
 	rsp := NewRSP(deviceId)
 
 	// this is a new sensor, try and obtain the actual info from the RSP Controller
@@ -48,7 +45,7 @@ func refreshSensorBasicInfo(dbs *db.DB, deviceId string, insertDefaultsOnError b
 		rsp.UpdatedOn = helper.UnixMilliNow()
 	}
 
-	if err = Upsert(copySession, rsp); err != nil {
+	if err = Upsert(dbs, rsp); err != nil {
 		return nil, err
 	}
 
@@ -58,7 +55,7 @@ func refreshSensorBasicInfo(dbs *db.DB, deviceId string, insertDefaultsOnError b
 // GetOrCreateRSP returns a pointer to an RSP if found in the DB, and if
 // not found in the DB, a record will be created and added, then returned to the caller
 // error is only non-nil when there is an issue communicating with the DB
-func GetOrCreateRSP(dbs *db.DB, deviceId string) (*RSP, error) {
+func GetOrCreateRSP(dbs *sql.DB, deviceId string) (*RSP, error) {
 	rsp, err := FindRSP(dbs, deviceId)
 	if err != nil {
 		return nil, err
@@ -85,7 +82,7 @@ func GetOrCreateRSP(dbs *db.DB, deviceId string) (*RSP, error) {
 
 // QueryBasicInfoAllSensors retrieves the list of deviceIds from the RSP Controller
 // and then queries the basic info for each one
-func QueryBasicInfoAllSensors(dbs *db.DB) error {
+func QueryBasicInfoAllSensors(dbs *sql.DB) error {
 	reading, err := ExecuteSensorCommand(RspController, GetDeviceIds)
 	if err != nil {
 		logrus.Error(err)

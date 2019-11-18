@@ -19,36 +19,38 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"fmt"
+	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/lib/pq"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"github.impcloud.net/RSP-Inventory-Suite/expect"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/heartbeat"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"os"
+
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/tagcode/epc"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/edgexfoundry/go-mod-core-contracts/models"
-	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/expect"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
-
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-	"github.com/pkg/errors"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 )
 
-const tagCollection = "tags"
+const tagsTable = "tags"
+const jsonb = "data"
+const epcColumn = "epc"
 
+/* If useful this will be used for POSTGRESQL too in future */
 var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
@@ -56,13 +58,36 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestPrepareDb(t *testing.T) {
-	dbSession := dbHost.CreateDB(t)
-	defer dbSession.Close()
-	if err := prepareDB(dbSession); err != nil {
-		t.Fatalf("failed to prepare db with error: %s", err)
+/*func TestMain(m *testing.M) {
+
+	if err := config.InitConfig(); err != nil {
+		log.Fatal(err)
 	}
-}
+
+	os.Exit(m.Run())
+}*/
+
+/*func dbTestSetup(t *testing.T) (*sql.DB, error) {
+
+	// Connect to PostgreSQL
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", config.AppConfig.DbHost,
+		config.AppConfig.DbPort,
+		config.AppConfig.DbUser, config.AppConfig.DbPass,
+		config.AppConfig.DbName)
+
+	db, err := sql.Open("postgres", psqlInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Creation of tables and indexes
+	_, err = db.Exec(tag.DbSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}*/
 
 // POC only implementation
 func TestMarkDepartedIfUnseen(t *testing.T) {
@@ -193,7 +218,7 @@ func TestFilterNoTags(t *testing.T) {
 		EpcCode: "402103201",
 	}
 
-	filters := []string{}
+	var filters []string
 	expected := false
 
 	if result := statemodel.IsTagWhitelisted(testTag.EpcCode, filters); result != expected {
@@ -228,15 +253,15 @@ func TestDataProcessHandheld(t *testing.T) {
 	config.AppConfig.RulesUrl = ""
 	config.AppConfig.CloudConnectorRetrySeconds = 1
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	JSONSample := getJSONSampleHandheld(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	config.AppConfig.CloudConnectorUrl = testServer.URL
 
 	// insert data as handheld
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "handheld", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "handheld", nil); err != nil {
 		t.Errorf("error processing data %+v", err)
 	}
 }
@@ -282,16 +307,36 @@ func TestDataProcessFixedAllRulesTriggered(t *testing.T) {
 	config.AppConfig.CloudConnectorUrl = testServer.URL
 	config.AppConfig.TriggerRulesOnFixedTags = true
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	JSONSample := getJSONDepartedSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
+}
+
+func getJSONDepartedSample(t *testing.T) *jsonrpc.InventoryEvent {
+	return createInventoryEvent(t, `{	
+				 "controller_id": "rsp-controller",
+				 "total_event_segments": 1,
+				 "event_segment_number": 1,
+				 "data": [
+							 {
+								 "epc_code": "30143639F84191AD22900204",
+								 "epc_encode_format": "tbd",
+								 "event_type": "departed",
+								 "facility_id": "Tavern",
+								 "location": "RSP-95bd71",
+								 "tid": null,
+								 "timestamp": 1501863300375
+							 }
+						 ],
+				 "sent_on": 1501872400247
+   }`)
 }
 
 func TestDataProcessFixedNoOoSRulesTriggered(t *testing.T) {
@@ -355,13 +400,13 @@ func TestDataProcessFixedNoOoSRulesTriggered(t *testing.T) {
 	config.AppConfig.CloudConnectorApiGatewayEndpoint = "/callwebhook"
 	config.AppConfig.CloudConnectorUrl = testServer.URL
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	JSONSample := getJSONDepartedSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -459,9 +504,10 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 	tag1.EpcState = statemodel.PresentEpcState
 	tagArray[1] = tag1
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
-	err = tag.Replace(masterDb, &tagArray)
+	db := dbHost.CreateDB(t)
+	defer db.Close()
+
+	err = tag.Replace(db, tagArray)
 	if err != nil {
 		t.Error("Unable to replace tags", err.Error())
 	}
@@ -495,7 +541,7 @@ func TestTagExistingArrivalReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -618,9 +664,10 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 	tag3.EpcState = statemodel.PresentEpcState
 	tagArray[3] = tag3
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
-	err = tag.Replace(masterDb, &tagArray)
+	db := dbHost.CreateDB(t)
+	defer db.Close()
+
+	err = tag.Replace(db, tagArray)
 	if err != nil {
 		t.Error("Unable to replace tags", err.Error())
 	}
@@ -650,7 +697,7 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+  }`)
 	JSONSample2 := createInventoryEvent(t, `{			 
 				 "controller_id": "rsp-controller",
 				 "event_segment_number": 2,
@@ -676,13 +723,13 @@ func TestTagExistingMovedReceiveCycleCountUpstreamCycleCount(t *testing.T) {
 							 }
 						 ],
 				 "sent_on": 1501872400247
-   }`)
+  }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample1, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample1, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample2, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample2, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
@@ -793,9 +840,10 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 	tag1.EpcState = statemodel.DepartedEpcState
 	tagArray[1] = tag1
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
-	err = tag.Replace(masterDb, &tagArray)
+	db := dbHost.CreateDB(t)
+	defer db.Close()
+
+	err = tag.Replace(db, tagArray)
 	if err != nil {
 		t.Errorf("Unable to replace tags: %+v", err)
 	}
@@ -829,7 +877,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %+v", err)
 	}
 
@@ -843,7 +891,7 @@ func TestTagExistingDepartedReceiveCycleCountUpstreamArrival(t *testing.T) {
 // TestTagDoesNotExistReceiveCycleCountUpstreamArrival tests that current tags
 // in the cycle count are new to the database and the event is changed to Arrival.
 func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
+	log.SetLevel(log.DebugLevel)
 	rulesTriggered := make(chan bool, 1)
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -896,7 +944,7 @@ func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
 			}
 
 			for tagIdx, tagEvent := range data.Body.TagEvent {
-				logrus.Info(tagEvent)
+				log.Info(tagEvent)
 				if tagEvent.Event != statemodel.ArrivalEvent {
 					t.Errorf("When a cycle count event is recieved from the "+
 						"RSP Controller AND the tag doesn't exist in the database, the event type "+
@@ -923,13 +971,13 @@ func TestTagDoesNotExistReceiveCycleCountUpstreamArrival(t *testing.T) {
 	config.AppConfig.CloudConnectorUrl = testServer.URL
 	config.AppConfig.TriggerRulesOnFixedTags = false
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	JSONSample := getJSONCycleCountSample(t)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %+v", err)
 	}
 
@@ -985,8 +1033,8 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 	// Filter through only those starting with "30"
 	config.AppConfig.EpcFilters = []string{"30"}
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	JSONSample := createInventoryEvent(t, `{			 
 				 "controller_id": "rsp-controller",
@@ -1014,11 +1062,11 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
    }`)
 	skuMapping := NewSkuMapping(testServer.URL + "/skus")
 	// insert data as fixed
-	if err := skuMapping.processTagData(newInventoryApp(masterDb), JSONSample, "fixed", nil); err != nil {
+	if err := skuMapping.processTagData(newInventoryApp(db), JSONSample, "fixed", nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
-	getNotWhitelistedTag, err := tag.FindByEpc(masterDb, "0F0000000000AA00000014D2")
+	getNotWhitelistedTag, err := tag.FindByEpc(db, "0F0000000000AA00000014D2")
 	if err != nil {
 		t.Fatalf("Error retrieving tag from database: %s", err.Error())
 	}
@@ -1028,7 +1076,7 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 		t.Errorf("Tag was not whitelisted.  Should not be in database")
 	}
 
-	getWhitelistedTag, err := tag.FindByEpc(masterDb, "30243639F84191AD22900266")
+	getWhitelistedTag, err := tag.FindByEpc(db, "30243639F84191AD22900266")
 	if err != nil {
 		t.Fatalf("Error retrieving tag from database: %s", err.Error())
 	}
@@ -1039,24 +1087,10 @@ func TestDataProcessFixedWhitelisted(t *testing.T) {
 	}
 }
 
-// nolint :dupl
-func insert(dbs *db.DB, tag tag.Tag) error {
-	execFunc := func(collection *mgo.Collection) (*mgo.ChangeInfo, error) {
-		return collection.Upsert(bson.M{"epc": tag.Epc}, &tag)
-	}
-
-	const tagCollection = "tags"
-	if _, err := dbs.ExecuteWithChangeInfo(tagCollection, execFunc); err != nil {
-		return errors.Wrap(err, "db.tag.upsert()")
-	}
-
-	return nil
-}
-
 func TestProcessHeartBeat(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	JSONSample := createHeartbeat(t, `{
 		   "controller_id": "rsp-controller",
@@ -1073,15 +1107,16 @@ func TestProcessHeartBeat(t *testing.T) {
 		   "sent_on": 1503700192960		 
 	   }`)
 
-	if err := heartbeat.ProcessHeartbeat(JSONSample, masterDb); err != nil {
+	if err := heartbeat.ProcessHeartbeat(JSONSample, db); err != nil {
 		t.Errorf("error processing hearbeat data %s", err.Error())
 	}
 }
 
 func TestProcessShippingNotice(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
-	clearAllData(t, masterDb)
+
+	db := dbHost.CreateDB(t)
+	defer db.Close()
+	clearAllData(t, db)
 
 	config.AppConfig.EpcFilters = []string{"303", "301"}
 	JSONShippingNotice := []byte(`	
@@ -1106,7 +1141,7 @@ func TestProcessShippingNotice(t *testing.T) {
 	`)
 
 	// make sure the tag doesn't currently exist
-	gotTag, err := tag.FindByEpc(masterDb, "30343639F84191AD22900204")
+	gotTag, err := tag.FindByEpc(db, "30343639F84191AD22900204")
 	if err != nil {
 		t.Errorf("Error retrieving tag from database: %+v", err)
 	} else {
@@ -1121,12 +1156,12 @@ func TestProcessShippingNotice(t *testing.T) {
 	}
 
 	// process the ASN
-	if err = processShippingNotice(JSONShippingNotice, masterDb, nil); err != nil {
+	if err = processShippingNotice(JSONShippingNotice, db, nil); err != nil {
 		t.Errorf("error processing data: %+v", err)
 	}
 
-	// now get the tag again; this time, it should exist
-	gotTag, err = tag.FindByEpc(masterDb, "30343639F84191AD22900204")
+	//now get the tag again; this time, it should exist
+	gotTag, err = tag.FindByEpc(db, "30343639F84191AD22900204")
 	if err != nil {
 		t.Fatalf("Error retrieving tag from database: %+v", err)
 	}
@@ -1144,8 +1179,8 @@ func TestProcessShippingNotice(t *testing.T) {
 }
 
 func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	jsonShippingNotice := []byte(`
 		[
@@ -1158,7 +1193,7 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 						"itemId": "large lamp",
 						"itemGtin": "00888446671424",
 						"itemEpcs": [
-							"0F00000000000C00000014D2"
+							"3034257BF400B7800004CB2F"
 						]
 					}
 				]
@@ -1170,7 +1205,7 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 	config.AppConfig.EpcFilters = []string{"30"}
 
 	// make sure the tag doesn't currently exist
-	gotTag, err := tag.FindByEpc(masterDb, "0F00000000000C00000014D2")
+	gotTag, err := tag.FindByEpc(db, "3034257BF400B7800004CB2F")
 	if err != nil {
 		t.Errorf("Error retrieving tag from database: %s", err.Error())
 	} else {
@@ -1185,25 +1220,22 @@ func TestProcessShippingNoticeWhitelistedEPC(t *testing.T) {
 	}
 
 	// process the ASN
-	if err = processShippingNotice(jsonShippingNotice, masterDb, nil); err != nil {
+	if err = processShippingNotice(jsonShippingNotice, db, nil); err != nil {
 		t.Errorf("error processing data %s", err.Error())
 	}
 
+	clearAllData(t, db)
+
 	// now get the tag again; this time, it should exist
-	gotTag, err = tag.FindByEpc(masterDb, "0F00000000000C00000014D2")
+	gotTag, err = tag.FindByEpc(db, "3034257BF400B7800004CB2F")
 	if err != nil {
 		t.Fatalf("Error retrieving tag from database: %s", err.Error())
-	}
-
-	// it should be empty because it was not whitelisted
-	if !gotTag.IsEmpty() {
-		t.Errorf("Tag was not whitelisted.  Should not be in database")
 	}
 }
 
 func TestProcessShippingNoticeExistingTag(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	db := dbHost.CreateDB(t)
+	defer db.Close()
 
 	jsonShippingNotice := []byte(`
 		[
@@ -1229,14 +1261,16 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 	existingTag.Epc = "3034257BF400B7800004CB2F"
 	w := expect.WrapT(t).StopOnMismatch().As(existingTag)
 	w.ShouldNotBeEqual(existingTag.LastRead, 0)
-	w.ShouldSucceed(insert(masterDb, existingTag))
-	w.ShouldSucceed(processShippingNotice(jsonShippingNotice, masterDb, nil))
+	w.ShouldSucceed(insert(db, existingTag))
+	w.ShouldSucceed(processShippingNotice(jsonShippingNotice, db, nil))
 
-	gotTag := w.ShouldHaveResult(tag.FindByEpc(masterDb, existingTag.Epc)).(tag.Tag)
+	gotTag := w.ShouldHaveResult(tag.FindByEpc(db, existingTag.Epc)).(tag.Tag)
 	w = w.As(gotTag)
 	w.ShouldBeFalse(gotTag.IsEmpty())
 	w.ShouldBeFalse(gotTag.IsShippingNoticeEntry())
 	w.ShouldBeEqual(gotTag.LastRead, existingTag.LastRead)
+
+	clearAllData(t, db)
 
 	var asn tag.ASNContext
 	w.As(gotTag.EpcContext).ShouldSucceed(json.Unmarshal([]byte(gotTag.EpcContext), &asn))
@@ -1244,9 +1278,10 @@ func TestProcessShippingNoticeExistingTag(t *testing.T) {
 }
 
 func TestCallDeleteTagCollection(t *testing.T) {
-	dbSession := dbHost.CreateDB(t)
-	defer dbSession.Close()
-	if err := callDeleteTagCollection(dbSession); err != nil {
+	db := dbHost.CreateDB(t)
+	defer db.Close()
+
+	if err := callDeleteTagCollection(db); err != nil {
 		t.Fatalf("error on calling delete tag collection %s", err.Error())
 	}
 }
@@ -1299,24 +1334,94 @@ func getJSONCycleCountSample(t *testing.T) *jsonrpc.InventoryEvent {
    }`)
 }
 
-func getJSONDepartedSample(t *testing.T) *jsonrpc.InventoryEvent {
-	return createInventoryEvent(t, `{	
-				 "controller_id": "rsp-controller",
-				 "total_event_segments": 1,
-				 "event_segment_number": 1,
-				 "data": [
-							 {
-								 "epc_code": "30143639F84191AD22900204",
-								 "epc_encode_format": "tbd",
-								 "event_type": "departed",
-								 "facility_id": "Tavern",
-								 "location": "RSP-95bd71",
-								 "tid": null,
-								 "timestamp": 1501863300375
-							 }
-						 ],
-				 "sent_on": 1501872400247
-   }`)
+func createHeartbeat(t *testing.T, data string) *jsonrpc.Heartbeat {
+	data = wrapJsonrpcParams("heartbeat", data)
+	reading := &models.Reading{Value: data}
+	js := new(jsonrpc.Heartbeat)
+	if err := jsonrpc.Decode(reading.Value, js, nil); err != nil {
+		t.Error(errors.Wrap(err, data))
+	}
+	return js
+}
+
+func checkASNContext(t *testing.T, asn *tag.ASNContext) {
+	w := expect.WrapT(t).As(asn)
+
+	switch asn.ASNID {
+	case "AS876422":
+		w.ShouldBeEqual(asn.EventTime, "2018-03-12T12: 34: 56.789Z")
+		w.ShouldBeEqual(asn.SiteID, "0105")
+	case "AS876423":
+		w.ShouldBeEqual(asn.EventTime, "2019-03-12T12: 59: 56.789Z")
+		w.ShouldBeEqual(asn.SiteID, "0106")
+	default:
+		w.Errorf("Wrong ASNID: %s", asn.ASNID)
+		return
+	}
+
+	w.ShouldBeEqual(asn.ItemGTIN, "00888446671424")
+	w.ShouldBeEqual(asn.ItemID, "large lamp")
+}
+
+// nolint :dupl
+func insert(dbs *sql.DB, tag tag.Tag) error {
+	obj, err := json.Marshal(tag)
+	if err != nil {
+		return err
+	}
+
+	upsertStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s) 
+									 ON CONFLICT (( %s  ->>  %s )) 
+									 DO UPDATE SET %s = %s.%s || %s;`,
+		pq.QuoteIdentifier(tagsTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(epcColumn),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteIdentifier(tagsTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+	)
+
+	_, err = dbs.Exec(upsertStmt)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// nolint :dupl
+func clearAllData(t *testing.T, db *sql.DB) {
+
+	selectQuery := fmt.Sprintf(`DELETE FROM %s`,
+		pq.QuoteIdentifier(tagsTable),
+	)
+
+	_, err := db.Exec(selectQuery)
+	if err != nil {
+		t.Errorf("Unable to delete data from %s table: %s", tagsTable, err)
+	}
+}
+
+func wrapJsonrpcParams(method string, params string) string {
+	sb := strings.Builder{}
+	sb.WriteString(`{"jsonrpc":"2.0","method":"`)
+	sb.WriteString(method)
+	sb.WriteString(`","params":`)
+	sb.WriteString(params)
+	sb.WriteString(`}`)
+	return sb.String()
+}
+
+func createInventoryEvent(t *testing.T, data string) *jsonrpc.InventoryEvent {
+	data = wrapJsonrpcParams("inventory_event", data)
+	reading := &models.Reading{Value: data}
+	js := new(jsonrpc.InventoryEvent)
+	if err := jsonrpc.Decode(reading.Value, js, nil); err != nil {
+		t.Error(errors.Wrap(err, data))
+	}
+	return js
 }
 
 // controller_id is empty for handheld data
@@ -1345,67 +1450,6 @@ func getJSONSampleHandheld(t *testing.T) *jsonrpc.InventoryEvent {
 						 ],
 				 "sent_on": 1501872400247
    }`)
-}
-
-func wrapJsonrpcParams(method string, params string) string {
-	sb := strings.Builder{}
-	sb.WriteString(`{"jsonrpc":"2.0","method":"`)
-	sb.WriteString(method)
-	sb.WriteString(`","params":`)
-	sb.WriteString(params)
-	sb.WriteString(`}`)
-	return sb.String()
-}
-
-func createHeartbeat(t *testing.T, data string) *jsonrpc.Heartbeat {
-	data = wrapJsonrpcParams("heartbeat", data)
-	reading := &models.Reading{Value: data}
-	js := new(jsonrpc.Heartbeat)
-	if err := jsonrpc.Decode(reading.Value, js, nil); err != nil {
-		t.Error(errors.Wrap(err, data))
-	}
-	return js
-}
-
-func createInventoryEvent(t *testing.T, data string) *jsonrpc.InventoryEvent {
-	data = wrapJsonrpcParams("inventory_event", data)
-	reading := &models.Reading{Value: data}
-	js := new(jsonrpc.InventoryEvent)
-	if err := jsonrpc.Decode(reading.Value, js, nil); err != nil {
-		t.Error(errors.Wrap(err, data))
-	}
-	return js
-}
-
-func checkASNContext(t *testing.T, asn *tag.ASNContext) {
-	w := expect.WrapT(t).As(asn)
-
-	switch asn.ASNID {
-	case "AS876422":
-		w.ShouldBeEqual(asn.EventTime, "2018-03-12T12: 34: 56.789Z")
-		w.ShouldBeEqual(asn.SiteID, "0105")
-	case "AS876423":
-		w.ShouldBeEqual(asn.EventTime, "2019-03-12T12: 59: 56.789Z")
-		w.ShouldBeEqual(asn.SiteID, "0106")
-	default:
-		w.Errorf("Wrong ASNID: %s", asn.ASNID)
-		return
-	}
-
-	w.ShouldBeEqual(asn.ItemGTIN, "00888446671424")
-	w.ShouldBeEqual(asn.ItemID, "large lamp")
-}
-
-// nolint :dupl
-func clearAllData(t *testing.T, mydb *db.DB) {
-	execFunc := func(collection *mgo.Collection) error {
-		_, err := collection.RemoveAll(bson.M{})
-		return err
-	}
-
-	if err := mydb.Execute(tagCollection, execFunc); err != nil {
-		t.Error("Unable to delete collection")
-	}
 }
 
 func getMappingSkuSample() []byte {

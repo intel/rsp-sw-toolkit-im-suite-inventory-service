@@ -1,28 +1,27 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
-
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
+	"fmt"
+	"github.com/lib/pq"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
-
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
 )
 
 const (
-	historyCollection = "dailyturnhistory"
+	historyTable = "dailyturnhistory"
 )
+
 
 func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 	result := buildProductData(0.0, 0.0, 0.0, 0.0, "00111111")
@@ -552,6 +551,46 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 	}
 }
 
+func buildTestServer(t *testing.T, result productdata.Result) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.EscapedPath() != "/skus" {
+			t.Errorf("Expected request to be '/skus', received %s",
+				request.URL.EscapedPath())
+		}
+		if request.Method != "GET" {
+			t.Errorf("Expected 'GET' request, received '%s", request.Method)
+		}
+		var jsonData []byte
+		if request.URL.EscapedPath() == "/skus" {
+			jsonData, _ = json.Marshal(result)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write(jsonData)
+	}))
+}
+
+func insertSampleDailyTurnHistory(t *testing.T, db *sql.DB, productId string, dailyTurn float64) {
+	var history dailyturn.History
+	history.ProductID = productId
+	history.DailyTurn = dailyTurn
+
+	if err := dailyturn.Upsert(db, history); err != nil {
+		t.Error("Unable to upsert daily turn history")
+	}
+}
+
+func clearDailyTurnHistory(t *testing.T, db *sql.DB) {
+	selectQuery := fmt.Sprintf(`DELETE FROM %s`,
+		pq.QuoteIdentifier(historyTable),
+	)
+
+	_, err := db.Exec(selectQuery)
+	if err != nil {
+		t.Errorf("Unable to delete data from %s table: %s", historyTable, err)
+	}
+}
+
+
 func buildProductData(becomingReadable float64, beingRead float64, dailyTurn float64, exitError float64, gtinSku string) productdata.Result {
 
 	productIDMetadata := productdata.ProductMetadata{
@@ -575,43 +614,4 @@ func buildProductData(becomingReadable float64, beingRead float64, dailyTurn flo
 		ProdData: dataList,
 	}
 	return result
-}
-
-func buildTestServer(t *testing.T, result productdata.Result) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.EscapedPath() != "/skus" {
-			t.Errorf("Expected request to be '/skus', received %s",
-				request.URL.EscapedPath())
-		}
-		if request.Method != "GET" {
-			t.Errorf("Expected 'GET' request, received '%s", request.Method)
-		}
-		var jsonData []byte
-		if request.URL.EscapedPath() == "/skus" {
-			jsonData, _ = json.Marshal(result)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(jsonData)
-	}))
-}
-
-func insertSampleDailyTurnHistory(t *testing.T, mydb *db.DB, productId string, dailyTurn float64) {
-	var history dailyturn.History
-	history.ProductID = productId
-	history.DailyTurn = dailyTurn
-
-	if err := dailyturn.Upsert(mydb, history); err != nil {
-		t.Error("Unable to upsert daily turn history")
-	}
-}
-
-func clearDailyTurnHistory(t *testing.T, mydb *db.DB) {
-	execFunc := func(collection *mgo.Collection) error {
-		_, err := collection.RemoveAll(bson.M{})
-		return err
-	}
-
-	if err := mydb.Execute(historyCollection, execFunc); err != nil {
-		t.Error("Unable to delete collection")
-	}
 }

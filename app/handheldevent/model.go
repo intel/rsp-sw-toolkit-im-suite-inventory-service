@@ -19,8 +19,6 @@
 
 package handheldevent
 
-import "time"
-
 // HandheldEvent represents a handheld event model
 //swagger:model HandheldEvent
 type HandheldEvent struct {
@@ -29,7 +27,6 @@ type HandheldEvent struct {
 	// Time event was received in epoch
 	// min: 13
 	Timestamp int64     `json:"timestamp"`
-	TTL       time.Time `json:"ttl"`
 }
 
 // CountType represents a wrapper for count and inlinecount

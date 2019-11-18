@@ -20,12 +20,10 @@
 package statemodel
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"strings"
-	"time"
-
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	"strings"
 )
 
 //IsTagWhitelisted determines if the tag received from RSP Controller
@@ -118,18 +116,10 @@ func UpdateTag(currentState tag.Tag, newTagEvent jsonrpc.TagEvent, source string
 				Source:    source}
 
 			newState.LocationHistory = AddLocationIfNew(newState.LocationHistory, locationToAdd)
-			// Go's Unix time is in seconds so convert the last read timestamp (milliseconds) to seconds
-			newState.TTL = time.Unix(newState.LastRead/1000, 0)
 		}
 
 		//update epc state
 		newState.EpcState = GetEpcState(currentState.EpcState, newState)
-	}
-
-	//if the new determined event results in departed then set the ttl to the const ttl for departed events
-	if newState.Event == DepartedEvent {
-		// Go's Unix time is in seconds so convert the last read timestamp (milliseconds) to seconds
-		newState.TTL = time.Unix(newState.LastRead/1000, 0)
 	}
 
 	return newState

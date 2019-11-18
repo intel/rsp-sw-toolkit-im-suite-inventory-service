@@ -21,15 +21,10 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"net/http"
-	"reflect"
-	"strings"
-	"time"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
 	"github.impcloud.net/RSP-Inventory-Suite/go-odata/parser"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/epccontext"
@@ -39,11 +34,15 @@ import (
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"net/http"
+	"reflect"
+	"strings"
+	"time"
 )
 
 // Inventory represents the User API method handler set.
 type Inventory struct {
-	MasterDB *db.DB
+	MasterDB *sql.DB
 	MaxSize  int
 	Url      string
 }
@@ -76,9 +75,6 @@ func (inve *Inventory) GetTags(ctx context.Context, writer http.ResponseWriter, 
 	mUnmarshalErr := metrics.GetOrRegisterGauge("Inventory.GetTags.Unmarshal-Error", nil)
 	mConfidenceErr := metrics.GetOrRegisterGauge("Inventory.GetTags.Confidence-Error", nil)
 
-	copySession := inve.MasterDB.CopySession()
-	defer copySession.Close()
-
 	url := request.URL.Query()
 	var isConfidence bool
 	var isSelect bool
@@ -96,7 +92,7 @@ func (inve *Inventory) GetTags(ctx context.Context, writer http.ResponseWriter, 
 		isConfidence = true
 	}
 
-	tags, count, _, err := tag.Retrieve(copySession, url, inve.MaxSize)
+	tags, count, err := tag.Retrieve(inve.MasterDB, url, inve.MaxSize)
 	if err != nil {
 		mRetrieveErr.Update(1)
 		return errors.Wrap(err, "Error retrieving Tag")
@@ -131,7 +127,7 @@ func (inve *Inventory) GetTags(ctx context.Context, writer http.ResponseWriter, 
 		// If $select not set, calculate confidence.
 		// if confidence is set in the $select, calculate confidence
 		if isConfidence || !isSelect {
-			if err := ApplyConfidence(copySession, tagSlice, inve.Url); err != nil {
+			if err := ApplyConfidence(inve.MasterDB, tagSlice, inve.Url); err != nil {
 				mConfidenceErr.Update(1)
 				return err
 			}
@@ -174,13 +170,6 @@ func (inve *Inventory) PostCurrentInventory(ctx context.Context, writer http.Res
 	return processPostRequest(ctx, schemas.PostCurrentInventorySchema, inve.MasterDB, request, writer, inve.Url)
 }
 
-// GetMissingTags returns a list of unique tags that have not been read by a reader since a defined timestamp. Body parameters
-// shall be provided in request body in JSON format
-//nolint:lll
-func (inve *Inventory) GetMissingTags(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
-	return processGetRequest(ctx, schemas.MissingTagsSchema, inve.MasterDB, request, writer, inve.Url)
-}
-
 // GetSearchByGtin returns a list of unique EPCs matching the GTIN(s) provided. Body parameters shall be provided in request
 // body in JSON format.
 //nolint:lll
@@ -210,16 +199,12 @@ func (inve *Inventory) UpdateQualifiedState(ctx context.Context, writer http.Res
 		web.Respond(ctx, writer, validationErrors, http.StatusBadRequest)
 		return errors.New("could not validate request invalid schema")
 	}
-
-	selectorMap := make(map[string]interface{})
-	selectorMap["epc"] = mapping.Epc
-	selectorMap["facility_id"] = mapping.FacilityID
-
-	objectMap := make(map[string]interface{})
+	objectMap := make(map[string]string)
 	objectMap["qualified_state"] = mapping.QualifiedState
 
 	mSuccess.Update(1)
-	return processUpdateRequest(ctx, inve.MasterDB, writer, selectorMap, objectMap)
+	return processUpdateRequest(ctx, inve.MasterDB, writer, mapping.Epc, mapping.FacilityID, objectMap)
+	return nil
 }
 
 // SetEpcContext updates the tag's epc context with the value in the request
@@ -245,14 +230,12 @@ func (inve *Inventory) SetEpcContext(ctx context.Context, writer http.ResponseWr
 		return errors.New("could not validate request invalid schema")
 	}
 
-	selectorMap := make(map[string]interface{})
-	selectorMap["epc"] = mapping.Epc
-	selectorMap["facility_id"] = mapping.FacilityID
-	objectMap := make(map[string]interface{})
+	objectMap := make(map[string]string)
 	objectMap["epc_context"] = mapping.EpcContext
 
 	mSuccess.Update(1)
-	return processUpdateRequest(ctx, inve.MasterDB, writer, selectorMap, objectMap)
+	return processUpdateRequest(ctx, inve.MasterDB, writer, mapping.Epc, mapping.FacilityID, objectMap)
+	return nil
 }
 
 // DeleteEpcContext removes the tag's epc context value
@@ -285,21 +268,19 @@ func (inve *Inventory) DeleteEpcContext(ctx context.Context, writer http.Respons
 		return nil
 	}
 
-	selectorMap := make(map[string]interface{})
-	selectorMap["epc"] = mapping.Epc
-	selectorMap["facility_id"] = mapping.FacilityID
-	objectMap := make(map[string]interface{})
+	objectMap := make(map[string]string)
 	objectMap["epc_context"] = ""
 
 	processUpdateTimer := time.Now()
-	if err := processUpdateRequest(ctx, inve.MasterDB, writer, selectorMap, objectMap); err != nil {
+	if err := processUpdateRequest(ctx, inve.MasterDB, writer, mapping.Epc, mapping.FacilityID, objectMap); err != nil {
 		mProcessUpdateErr.Update(1)
 		return err
 	}
 	mProcessUpdateLatency.Update(time.Since(processUpdateTimer))
 
 	mSuccess.Update(1)
-	return processUpdateRequest(ctx, inve.MasterDB, writer, selectorMap, objectMap)
+	return processUpdateRequest(ctx, inve.MasterDB, writer,mapping.Epc, mapping.FacilityID, objectMap)
+	return nil
 }
 
 // DeleteAllTags removes the tag's epc context value
@@ -318,10 +299,8 @@ func (inve *Inventory) DeleteAllTags(ctx context.Context, writer http.ResponseWr
 	mDeleteLatency := metrics.GetOrRegisterTimer("Inventory.DeleteAllTags.Delete-Latency", nil)
 	mSendDelCompleteErr := metrics.GetOrRegisterGauge("Inventory.DeleteAllTags.SendDelComplete-Error", nil)
 
-	copySession := inve.MasterDB.CopySession()
-
 	deleteAllTagsTimer := time.Now()
-	if err = tag.DeleteTagCollection(copySession); err != nil {
+	if err = tag.DeleteTagCollection(inve.MasterDB); err != nil {
 		mDeleteErr.Update(1)
 		return errors.Wrap(err, "Error deleting tag collection")
 	}
@@ -341,6 +320,7 @@ func (inve *Inventory) DeleteAllTags(ctx context.Context, writer http.ResponseWr
 	}()
 
 	return err
+	return nil
 }
 
 // GetSearchByEpc returns a list of tags with their EPCs matching a pattern.
@@ -364,11 +344,8 @@ func (inve *Inventory) GetFacilities(ctx context.Context, writer http.ResponseWr
 	mSuccess := metrics.GetOrRegisterGauge("Inventory.GetFacilities.Success", nil)
 	mRetrieveErr := metrics.GetOrRegisterGauge("Inventory.GetFacilities.Retrieve-Error", nil)
 
-	copySession := inve.MasterDB.CopySession()
-	defer copySession.Close()
-
 	retrieveTimer := time.Now()
-	facilities, count, err := facility.Retrieve(copySession, request.URL.Query())
+	facilities, count, err := facility.Retrieve(inve.MasterDB, request.URL.Query())
 	if err != nil {
 		mRetrieveErr.Update(1)
 		return errors.Wrap(err, "error retrieving facility")
@@ -413,11 +390,8 @@ func (inve *Inventory) GetHandheldEvents(ctx context.Context, writer http.Respon
 	mSuccess := metrics.GetOrRegisterGauge(`Inventory.GetHandheldEvents.Success`, nil)
 	mUpdateLatency := metrics.GetOrRegisterTimer("Inventory.GetHandheldEvents.Update-Latency", nil)
 
-	copySession := inve.MasterDB.CopySession()
-	defer copySession.Close()
-
 	updateTimer := time.Now()
-	eventData, count, err := handheldevent.Retrieve(copySession, request.URL.Query())
+	eventData, count, err := handheldevent.Retrieve(inve.MasterDB, request.URL.Query())
 	if err != nil {
 		mRetrieveErr.Update(1)
 		return errors.Wrap(err, "error retrieving handheld events")
@@ -466,9 +440,6 @@ func (inve *Inventory) UpdateCoefficients(ctx context.Context, writer http.Respo
 	mUpdateErr := metrics.GetOrRegisterGauge("Inventory.UpdateCoefficients.Update-Error", nil)
 	mValidationErr := metrics.GetOrRegisterGauge("Inventory.UpdateCoefficients.Validation-Error", nil)
 
-	copySession := inve.MasterDB.CopySession()
-	defer copySession.Close()
-
 	var requestBody facility.RequestBody
 
 	validationErrors, err := readAndValidateRequest(request, schemas.CoefficientsSchema, &requestBody)
@@ -485,15 +456,16 @@ func (inve *Inventory) UpdateCoefficients(ctx context.Context, writer http.Respo
 	}
 
 	// build attributes to be updated
-	updatedBody := make(map[string]interface{})
-	updatedBody["dailyinventorypercentage"] = requestBody.DailyInventoryPercentage
-	updatedBody["probunreadtoread"] = requestBody.ProbUnreadToRead
-	updatedBody["probinstoreread"] = requestBody.ProbInStoreRead
-	updatedBody["probexiterror"] = requestBody.ProbExitError
+	var updateFacility facility.Facility
+	updateFacility.Name = requestBody.FacilityID
+	updateFacility.Coefficients.DailyInventoryPercentage = requestBody.DailyInventoryPercentage
+	updateFacility.Coefficients.ProbUnreadToRead = requestBody.ProbUnreadToRead
+	updateFacility.Coefficients.ProbInStoreRead = requestBody.ProbInStoreRead
+	updateFacility.Coefficients.ProbExitError = requestBody.ProbExitError
 
 	// Update by facility_id(name)
 	updateTimer := time.Now()
-	if err := facility.UpdateCoefficients(copySession, requestBody.FacilityID, updatedBody); err != nil {
+	if err := facility.UpdateCoefficients(inve.MasterDB, updateFacility); err != nil {
 		mUpdateErr.Update(1)
 		return errors.Wrapf(err, "Update %s", requestBody.FacilityID)
 	}
@@ -503,3 +475,4 @@ func (inve *Inventory) UpdateCoefficients(ctx context.Context, writer http.Respo
 	web.Respond(ctx, writer, nil, http.StatusOK)
 	return nil
 }
+

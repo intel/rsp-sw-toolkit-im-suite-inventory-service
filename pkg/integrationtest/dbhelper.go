@@ -8,17 +8,17 @@
 //     3. there's a (blurry, in need of work) separation between tests that rely
 //     on a database instance, and those that don't, as well as an escape switch
 //     to avoid running those tests unless necessary (namely, the -test.short flag)
+
 package integrationtest
 
 import (
+	"database/sql"
 	"fmt"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"log"
 	"sync"
 	"testing"
 	"time"
-
-	mongodb "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 )
 
 type DBHost string
@@ -31,8 +31,7 @@ func InitHost(dbName string) DBHost {
 	if err := config.InitConfig(); err != nil {
 		log.Fatalf("unable to initialize config: %+v", err)
 	}
-	return DBHost(config.AppConfig.ConnectionString + "/" + dbName +
-		time.Now().Format("_15:04:05"))
+	return DBHost(dbName + time.Now().Format("_15:04:05"))
 }
 
 var dbNamesToInstances = map[string]int{}
@@ -51,7 +50,7 @@ var dbNameLock = sync.Mutex{}
 // Note that mongo also restricts the use of `/\. "$` on all OSes and
 // additionally `*<>:|?` on Windows; since none of those are valid Go identifiers
 // anyway, this is ignored.
-func (dbHost DBHost) CreateDB(t *testing.T) *mongodb.DB {
+func (dbHost DBHost) CreateDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	if testing.Short() {
@@ -59,7 +58,7 @@ func (dbHost DBHost) CreateDB(t *testing.T) *mongodb.DB {
 	}
 
 	dbName := string(dbHost) + t.Name()
-	if len(dbName) > 64 {
+	if len(dbName) > 63 {
 		dbName = dbName[:62]
 	}
 
@@ -69,10 +68,21 @@ func (dbHost DBHost) CreateDB(t *testing.T) *mongodb.DB {
 	dbNameLock.Unlock()
 	t.Logf("using db %s", dbName)
 
-	masterDb, err := mongodb.NewSession(dbName, 10*time.Second)
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", config.AppConfig.DbHost,
+		config.AppConfig.DbPort,
+		config.AppConfig.DbUser, config.AppConfig.DbPass,
+		dbName)
+
+	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		t.Fatalf("Unable to connect to db server at %s", dbName)
 	}
 
-	return masterDb
+	// Creation of tables and indexes
+	_, err = db.Exec(config.DbSchema)
+	if err != nil {
+		t.Fatalf("Unable to create to db tables and indexes for: %s", dbName)
+	}
+
+	return db
 }

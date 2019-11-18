@@ -21,8 +21,16 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/lib/pq"
+	"github.com/pkg/errors"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -31,25 +39,15 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
-	"github.com/pkg/errors"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 )
 
 const (
-	tagCollection = "tags"
+	tagsTable = "tags"
 )
 
-type dbFunc func(dbs *db.DB, t *testing.T) error
-type validateFunc func(dbs *db.DB, r *httptest.ResponseRecorder, t *testing.T) error
+type dbFunc func(dbs *sql.DB, t *testing.T) error
+type validateFunc func(dbs *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error
+var dbHost integrationtest.DBHost
 
 // tagResponse holds a more specific version of the generic tag.Response
 // struct to avoid multi-level type assertion
@@ -67,8 +65,6 @@ type inputTest struct {
 	destroy  dbFunc
 	queryStr string
 }
-
-var dbHost integrationtest.DBHost
 
 var isProbabilisticPluginFound bool
 
@@ -208,21 +204,21 @@ func TestGetOdata(t *testing.T) {
 	}
 }
 
-func insertFacilitiesHelper(t *testing.T, dbs *db.DB) {
+func insertFacilitiesHelper(t *testing.T, dbs *sql.DB) {
 	var facilities []facility.Facility
 	var testFacility facility.Facility
 	testFacility.Name = "Test"
 
 	facilities = append(facilities, testFacility)
 
-	var coefficientes facility.Coefficients
+	var coefficients facility.Coefficients
 	// Random coefficient values
-	coefficientes.DailyInventoryPercentage = 0.1
-	coefficientes.ProbExitError = 0.1
-	coefficientes.ProbInStoreRead = 0.1
-	coefficientes.ProbUnreadToRead = 0.1
+	coefficients.DailyInventoryPercentage = 0.1
+	coefficients.ProbExitError = 0.1
+	coefficients.ProbInStoreRead = 0.1
+	coefficients.ProbUnreadToRead = 0.1
 
-	if err := facility.Insert(dbs, &facilities, coefficientes); err != nil {
+	if err := facility.Insert(dbs, &facilities, coefficients); err != nil {
 		t.Errorf("error inserting facilities %s", err.Error())
 	}
 }
@@ -250,8 +246,7 @@ func TestGetSelectTags(t *testing.T) {
 	masterDB := dbHost.CreateDB(t)
 	defer masterDB.Close()
 
-	copySession := masterDB.CopySession()
-	insertFacilitiesHelper(t, copySession)
+	insertFacilitiesHelper(t, masterDB)
 	epc := "100683590000000000001106"
 	facilityID := "Test"
 	lastRead := int64(1506638821662)
@@ -323,12 +318,10 @@ func TestGetSelectTags(t *testing.T) {
 		},
 	}
 
-	defer copySession.Close()
-
 	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetTags)
-	testHandlerHelper(selectTests, "GET", handler, copySession, t)
+	testHandlerHelper(selectTests, "GET", handler, masterDB, t)
 }
 
 // nolint :dupl
@@ -370,11 +363,6 @@ func TestPostCurrentInventory(t *testing.T) {
 		  }`),
 			code: []int{200},
 		},
-		// empty request body
-		{
-			input: []byte(``),
-			code:  []int{200},
-		},
 		// Invalid input type for facility_id
 		{
 			input: []byte(`{ "facility_id":10 }`),
@@ -387,453 +375,16 @@ func TestPostCurrentInventory(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.PostCurrentInventory)
 
-	testHandlerHelper(currentInventoryTests, "POST", handler, copySession, t)
-
+	testHandlerHelper(currentInventoryTests, "POST", handler, masterDB, t)
 }
 
-// nolint :dupl
-func TestGetMissingTagsPositive(t *testing.T) {
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(1 * time.Second)
-		if request.URL.EscapedPath() != "/skus" {
-			t.Errorf("Expected request to be '/skus', received %s",
-				request.URL.EscapedPath())
-		}
-		if request.Method != "GET" {
-			t.Errorf("Expected 'GET' request, received '%s", request.Method)
-		}
-		var jsonData []byte
-		if request.URL.EscapedPath() == "/skus" {
-			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
-			jsonData, _ = json.Marshal(result)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(jsonData)
-	}))
-
-	defer testServer.Close()
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	var missingTagsTests = []inputTest{
-		// Expected input with count_only = false
-		{
-			input: []byte(`{
-				"facility_id":"store001",
-				"time":1483228800000,				
-				"count_only":false
-			  }`),
-			code: []int{200, 204},
-		},
-		// Expected input with count_only = true
-		{
-			input: []byte(`{
-				"facility_id":"store001",
-				"time":1483228800000,				
-				"count_only":true
-			  }`),
-			code: []int{200, 204},
-		},
-	}
-
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
-
-	handler := web.Handler(inventory.GetMissingTags)
-
-	testHandlerHelper(missingTagsTests, "POST", handler, copySession, t)
-
-}
-
-func TestGetMissingTagsNegative(t *testing.T) {
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(1 * time.Second)
-		if request.URL.EscapedPath() != "/skus" {
-			t.Errorf("Expected request to be '/skus', received %s",
-				request.URL.EscapedPath())
-		}
-		if request.Method != "GET" {
-			t.Errorf("Expected 'GET' request, received '%s", request.Method)
-		}
-		var jsonData []byte
-		if request.URL.EscapedPath() == "/skus" {
-			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
-			jsonData, _ = json.Marshal(result)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(jsonData)
-	}))
-
-	defer testServer.Close()
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	var missingTagsTests = []inputTest{
-		// No facility id
-		{
-			input: []byte(`{
-				"size":500
-			  }`),
-			code: []int{400},
-		},
-		// Empty request body
-		{
-			input: []byte(``),
-			code:  []int{400},
-		},
-		// Invalid input type for facility_id
-		{
-			input: []byte(`{ "facility_id":10 }`),
-			code:  []int{400},
-		},
-		// No time field
-		{
-			input: []byte(`{ "facility_id":"store1" }`),
-			code:  []int{400},
-		},
-	}
-
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
-
-	handler := web.Handler(inventory.GetMissingTags)
-
-	testHandlerHelper(missingTagsTests, "POST", handler, copySession, t)
-
-}
-
-// nolint :dupl
-func TestSearchByGtinPositive(t *testing.T) {
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(1 * time.Second)
-		if request.URL.EscapedPath() != "/skus" {
-			t.Errorf("Expected request to be '/skus', received %s",
-				request.URL.EscapedPath())
-		}
-		if request.Method != "GET" {
-			t.Errorf("Expected 'GET' request, received '%s", request.Method)
-		}
-		var jsonData []byte
-		if request.URL.EscapedPath() == "/skus" {
-			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
-			jsonData, _ = json.Marshal(result)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(jsonData)
-	}))
-
-	defer testServer.Close()
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	var searchGtinTests = []inputTest{
-		// Expected input with count_only = false
-		{
-			input: []byte(`{
-					"facility_id":"store001",
-					"gtin":"00012345678905",				
-					"count_only":false,
-					"size":500
-				  }`),
-			code: []int{200, 204},
-		},
-		// Expected input with count_only = true
-		{
-			input: []byte(`{
-				"facility_id":"store001",
-				"gtin":"00012345678905",				
-				"count_only":true,
-				"size":500
-			  }`),
-			code: []int{200, 204},
-		},
-	}
-
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
-
-	handler := web.Handler(inventory.GetSearchByGtin)
-
-	testHandlerHelper(searchGtinTests, "POST", handler, copySession, t)
-}
-
-// nolint :dupl
-func TestSearchByGtinNegative(t *testing.T) {
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(1 * time.Second)
-		if request.URL.EscapedPath() != "/skus" {
-			t.Errorf("Expected request to be '/skus', received %s",
-				request.URL.EscapedPath())
-		}
-		if request.Method != "GET" {
-			t.Errorf("Expected 'GET' request, received '%s", request.Method)
-		}
-		var jsonData []byte
-		if request.URL.EscapedPath() == "/skus" {
-			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
-			jsonData, _ = json.Marshal(result)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(jsonData)
-	}))
-
-	defer testServer.Close()
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
-
-	var searchGtinTests = []inputTest{
-		// No facility id
-		{
-			input: []byte(`{
-				"size":500,
-				"gtin":"00012345678905"
-			  }`),
-			code: []int{400},
-		},
-		// Empty request body
-		{
-			input: []byte(``),
-			code:  []int{400},
-		},
-		// Non-json body
-		{
-			input: []byte(`blah`),
-			code:  []int{400},
-		},
-		// Invalid input type for facility_id
-		{
-			input: []byte(`{ "facility_id":10 }`),
-			code:  []int{400},
-		},
-		// No gtin field
-		{
-			input: []byte(`{ "facility_id":"store1" }`),
-			code:  []int{400},
-		},
-		// Invalid gtin size
-		{
-			input: []byte(`{
-				"size":500,
-				"gtin":"123",
-				"facility_id":"store1"
-			  }`),
-			code: []int{400},
-		},
-	}
-
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
-
-	handler := web.Handler(inventory.GetSearchByGtin)
-
-	testHandlerHelper(searchGtinTests, "POST", handler, copySession, t)
-
-}
-
-func insertTag(t tag.Tag) dbFunc {
-	return func(dbs *db.DB, _ *testing.T) error {
-		return tag.Replace(dbs, &[]tag.Tag{t})
-	}
-}
-
-func deleteTag(epc string) dbFunc {
-	return func(dbs *db.DB, _ *testing.T) error {
-		return tag.Delete(dbs, epc)
-	}
-}
-
-func deleteAllTags() dbFunc {
-	return func(dbs *db.DB, _ *testing.T) error {
-		execFunc := func(collection *mgo.Collection) error {
-			_, err := collection.RemoveAll(bson.M{})
-			return err
-		}
-
-		return dbs.Execute(tagCollection, execFunc)
-	}
-}
-
-func getTagCount(dbs *db.DB) (int, error) {
-	var count int
-	execFunc := func(collection *mgo.Collection) error {
-		n, err := collection.Count()
-		count = n
-		return err
-	}
-
-	err := dbs.Execute(tagCollection, execFunc)
-	return count, err
-}
-
-func validateAll(fs []validateFunc) validateFunc {
-	return func(dbs *db.DB, r *httptest.ResponseRecorder, t *testing.T) error {
-		for _, f := range fs {
-			if err := f(dbs, r, t); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-//nolint:unparam
-func validateSelectEpc(epc string) validateFunc {
-	return func(_ *db.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
-		var js tagResponse
-		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
-			return errors.Wrap(err, "Unable to parse results as json!")
-		}
-
-		var found bool
-		for _, tag := range js.Results {
-			if tag.Epc == epc {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("expected epc to be %s, but not found", epc)
-		}
-		return nil
-	}
-}
-
-func validateSelectConfidence() validateFunc {
-	return func(_ *db.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
-		var js tagResponse
-		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
-			return errors.Wrap(err, "Unable to parse results as json!")
-		}
-		for _, tag := range js.Results {
-			if tag.Confidence < 0.0 && tag.Confidence > 1.0 {
-				return fmt.Errorf("confidence is invalid. Must be 0-1. Got %v", tag.Confidence)
-			}
-		}
-		return nil
-	}
-}
-func validateSelectFields(fields []string) validateFunc {
-	return func(_ *db.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
-		var js tagResponse
-		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
-			return errors.Wrap(err, "Unable to parse results as json!")
-		}
-		mapSelectFields := make(map[string]bool, len(fields))
-		for _, field := range fields {
-			mapSelectFields[strings.TrimSpace(field)] = true
-		}
-
-		for _, tag := range js.Results {
-			tag := MapOfTags(&tag, mapSelectFields)
-			for _, fieldValue := range tag {
-				switch fieldValue.(type) {
-				case string:
-					if fieldValue.(string) == "" {
-						return fmt.Errorf("Unepxected empty string field value")
-					}
-				case float64:
-					if fieldValue.(float64) < 0 {
-						return fmt.Errorf(" field value")
-					}
-				}
-			}
-		}
-
-		return nil
-	}
-}
-
-func validateResultSize(size int) validateFunc {
-	return func(_ *db.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
-		var js tagResponse
-		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
-			return errors.Wrap(err, "Unable to parse results as json!")
-		}
-
-		if len(js.Results) != size {
-			return fmt.Errorf("Invalid result size. Expected: %d, but got: %d", size, len(js.Results))
-		}
-		return nil
-	}
-}
-
-func validateTagCount(count int) validateFunc {
-	return func(dbs *db.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		n, err := getTagCount(dbs)
-		if err != nil {
-			return err
-		}
-		if n != count {
-			return fmt.Errorf("Invalid tag count -- expected: %d, got: %d", count, n)
-		}
-		return nil
-	}
-}
-
-// nolint :dupl
-func validateQualifiedStateUpdate(epc string, qualifiedState string) validateFunc {
-	return func(dbs *db.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		tagInDb, err := tag.FindByEpc(dbs, epc)
-		if err != nil {
-			return err
-		}
-		if tagInDb.QualifiedState != qualifiedState {
-			return fmt.Errorf("Invalid Qualified State -- expected: %s, got: %s", qualifiedState, tagInDb.QualifiedState)
-		}
-		return nil
-	}
-}
-
-// nolint :dupl
-func validateEpcContextSet(epc string, epcContext string) validateFunc {
-	return func(dbs *db.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		tagInDb, err := tag.FindByEpc(dbs, epc)
-		if err != nil {
-			return err
-		}
-		if tagInDb.EpcContext != epcContext {
-			return fmt.Errorf("Invalid Epc context -- expected: %s, got: %s", epcContext, tagInDb.EpcContext)
-		}
-		return nil
-	}
-}
-
-// nolint :dupl
-func validateEpcContextDelete(epc string) validateFunc {
-	return func(dbs *db.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		tagInDb, err := tag.FindByEpc(dbs, epc)
-		if err != nil {
-			return err
-		}
-		if tagInDb.EpcContext != "" {
-			return fmt.Errorf("Invalid Epc context -- expected: %s, got: %s", "", tagInDb.EpcContext)
-		}
-		return nil
-	}
-}
-
-// nolint :gocyclo
-func testHandlerHelper(input []inputTest, requestType string, handler web.Handler, dbs *db.DB, t *testing.T) {
-	failures := []*httptest.ResponseRecorder{}
+//nolint :gocyclo
+func testHandlerHelper(input []inputTest, requestType string, handler web.Handler, dbs *sql.DB, t *testing.T) {
+	var failures []*httptest.ResponseRecorder
 
 	for i, item := range input {
 		if item.title == "" {
@@ -908,6 +459,318 @@ func testHandlerHelper(input []inputTest, requestType string, handler web.Handle
 	t.Log("\r---------------------------------------------------------")
 }
 
+// nolint :dupl
+func TestSearchByGtinPositive(t *testing.T) {
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		time.Sleep(1 * time.Second)
+		if request.URL.EscapedPath() != "/skus" {
+			t.Errorf("Expected request to be '/skus', received %s",
+				request.URL.EscapedPath())
+		}
+		if request.Method != "GET" {
+			t.Errorf("Expected 'GET' request, received '%s", request.Method)
+		}
+		var jsonData []byte
+		if request.URL.EscapedPath() == "/skus" {
+			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
+			jsonData, _ = json.Marshal(result)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write(jsonData)
+	}))
+
+	defer testServer.Close()
+
+	masterDB := dbHost.CreateDB(t)
+	defer masterDB.Close()
+
+	var searchGtinTests = []inputTest{
+		// Expected input with count_only = false
+		{
+			input: []byte(`{
+					"facility_id":"store001",
+					"gtin":"00012345678905",				
+					"count_only":false,
+					"size":500
+				  }`),
+			code: []int{200, 204},
+		},
+		// Expected input with count_only = true
+		{
+			input: []byte(`{
+				"facility_id":"store001",
+				"gtin":"00012345678905",				
+				"count_only":true,
+				"size":500
+			  }`),
+			code: []int{200, 204},
+		},
+	}
+
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+
+	handler := web.Handler(inventory.GetSearchByGtin)
+
+	testHandlerHelper(searchGtinTests, "POST", handler, masterDB, t)
+}
+
+// nolint :dupl
+func TestSearchByGtinNegative(t *testing.T) {
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		time.Sleep(1 * time.Second)
+		if request.URL.EscapedPath() != "/skus" {
+			t.Errorf("Expected request to be '/skus', received %s",
+				request.URL.EscapedPath())
+		}
+		if request.Method != "GET" {
+			t.Errorf("Expected 'GET' request, received '%s", request.Method)
+		}
+		var jsonData []byte
+		if request.URL.EscapedPath() == "/skus" {
+			result := buildProductData(0.2, 0.75, 0.2, 0.1, "00111111")
+			jsonData, _ = json.Marshal(result)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write(jsonData)
+	}))
+
+	defer testServer.Close()
+
+	masterDB := dbHost.CreateDB(t)
+	defer masterDB.Close()
+
+	var searchGtinTests = []inputTest{
+		// No facility id
+		{
+			input: []byte(`{
+				"size":500,
+				"gtin":"00012345678905"
+			  }`),
+			code: []int{400},
+		},
+		// Empty request body
+		{
+			input: []byte(``),
+			code:  []int{400},
+		},
+		// Non-json body
+		{
+			input: []byte(`blah`),
+			code:  []int{400},
+		},
+		// Invalid input type for facility_id
+		{
+			input: []byte(`{ "facility_id":10 }`),
+			code:  []int{400},
+		},
+		// No gtin field
+		{
+			input: []byte(`{ "facility_id":"store1" }`),
+			code:  []int{400},
+		},
+		// Invalid gtin size
+		{
+			input: []byte(`{
+				"size":500,
+				"gtin":"123",
+				"facility_id":"store1"
+			  }`),
+			code: []int{400},
+		},
+	}
+
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+
+	handler := web.Handler(inventory.GetSearchByGtin)
+
+	testHandlerHelper(searchGtinTests, "POST", handler, masterDB, t)
+
+}
+
+func insertTag(t tag.Tag) dbFunc {
+	return func(dbs *sql.DB, _ *testing.T) error {
+		return tag.Replace(dbs, []tag.Tag{t})
+	}
+}
+
+func deleteTag(epc string) dbFunc {
+	return func(dbs *sql.DB, _ *testing.T) error {
+		return tag.Delete(dbs, epc)
+	}
+}
+
+func deleteAllTags() dbFunc {
+
+	return func(dbs *sql.DB, _ *testing.T) error {
+		selectQuery := fmt.Sprintf(`DELETE FROM %s`,
+			pq.QuoteIdentifier(tagsTable),
+		)
+		_, err := dbs.Exec(selectQuery)
+		return err
+	}
+}
+
+func getTagCount(dbs *sql.DB) (int, error) {
+	var count int
+
+	row := dbs.QueryRow("SELECT count(*) FROM " + tagsTable)
+	err := row.Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func validateAll(fs []validateFunc) validateFunc {
+	return func(dbs *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error {
+		for _, f := range fs {
+			if err := f(dbs, r, t); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+//nolint:unparam
+func validateSelectEpc(epc string) validateFunc {
+	return func(_ *sql.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
+		var js tagResponse
+		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
+			return errors.Wrap(err, "Unable to parse results as json!")
+		}
+
+		var found bool
+		for _, tag := range js.Results {
+			if tag.Epc == epc {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("expected epc to be %s, but not found", epc)
+		}
+		return nil
+	}
+}
+
+func validateSelectConfidence() validateFunc {
+	return func(_ *sql.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
+		var js tagResponse
+		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
+			return errors.Wrap(err, "Unable to parse results as json!")
+		}
+		for _, tag := range js.Results {
+			if tag.Confidence < 0.0 && tag.Confidence > 1.0 {
+				return fmt.Errorf("confidence is invalid. Must be 0-1. Got %v", tag.Confidence)
+			}
+		}
+		return nil
+	}
+}
+func validateSelectFields(fields []string) validateFunc {
+	return func(_ *sql.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
+		var js tagResponse
+		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
+			return errors.Wrap(err, "Unable to parse results as json!")
+		}
+		mapSelectFields := make(map[string]bool, len(fields))
+		for _, field := range fields {
+			mapSelectFields[strings.TrimSpace(field)] = true
+		}
+
+		for _, tag := range js.Results {
+			tag := MapOfTags(&tag, mapSelectFields)
+			for _, fieldValue := range tag {
+				switch fieldValue.(type) {
+				case string:
+					if fieldValue.(string) == "" {
+						return fmt.Errorf("unepxected empty string field value")
+					}
+				case float64:
+					if fieldValue.(float64) < 0 {
+						return fmt.Errorf(" field value")
+					}
+				}
+			}
+		}
+
+		return nil
+	}
+}
+
+func validateResultSize(size int) validateFunc {
+	return func(_ *sql.DB, r *httptest.ResponseRecorder, _ *testing.T) error {
+		var js tagResponse
+		if err := json.Unmarshal([]byte(r.Body.Bytes()), &js); err != nil {
+			return errors.Wrap(err, "Unable to parse results as json!")
+		}
+
+		if len(js.Results) != size {
+			return fmt.Errorf("invalid result size. Expected: %d, but got: %d", size, len(js.Results))
+		}
+		return nil
+	}
+}
+
+func validateTagCount(count int) validateFunc {
+	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		n, err := getTagCount(dbs)
+		if err != nil {
+			return err
+		}
+		if n != count {
+			return fmt.Errorf("invalid tag count -- expected: %d, got: %d", count, n)
+		}
+		return nil
+	}
+}
+
+// nolint :dupl
+func validateQualifiedStateUpdate(epc string, qualifiedState string) validateFunc {
+	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		tagInDb, err := tag.FindByEpc(dbs, epc)
+		if err != nil {
+			return err
+		}
+		if tagInDb.QualifiedState != qualifiedState {
+			return fmt.Errorf("invalid Qualified State -- expected: %s, got: %s", qualifiedState, tagInDb.QualifiedState)
+		}
+		return nil
+	}
+}
+
+// nolint :dupl
+func validateEpcContextSet(epc string, epcContext string) validateFunc {
+	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		tagInDb, err := tag.FindByEpc(dbs, epc)
+		if err != nil {
+			return err
+		}
+		if tagInDb.EpcContext != epcContext {
+			return fmt.Errorf("invalid Epc context -- expected: %s, got: %s", epcContext, tagInDb.EpcContext)
+		}
+		return nil
+	}
+}
+
+// nolint :dupl
+func validateEpcContextDelete(epc string) validateFunc {
+	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		tagInDb, err := tag.FindByEpc(dbs, epc)
+		if err != nil {
+			return err
+		}
+		if tagInDb.EpcContext != "" {
+			return fmt.Errorf("invalid Epc context -- expected: %s, got: %s", "", tagInDb.EpcContext)
+		}
+		return nil
+	}
+}
+
 func TestUpdateQualifiedState(t *testing.T) {
 	masterDB := dbHost.CreateDB(t)
 	defer masterDB.Close()
@@ -957,14 +820,11 @@ func TestUpdateQualifiedState(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.UpdateQualifiedState)
 
-	testHandlerHelper(qualifiedStateTests, "PUT", handler, copySession, t)
+	testHandlerHelper(qualifiedStateTests, "PUT", handler, masterDB, t)
 
 }
 
@@ -1103,6 +963,7 @@ func TestSearchByEpcPositive(t *testing.T) {
 	}))
 
 	defer testServer.Close()
+
 	masterDB := dbHost.CreateDB(t)
 	defer masterDB.Close()
 
@@ -1141,14 +1002,11 @@ func TestSearchByEpcPositive(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetSearchByEpc)
 
-	testHandlerHelper(searchEpcTests, "POST", handler, copySession, t)
+	testHandlerHelper(searchEpcTests, "POST", handler, masterDB, t)
 }
 
 // nolint :dupl
@@ -1173,6 +1031,7 @@ func TestSearchByEpcNegative(t *testing.T) {
 	}))
 
 	defer testServer.Close()
+
 	masterDB := dbHost.CreateDB(t)
 	defer masterDB.Close()
 
@@ -1220,14 +1079,11 @@ func TestSearchByEpcNegative(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetSearchByEpc)
 
-	testHandlerHelper(searchEpcTests, "POST", handler, copySession, t)
+	testHandlerHelper(searchEpcTests, "POST", handler, masterDB, t)
 }
 
 func TestUpdateCoefficientsPositive(t *testing.T) {
@@ -1335,14 +1191,11 @@ func TestSetEpcContext(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.SetEpcContext)
 
-	testHandlerHelper(epcContextTests, "PUT", handler, copySession, t)
+	testHandlerHelper(epcContextTests, "PUT", handler, masterDB, t)
 
 }
 
@@ -1372,14 +1225,11 @@ func TestDeleteEpcContext(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.DeleteEpcContext)
 
-	testHandlerHelper(epcContextTests, "DELETE", handler, copySession, t)
+	testHandlerHelper(epcContextTests, "DELETE", handler, masterDB, t)
 
 }
 
@@ -1409,12 +1259,9 @@ func TestDeleteAllTags(t *testing.T) {
 		},
 	}
 
-	copySession := masterDB.CopySession()
-	defer copySession.Close()
-
-	inventory := Inventory{copySession, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.DeleteAllTags)
 
-	testHandlerHelper(deleteAllTagTests, "DELETE", handler, copySession, t)
+	testHandlerHelper(deleteAllTagTests, "DELETE", handler, masterDB, t)
 }

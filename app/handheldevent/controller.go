@@ -20,96 +20,142 @@
 package handheldevent
 
 import (
+	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+	"github.com/lib/pq"
+	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/postgresql"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"net/url"
-	"reflect"
 	"time"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
 	"github.com/pkg/errors"
-	db "github.impcloud.net/RSP-Inventory-Suite/go-dbWrapper"
-	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/mongo"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 )
 
-const collection = "handheldevents"
+const handheldEventsTable = "handheldevents"
+const jsonb = "data"
+
+type handheldEventWrapper struct {
+	ID   []uint8       `db:"id" json:"id"`
+	Data HandheldEvent `db:"data" json:"data"`
+}
 
 // Retrieve retrieves All handheld events from database
 //nolint:dupl
-func Retrieve(dbs *db.DB, query url.Values) (interface{}, *CountType, error) {
-	var object []interface{}
+func Retrieve(dbs *sql.DB, query url.Values) (interface{}, *CountType, error) {
+	// Metrics
+	metrics.GetOrRegisterGauge(`HandheldEvent.Retrieve.Attempt`, nil).Update(1)
+	mCountErr := metrics.GetOrRegisterGauge("HandheldEvent.Retrieve.Count-Error", nil)
+	mSuccess := metrics.GetOrRegisterGauge(`HandheldEvent.Retrieve.Success`, nil)
+	mRetrieveErr := metrics.GetOrRegisterGauge("HandheldEvent.Retrieve.Retrieve-Error", nil)
+	mInputErr := metrics.GetOrRegisterGauge("HandheldEvent.Retrieve.Input-Error", nil)
+	mRetrieveLatency := metrics.GetOrRegisterTimer(`HandheldEvent.Retrieve.Retrieve-Latency`, nil)
 
-	count := query["$count"]
+	countQuery := query["$count"]
 
-	// If count is true, return count number
-	if len(count) > 0 && len(query) < 2 {
+	// If only $count is set, return total count of the table
+	if len(countQuery) > 0 && len(query) < 2 {
 
 		var count int
-		var err error
 
-		execFunc := func(collection *mgo.Collection) (int, error) {
-			return odata.ODataCount(collection)
+		row := dbs.QueryRow("SELECT count(*) FROM " + handheldEventsTable)
+		err := row.Scan(&count)
+		if err != nil {
+			mCountErr.Update(1)
+			return nil, nil, err
 		}
 
-		if count, err = dbs.ExecuteCount(collection, execFunc); err != nil {
-			return nil, nil, errors.Wrap(err, "db."+collection+".Count()")
-		}
-
+		mSuccess.Update(1)
 		return nil, &CountType{Count: &count}, nil
 	}
 
-	// Else, run filter query and return slice of Facilities
-	execFunc := func(collection *mgo.Collection) error {
-		return odata.ODataQuery(query, &object, collection)
-	}
+	// Else, run filter query and return slice of handheld events
+	retrieveTimer := time.Now()
 
-	if err := dbs.Execute(collection, execFunc); err != nil {
+	// Run OData PostgreSQL
+	rows, err := odata.ODataSQLQuery(query, handheldEventsTable, jsonb, dbs)
+	if err != nil {
 		if errors.Cause(err) == odata.ErrInvalidInput {
-			return nil, nil, errors.Wrap(web.ErrInvalidInput, err.Error())
+			mInputErr.Update(1)
+			return nil, nil,  errors.Wrap(web.ErrInvalidInput, err.Error())
 		}
-		return nil, nil, errors.Wrap(err, "db."+collection+".find()")
+		return nil, nil, errors.Wrap(err, "error in retrieving handheld events")
+	}
+	mRetrieveLatency.Update(time.Since(retrieveTimer))
+	defer rows.Close()
+
+	eventSlice := make([]HandheldEvent, 0)
+
+	inlineCount := 0
+
+	// Loop through the results and append them to a slice
+	for rows.Next() {
+
+		handheldEventWrapper := new(handheldEventWrapper)
+		err := rows.Scan(&handheldEventWrapper.ID, &handheldEventWrapper.Data)
+		if err != nil {
+			mRetrieveErr.Update(1)
+			return nil, nil, err
+		}
+		eventSlice = append(eventSlice, handheldEventWrapper.Data)
+		inlineCount++
+
+	}
+	if err = rows.Err(); err != nil {
+		mRetrieveErr.Update(1)
+		return nil, nil, err
 	}
 
-	// Check if inlinecount is set
-	inlineCount := query["$inlinecount"]
-	var inCount int
-	if len(inlineCount) > 0 {
-		if inlineCount[0] == "allpages" {
-			resultSlice := reflect.ValueOf(object)
-			inCount = resultSlice.Len()
-			return object, &CountType{Count: &inCount}, nil
-		}
+	// Check if $inlinecount or $count is set in combination with $filter
+	isInlineCount := query["$inlinecount"]
+
+	if len(isInlineCount) > 0 && isInlineCount[0] == "allpages" {
+		mSuccess.Update(1)
+		return eventSlice, &CountType{Count: &inlineCount}, nil
+	} else if len(countQuery) > 0 {
+		mSuccess.Update(1)
+		return nil, &CountType{Count: &inlineCount}, nil
 	}
 
-	return object, nil, nil
+	mSuccess.Update(1)
+	return eventSlice, nil, nil
+}
 
+// Value implements driver.Valuer inferfaces
+func (handheldEvent HandheldEvent) Value() (driver.Value, error) {
+	return json.Marshal(handheldEvent)
+}
+
+// Scan implements sql.Scanner inferfaces
+func (handheldEvent *HandheldEvent) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(b, handheldEvent)
 }
 
 // Insert to insert handheldEvent into database
-func Insert(dbs *db.DB, handheldEvent HandheldEvent) error {
+func Insert(dbs *sql.DB, handheldEvent HandheldEvent) error {
 
-	handheldEvent.TTL = time.Now()
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Insert(handheldEvent)
+	obj, err := json.Marshal(handheldEvent)
+	if err != nil {
+		return err
 	}
 
-	if err := dbs.Execute(collection, execFunc); err != nil {
-		return errors.Wrap(err, "db."+collection+".insert()")
+	insertStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s); `,
+		pq.QuoteIdentifier(handheldEventsTable),
+		pq.QuoteIdentifier(jsonb),
+		pq.QuoteLiteral(string(obj)),
+	)
+
+	_, err = dbs.Exec(insertStmt)
+	if err != nil {
+		return errors.Wrap(err, "error in inserting handheld event")
 	}
 
 	return nil
-}
-
-// UpdateTTLIndexForHandheldEvents updates the expireAfterSeconds value in ttl index
-// nolint :dupl
-func UpdateTTLIndexForHandheldEvents(dbs *db.DB, purgingSeconds int) error {
-
-	updateCommand := bson.D{{"collMod", collection}, {"index", bson.D{{"keyPattern", bson.D{{"ttl", 1}}}, {"expireAfterSeconds", purgingSeconds}}}}
-	var result interface{}
-
-	execFunc := func(collection *mgo.Collection) error {
-		return collection.Database.Run(updateCommand, result)
-	}
-
-	return dbs.Execute(collection, execFunc)
 }

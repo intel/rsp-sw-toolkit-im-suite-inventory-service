@@ -68,7 +68,7 @@ func MakeGetCallToSkuMapping(url string) ([]ProdData, error) {
 		log.WithFields(log.Fields{
 			"Method": "MakeGetCallToSkuMapping",
 			"Action": "Response code: " + strconv.Itoa(response.StatusCode),
-			"Error":  fmt.Errorf("Response code: %d", response.StatusCode),
+			"Error":  fmt.Errorf("response code: %d", response.StatusCode),
 		}).Error(err)
 		return nil, errors.Wrapf(errors.New("execution error"), "StatusCode %d , Response %s",
 			response.StatusCode, string(responseData))
@@ -78,7 +78,7 @@ func MakeGetCallToSkuMapping(url string) ([]ProdData, error) {
 
 	var result Result
 	if unmarshalErr := json.Unmarshal(responseData, &result); unmarshalErr != nil {
-		return nil, errors.Wrapf(err, "failed to Unmarshal responsedata")
+		return nil, errors.Wrapf(err, "failed to Unmarshal response data")
 	}
 
 	return result.ProdData, nil
