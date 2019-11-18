@@ -244,7 +244,7 @@ func FindPresentOrDepartedTagsSinceTimestamp(db *sql.DB, productId string, since
 	timestamp := fmt.Sprintf("%v", sinceTimestamp)
 
 	// query for not departed i.e. present tags
-	selectStmt := fmt.Sprintf("SELECT count(*) FROM %s WHERE %s ->> %s = %s" +
+	selectStmt := fmt.Sprintf("SELECT count(*) FROM %s WHERE %s ->> %s = %s"+
 		"AND %s ->> %s != %s AND (%s ->> %s)::numeric > '0'",
 		pq.QuoteIdentifier(tagsTable),
 		pq.QuoteIdentifier(jsonb),

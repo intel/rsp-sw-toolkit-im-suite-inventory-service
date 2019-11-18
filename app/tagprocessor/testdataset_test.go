@@ -21,7 +21,7 @@ type testDataset struct {
 
 func newTestDataset(masterDb *sql.DB, tagCount int) testDataset {
 	ds := testDataset{
-		masterDb:    masterDb,
+		masterDb: masterDb,
 	}
 	ds.initialize(tagCount)
 	return ds

@@ -47,6 +47,7 @@ const (
 
 type dbFunc func(dbs *sql.DB, t *testing.T) error
 type validateFunc func(dbs *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error
+
 var dbHost integrationtest.DBHost
 
 // tagResponse holds a more specific version of the generic tag.Response

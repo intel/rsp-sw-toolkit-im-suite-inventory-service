@@ -49,7 +49,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-
 func TestGetNewTagEventMoved(t *testing.T) {
 	newTagEvent := GetNewTagEvent(MovedEvent)
 	if newTagEvent != ArrivalEvent {

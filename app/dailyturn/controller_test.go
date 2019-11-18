@@ -479,7 +479,7 @@ func insertSampleHistory(t *testing.T, db *sql.DB, sampleID string, lastTimestam
 func insertTags(t *testing.T, db *sql.DB, productId string, tagCount int, departedCount int, lastRead int64) error {
 	tags := make([]tag.Tag, tagCount)
 	for i, tagItem := range tags {
-		tagItem.Epc = productId + strconv.Itoa(+ tagCount+i)
+		tagItem.Epc = productId + strconv.Itoa(+tagCount+i)
 		tagItem.ProductID = productId
 		tagItem.LastRead = lastRead
 		if i < departedCount {

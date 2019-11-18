@@ -22,7 +22,6 @@ const (
 	historyTable = "dailyturnhistory"
 )
 
-
 func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 	result := buildProductData(0.0, 0.0, 0.0, 0.0, "00111111")
 	testServer := buildTestServer(t, result)
@@ -589,7 +588,6 @@ func clearDailyTurnHistory(t *testing.T, db *sql.DB) {
 		t.Errorf("Unable to delete data from %s table: %s", historyTable, err)
 	}
 }
-
 
 func buildProductData(becomingReadable float64, beingRead float64, dailyTurn float64, exitError float64, gtinSku string) productdata.Result {
 
