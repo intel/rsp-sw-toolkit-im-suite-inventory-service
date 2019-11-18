@@ -14,6 +14,7 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("lib_test")
+	defer dbHost.Close()
 	os.Exit(m.Run())
 }
 

@@ -45,28 +45,29 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("dailyTurn_test")
+	defer dbHost.Close()
 	os.Exit(m.Run())
 }
 
 func TestFindHistoryByProductId(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 
 	productId := t.Name()
-	insertSampleHistory(t, masterDb, productId, 0)
+	insertSampleHistory(t, testDB.DB, productId, 0)
 
-	if _, err := FindHistoryByProductId(masterDb, productId); err != nil {
+	if _, err := FindHistoryByProductId(testDB.DB, productId); err != nil {
 		t.Error("Unable to query find history by productId", err.Error())
 	}
 }
 
 func TestProcessIncomingASNList(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 	asnList := []tag.AdvanceShippingNotice{
 		{
 			EventTime: strconv.Itoa(int(helper.UnixMilliNow())),
@@ -91,7 +92,7 @@ func TestProcessIncomingASNList(t *testing.T) {
 	var oldTimestamp int64
 
 	for _, productId := range productIds {
-		history, _ := FindHistoryByProductId(masterDb, productId)
+		history, _ := FindHistoryByProductId(testDB.DB, productId)
 		if !reflect.DeepEqual(history, History{}) {
 			t.Fatalf("History is expected to be empty")
 		}
@@ -99,15 +100,15 @@ func TestProcessIncomingASNList(t *testing.T) {
 
 	// insert some data to ensure daily turn is computed and not skipped
 	for _, productId := range productIds {
-		if err := insertTags(t, masterDb, productId, 100, 25, helper.UnixMilliNow()); err != nil {
+		if err := insertTags(t, testDB.DB, productId, 100, 25, helper.UnixMilliNow()); err != nil {
 			t.Fatal("Unable to insert sample tags into the database")
 		}
 	}
 
-	ProcessIncomingASNList(masterDb, asnList)
+	ProcessIncomingASNList(testDB.DB, asnList)
 
 	for _, productId := range productIds {
-		history, _ := FindHistoryByProductId(masterDb, productId)
+		history, _ := FindHistoryByProductId(testDB.DB, productId)
 		if len(history.Records) != 0 || history.Timestamp < 1 {
 			t.Fatalf("Expected history records to be 0 and timestamp to be > 1: %d, %d",
 				len(history.Records), history.Timestamp)
@@ -115,16 +116,16 @@ func TestProcessIncomingASNList(t *testing.T) {
 
 		// spoof timestamp
 		history.Timestamp -= int64(2 * millisecondsInDay)
-		if err := Upsert(masterDb, history); err != nil {
+		if err := Upsert(testDB.DB, history); err != nil {
 			t.Fatal("Unexpected error upserting data")
 		}
 		oldTimestamp = history.Timestamp
 	}
 
-	ProcessIncomingASNList(masterDb, asnList)
+	ProcessIncomingASNList(testDB.DB, asnList)
 
 	for _, productId := range productIds {
-		history, _ := FindHistoryByProductId(masterDb, productId)
+		history, _ := FindHistoryByProductId(testDB.DB, productId)
 		if len(history.Records) != 1 || history.Timestamp <= oldTimestamp {
 			t.Fatalf("Expected history records to be 1 and timestamp to be > oldTimestamp: %d, %d, %d",
 				len(history.Records), history.Timestamp, oldTimestamp)
@@ -132,16 +133,16 @@ func TestProcessIncomingASNList(t *testing.T) {
 
 		// spoof timestamp
 		history.Timestamp -= int64(2 * millisecondsInDay)
-		if err := Upsert(masterDb, history); err != nil {
+		if err := Upsert(testDB.DB, history); err != nil {
 			t.Fatal("Unexpected error upserting data")
 		}
 		oldTimestamp = history.Timestamp
 	}
 
-	ProcessIncomingASNList(masterDb, asnList)
+	ProcessIncomingASNList(testDB.DB, asnList)
 
 	for _, productId := range productIds {
-		history, _ := FindHistoryByProductId(masterDb, productId)
+		history, _ := FindHistoryByProductId(testDB.DB, productId)
 		if len(history.Records) != 2 || history.Timestamp <= oldTimestamp {
 			t.Fatalf("Expected history records to be 2 and timestamp to be > oldTimestamp: %d, %d, %d",
 				len(history.Records), history.Timestamp, oldTimestamp)
@@ -150,15 +151,15 @@ func TestProcessIncomingASNList(t *testing.T) {
 }
 
 func TestProcessIncomingASNList_TruncateHistoryRecords(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 
 	productId := t.Name()
 	maxRecords := config.AppConfig.DailyTurnHistoryMaximum
 
-	if err := insertTags(t, masterDb, productId, 100, 25, helper.UnixMilliNow()); err != nil {
+	if err := insertTags(t, testDB.DB, productId, 100, 25, helper.UnixMilliNow()); err != nil {
 		t.Fatal("Unable to insert sample tags into the database")
 	}
 
@@ -175,16 +176,16 @@ func TestProcessIncomingASNList_TruncateHistoryRecords(t *testing.T) {
 			},
 		}
 
-		ProcessIncomingASNList(masterDb, asnList)
+		ProcessIncomingASNList(testDB.DB, asnList)
 
-		history, _ := FindHistoryByProductId(masterDb, productId)
+		history, _ := FindHistoryByProductId(testDB.DB, productId)
 		if len(history.Records) > maxRecords {
 			t.Fatalf("Too many history records were found: %d. Expected to limit records to %d", len(history.Records), maxRecords)
 		}
 
 		// spoof timestamp
 		history.Timestamp -= int64(2 * millisecondsInDay)
-		if err := Upsert(masterDb, history); err != nil {
+		if err := Upsert(testDB.DB, history); err != nil {
 			t.Fatal("Unexpected error upserting data")
 		}
 	}
@@ -264,10 +265,10 @@ func TestRecord_ComputeDailyTurn_ErrNoInventory(t *testing.T) {
 }
 
 func TestDailyTurnMinimumDataPoints(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 	productId := t.Name()
 
 	now := helper.UnixMilliNow()
@@ -308,10 +309,10 @@ func TestDailyTurnMinimumDataPoints(t *testing.T) {
 }
 
 func TestHistory_ComputeAverageDailyTurnMean(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 	productId := t.Name()
 
 	now := helper.UnixMilliNow()
@@ -358,10 +359,10 @@ func TestHistory_ComputeAverageDailyTurnMean(t *testing.T) {
 }
 
 func TestHistory_ComputeAverageDailyTurnMedian(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 	productId := t.Name()
 
 	now := helper.UnixMilliNow()
@@ -410,10 +411,10 @@ func TestHistory_ComputeAverageDailyTurnMedian(t *testing.T) {
 }
 
 func TestFindPresentAndDepartedTagsSinceTimestamp(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 
 	productId := t.Name()
 
@@ -421,12 +422,12 @@ func TestFindPresentAndDepartedTagsSinceTimestamp(t *testing.T) {
 		DepartedTags: 30,
 		PresentTags:  70,
 	}
-	if err := insertTags(t, masterDb, productId, expected.PresentTags+expected.DepartedTags, expected.DepartedTags, helper.UnixMilliNow()); err != nil {
+	if err := insertTags(t, testDB.DB, productId, expected.PresentTags+expected.DepartedTags, expected.DepartedTags, helper.UnixMilliNow()); err != nil {
 		t.Fatal("Unable to insert sample tags into the database")
 	}
 
 	// we should find all of the tags that we put in. this is searching for departed tags since yesterday
-	result, err := FindPresentOrDepartedTagsSinceTimestamp(masterDb, productId, helper.UnixMilliNow()-int64(millisecondsInDay))
+	result, err := FindPresentOrDepartedTagsSinceTimestamp(testDB.DB, productId, helper.UnixMilliNow()-int64(millisecondsInDay))
 	if err != nil {
 		t.Fatalf("Unable to find present or departed tags: %v", err.Error())
 	}
@@ -438,7 +439,7 @@ func TestFindPresentAndDepartedTagsSinceTimestamp(t *testing.T) {
 	}
 
 	// test that this will find 0 departed tags (because our timestamp is in the future)
-	result, err = FindPresentOrDepartedTagsSinceTimestamp(masterDb, productId, helper.UnixMilliNow()+int64(millisecondsInDay))
+	result, err = FindPresentOrDepartedTagsSinceTimestamp(testDB.DB, productId, helper.UnixMilliNow()+int64(millisecondsInDay))
 	if err != nil {
 		t.Fatalf("Unable to find present or departed tags: %v", err.Error())
 	}
@@ -447,12 +448,12 @@ func TestFindPresentAndDepartedTagsSinceTimestamp(t *testing.T) {
 	}
 
 	// insert tags with no last read
-	clearAllData(t, masterDb)
-	if err := insertTags(t, masterDb, productId, 500, 100, 0); err != nil {
+	clearAllData(t, testDB.DB)
+	if err := insertTags(t, testDB.DB, productId, 500, 100, 0); err != nil {
 		t.Fatal("Unable to insert sample tags into the database")
 	}
 	// test that tags with a last_read of 0 are ignored
-	result, err = FindPresentOrDepartedTagsSinceTimestamp(masterDb, productId, helper.UnixMilliNow()-int64(millisecondsInDay))
+	result, err = FindPresentOrDepartedTagsSinceTimestamp(testDB.DB, productId, helper.UnixMilliNow()-int64(millisecondsInDay))
 	if err != nil {
 		t.Fatalf("Unable to find present or departed tags: %v", err.Error())
 	}
@@ -479,7 +480,7 @@ func insertSampleHistory(t *testing.T, db *sql.DB, sampleID string, lastTimestam
 func insertTags(t *testing.T, db *sql.DB, productId string, tagCount int, departedCount int, lastRead int64) error {
 	tags := make([]tag.Tag, tagCount)
 	for i, tagItem := range tags {
-		tagItem.Epc = productId + strconv.Itoa(+ tagCount+i)
+		tagItem.Epc = productId + strconv.Itoa(+tagCount+i)
 		tagItem.ProductID = productId
 		tagItem.LastRead = lastRead
 		if i < departedCount {

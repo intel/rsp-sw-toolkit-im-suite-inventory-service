@@ -46,9 +46,10 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("statemodel_test")
-	os.Exit(m.Run())
+	err := m.Run()
+	dbHost.Close()
+	os.Exit(err)
 }
-
 
 func TestGetNewTagEventMoved(t *testing.T) {
 	newTagEvent := GetNewTagEvent(MovedEvent)
@@ -457,18 +458,18 @@ func TestIsTagWhitelisted_True(t *testing.T) {
 }
 
 func TestFindTagByEpc(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertSample(t, db, getHelperTag())
-	foundTag, err := tag.FindByEpc(db, getHelperTag().Epc)
+	insertSample(t, testDB.DB, getHelperTag())
+	foundTag, err := tag.FindByEpc(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
 	}
 	if foundTag.Epc != getHelperTag().Epc {
 		t.Errorf("Failed. Did not retrieve the expected tag.")
 	}
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Error("Error on Delete", err)
 	}
@@ -478,12 +479,12 @@ func TestFindTagByEpc(t *testing.T) {
 //states based on the qualified state model
 //nolint :gocyclo
 func TestArrived_New(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	helperTag := getHelperTag()
 	helperTagEvent := getHelperTagEvent()
-	foundTag, err := tag.FindByEpc(db, helperTag.Epc)
+	foundTag, err := tag.FindByEpc(testDB.DB, helperTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc: %s", err)
@@ -519,18 +520,18 @@ func TestArrived_New(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with no Arrived Tag in DB.")
 	}
 
-	tag.Delete(db, getHelperTag().Epc)
+	tag.Delete(testDB.DB, getHelperTag().Epc)
 }
 
 //nolint :goclyclo
 func TestArrived_ExistPresent(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	helperTag := getHelperTag()
 	helperTagEvent := getHelperTagEvent()
-	insertSample(t, db, helperTag)
-	foundTag, err := tag.FindByEpc(db, helperTag.Epc)
+	insertSample(t, testDB.DB, helperTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, helperTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -566,7 +567,7 @@ func TestArrived_ExistPresent(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -574,14 +575,14 @@ func TestArrived_ExistPresent(t *testing.T) {
 
 //nolint :goclyclo
 func TestArrived_ExistDeparted(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	helperTag := getHelperTag()
 	helperTag.EpcState = DepartedEpcState
 	helperTagEvent := getHelperTagEvent()
-	insertSample(t, db, helperTag)
-	foundTag, err := tag.FindByEpc(db, helperTag.Epc)
+	insertSample(t, testDB.DB, helperTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, helperTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -617,17 +618,17 @@ func TestArrived_ExistDeparted(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	if err := tag.Delete(db, helperTag.Epc); err != nil {
+	if err := tag.Delete(testDB.DB, helperTag.Epc); err != nil {
 		t.Error(err)
 	}
 }
 
 //nolint :gocyclo
 func TestMoved_New(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	foundTag, err := tag.FindByEpc(db, getHelperTag().Epc)
+	foundTag, err := tag.FindByEpc(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
 	}
@@ -665,7 +666,7 @@ func TestMoved_New(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a moved event from RSP Controller and no Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -673,14 +674,14 @@ func TestMoved_New(t *testing.T) {
 
 //nolint :goclyclo
 func TestMoved_ExistPresent(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	movedTag := getHelperTag()
 	movedTag.Event = MovedEvent
-	insertSample(t, db, movedTag)
+	insertSample(t, testDB.DB, movedTag)
 
-	foundTag, err := tag.FindByEpc(db, movedTag.Epc)
+	foundTag, err := tag.FindByEpc(testDB.DB, movedTag.Epc)
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
 	}
@@ -718,7 +719,7 @@ func TestMoved_ExistPresent(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -726,14 +727,14 @@ func TestMoved_ExistPresent(t *testing.T) {
 
 // nolint :dupl
 func TestMoved_ExistDeparted(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	movedTag := getHelperTag()
 	movedTag.Event = MovedEvent
 	movedTag.EpcState = DepartedEpcState
-	insertSample(t, db, movedTag)
-	foundTag, err := tag.FindByEpc(db, movedTag.Epc)
+	insertSample(t, testDB.DB, movedTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, movedTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -772,7 +773,7 @@ func TestMoved_ExistDeparted(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a moved RSP Controller event with existing Moved Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -780,12 +781,12 @@ func TestMoved_ExistDeparted(t *testing.T) {
 
 //nolint :gocyclo
 func TestCycleCount_New(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	cycleCountTag := getHelperTag()
 	cycleCountTag.Event = CycleCountEvent
-	foundTag, err := tag.FindByEpc(db, cycleCountTag.Epc)
+	foundTag, err := tag.FindByEpc(testDB.DB, cycleCountTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -824,7 +825,7 @@ func TestCycleCount_New(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -832,13 +833,13 @@ func TestCycleCount_New(t *testing.T) {
 
 //nolint :goclyclo
 func TestCycleCount_ExistPresent(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	cycleCountTag := getHelperTag()
 	cycleCountTag.Event = CycleCountEvent
-	insertSample(t, db, cycleCountTag)
-	foundTag, err := tag.FindByEpc(db, cycleCountTag.Epc)
+	insertSample(t, testDB.DB, cycleCountTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, cycleCountTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -888,7 +889,7 @@ func TestCycleCount_ExistPresent(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -896,14 +897,14 @@ func TestCycleCount_ExistPresent(t *testing.T) {
 
 // nolint :dupl
 func TestCycleCount_ExistDeparted(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	cycleCountTag := getHelperTag()
 	cycleCountTag.Event = CycleCountEvent
 	cycleCountTag.EpcState = DepartedEpcState
-	insertSample(t, db, cycleCountTag)
-	foundTag, err := tag.FindByEpc(db, cycleCountTag.Epc)
+	insertSample(t, testDB.DB, cycleCountTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, cycleCountTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -942,7 +943,7 @@ func TestCycleCount_ExistDeparted(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -950,12 +951,12 @@ func TestCycleCount_ExistDeparted(t *testing.T) {
 
 //nolint :gocyclo
 func TestDeparted_New(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	departedTag := getHelperTag()
 	departedTag.Event = DepartedEvent
-	foundTag, err := tag.FindByEpc(db, departedTag.Epc)
+	foundTag, err := tag.FindByEpc(testDB.DB, departedTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -992,7 +993,7 @@ func TestDeparted_New(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a cycle count event from RSP Controller and no Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -1000,13 +1001,13 @@ func TestDeparted_New(t *testing.T) {
 
 //nolint :goclyclo
 func TestDeparted_ExistPresent(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	departedTag := getHelperTag()
 	departedTag.Event = DepartedEvent
-	insertSample(t, db, departedTag)
-	foundTag, err := tag.FindByEpc(db, departedTag.Epc)
+	insertSample(t, testDB.DB, departedTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, departedTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -1045,7 +1046,7 @@ func TestDeparted_ExistPresent(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -1053,14 +1054,14 @@ func TestDeparted_ExistPresent(t *testing.T) {
 
 //nolint :goclyclo
 func TestDeparted_ExistDeparted(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	departedTag := getHelperTag()
 	departedTag.Event = ArrivalEvent
 	departedTag.EpcState = DepartedEpcState
-	insertSample(t, db, departedTag)
-	foundTag, err := tag.FindByEpc(db, departedTag.Epc)
+	insertSample(t, testDB.DB, departedTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, departedTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -1099,7 +1100,7 @@ func TestDeparted_ExistDeparted(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -1107,13 +1108,13 @@ func TestDeparted_ExistDeparted(t *testing.T) {
 
 //nolint :gocyclo
 func TestReturned_New(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	helperTag := getHelperTag()
 	helperTagEvent := getHelperTagEvent()
 	helperTagEvent.EventType = ReturnedEvent
-	foundTag, err := tag.FindByEpc(db, helperTag.Epc)
+	foundTag, err := tag.FindByEpc(testDB.DB, helperTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -1149,7 +1150,7 @@ func TestReturned_New(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with no Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -1157,14 +1158,14 @@ func TestReturned_New(t *testing.T) {
 
 //nolint :goclyclo
 func TestReturned_ExistPresent(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	helperTag := getHelperTag()
 	helperTagEvent := getHelperTagEvent()
 	helperTagEvent.EventType = ReturnedEvent
-	insertSample(t, db, helperTag)
-	foundTag, err := tag.FindByEpc(db, helperTag.Epc)
+	insertSample(t, testDB.DB, helperTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, helperTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -1200,7 +1201,7 @@ func TestReturned_ExistPresent(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for an returned RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -1208,15 +1209,15 @@ func TestReturned_ExistPresent(t *testing.T) {
 
 //nolint :goclyclo
 func TestReturned_ExistDeparted(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	helperTag := getHelperTag()
 	helperTag.EpcState = DepartedEpcState
 	helperTagEvent := getHelperTagEvent()
 	helperTagEvent.EventType = ReturnedEvent
-	insertSample(t, db, helperTag)
-	foundTag, err := tag.FindByEpc(db, helperTag.Epc)
+	insertSample(t, testDB.DB, helperTag)
+	foundTag, err := tag.FindByEpc(testDB.DB, helperTag.Epc)
 
 	if err != nil {
 		t.Errorf("Failed.  Problem calling tag.FindByEpc")
@@ -1252,7 +1253,7 @@ func TestReturned_ExistDeparted(t *testing.T) {
 		t.Errorf("Updated Tag failed state changes for a arrived RSP Controller event with existing Arrived Tag in DB.")
 	}
 
-	err = tag.Delete(db, getHelperTag().Epc)
+	err = tag.Delete(testDB.DB, getHelperTag().Epc)
 	if err != nil {
 		t.Errorf("not able to clean up database by removing the inserted tag: %s", err)
 	}
@@ -1333,7 +1334,7 @@ func insertSampleCustom(t *testing.T, db *sql.DB, tagForDB tag.Tag) {
 	}
 }
 
-func insert(dbs *sql.DB, tag tag.Tag) error {
+func insert(db *sql.DB, tag tag.Tag) error {
 
 	obj, err := json.Marshal(tag)
 	if err != nil {
@@ -1354,7 +1355,7 @@ func insert(dbs *sql.DB, tag tag.Tag) error {
 		pq.QuoteLiteral(string(obj)),
 	)
 
-	_, err = dbs.Exec(upsertStmt)
+	_, err = db.Exec(upsertStmt)
 	if err != nil {
 		return err
 	}

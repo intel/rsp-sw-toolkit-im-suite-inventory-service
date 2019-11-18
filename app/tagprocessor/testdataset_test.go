@@ -1,11 +1,11 @@
 package tagprocessor
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
+	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"strings"
@@ -16,19 +16,19 @@ type testDataset struct {
 	tags           []*Tag
 	readTimeOrig   int64
 	inventoryEvent *jsonrpc.InventoryEvent
-	masterDb       *sql.DB
+	testDB         integrationtest.TestDB
 }
 
-func newTestDataset(masterDb *sql.DB, tagCount int) testDataset {
+func newTestDataset(testDB integrationtest.TestDB, tagCount int) testDataset {
 	ds := testDataset{
-		masterDb:    masterDb,
+		testDB: testDB,
 	}
 	ds.initialize(tagCount)
 	return ds
 }
 
 func (ds *testDataset) close() {
-	ds.masterDb.Close()
+	ds.testDB.Close()
 }
 
 func (ds *testDataset) resetEvents() {

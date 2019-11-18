@@ -279,7 +279,7 @@ func (inve *Inventory) DeleteEpcContext(ctx context.Context, writer http.Respons
 	mProcessUpdateLatency.Update(time.Since(processUpdateTimer))
 
 	mSuccess.Update(1)
-	return processUpdateRequest(ctx, inve.MasterDB, writer,mapping.Epc, mapping.FacilityID, objectMap)
+	return processUpdateRequest(ctx, inve.MasterDB, writer, mapping.Epc, mapping.FacilityID, objectMap)
 	return nil
 }
 
@@ -475,4 +475,3 @@ func (inve *Inventory) UpdateCoefficients(ctx context.Context, writer http.Respo
 	web.Respond(ctx, writer, nil, http.StatusOK)
 	return nil
 }
-

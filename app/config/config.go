@@ -39,7 +39,7 @@ const (
 
 type (
 	variables struct {
-		ServiceName, LoggingLevel, Port                                         					   string
+		ServiceName, LoggingLevel, Port                                                                string
 		DbHost, DbPort, DbUser, DbPass, DbSSLMode, DbName                                              string
 		TelemetryEndpoint, TelemetryDataStoreName                                                      string
 		DailyInventoryPercentage, ProbUnreadToRead, ProbInStoreRead, ProbExitError                     float64 // Coefficients

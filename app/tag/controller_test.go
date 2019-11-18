@@ -45,22 +45,23 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("tag_test")
+	defer dbHost.Close()
 	os.Exit(m.Run())
 }
 
 // nolint :dupl
 func TestDelete(t *testing.T) {
-	db := dbHost.CreateDB(t)
-	defer db.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	// have to insert something before we can delete it
-	insertSample(t, db)
+	insertSample(t, testDB.DB)
 
 	selectQuery := fmt.Sprintf(`DELETE FROM %s`,
 		pq.QuoteIdentifier(tagsTable),
 	)
 
-	_, err := db.Exec(selectQuery)
+	_, err := testDB.DB.Exec(selectQuery)
 	if err != nil {
 		if err == web.ErrNotFound {
 			t.Fatal("Tag Not found, nothing to delete")
@@ -72,17 +73,17 @@ func TestDelete(t *testing.T) {
 //nolint:dupl
 func TestNoDataRetrieve(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10&$select=name,age")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	_, _, err = Retrieve(masterDb, testURL.Query(), config.AppConfig.ResponseLimit)
+	_, _, err = Retrieve(testDB.DB, testURL.Query(), config.AppConfig.ResponseLimit)
 	if err != nil {
 		t.Error("Unable to retrieve tags")
 	}
@@ -90,19 +91,19 @@ func TestNoDataRetrieve(t *testing.T) {
 
 func TestWithDataRetrieve(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 
-	insertSample(t, masterDb)
+	insertSample(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	tags, _, err := Retrieve(masterDb, testURL.Query(), config.AppConfig.ResponseLimit)
+	tags, _, err := Retrieve(testDB.DB, testURL.Query(), config.AppConfig.ResponseLimit)
 
 	if err != nil {
 		t.Error("Unable to retrieve tags")
@@ -121,18 +122,18 @@ func TestWithDataRetrieve(t *testing.T) {
 
 /*func TestCursor(t *testing.T) {
 
-	masterDb := dbTestSetup(t)
-	defer masterDb.Close()
+	testDB := dbTestSetup(t)
+	defer testDB.DB.Close()
 
-	clearAllData(t, masterDb)
-	insertSample(t, masterDb)
+	clearAllData(t, testDB.DB)
+	insertSample(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	tags, _, pagingfirst, err := Retrieve(masterDb, testURL.Query(), config.AppConfig.ResponseLimit)
+	tags, _, pagingfirst, err := Retrieve(testDB.DB, testURL.Query(), config.AppConfig.ResponseLimit)
 
 	if err != nil {
 		t.Error("Unable to retrieve tags")
@@ -150,14 +151,14 @@ func TestWithDataRetrieve(t *testing.T) {
 	}
 
 	// Initiating second http request to check if first sceond cursor or not same
-	insertSampleCustom(t, masterDb, "cursor")
+	insertSampleCustom(t, testDB.DB, "cursor")
 
 	cursorTestURL, err := url.Parse("http://localhost/test?$filter=_id gt '" + url.QueryEscape(cFirst) + "'&$top=10")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	ctags, _, pagingnext, err := Retrieve(masterDb, cursorTestURL.Query(), config.AppConfig.ResponseLimit)
+	ctags, _, pagingnext, err := Retrieve(testDB.DB, cursorTestURL.Query(), config.AppConfig.ResponseLimit)
 
 	if err != nil {
 		t.Error("Unable to retrieve tags")
@@ -188,8 +189,8 @@ func TestRetrieveCount(t *testing.T) {
 		"http://localhost/test?$count&$filter=startswith(epc,'3')",
 	}
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	for _, item := range testCases {
 		testURL, err := url.Parse(item)
@@ -197,7 +198,7 @@ func TestRetrieveCount(t *testing.T) {
 			t.Error("failed to parse test url")
 		}
 
-		retrieveCountTest(t, testURL, masterDb)
+		retrieveCountTest(t, testURL, testDB.DB)
 	}
 }
 
@@ -221,10 +222,10 @@ func TestRetrieveInlineCount(t *testing.T) {
 		t.Error("failed to parse test url")
 	}
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	results, count, err := Retrieve(masterDb, testURL.Query(), config.AppConfig.ResponseLimit)
+	results, count, err := Retrieve(testDB.DB, testURL.Query(), config.AppConfig.ResponseLimit)
 
 	if results == nil {
 		t.Error("expecting results to not be nil")
@@ -241,8 +242,8 @@ func TestRetrieveInlineCount(t *testing.T) {
 
 func TestRetrieveOdataAllWithOdataQuery(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	tagArray := make([]Tag, 2)
 
@@ -258,7 +259,7 @@ func TestRetrieveOdataAllWithOdataQuery(t *testing.T) {
 	tag1.URI = "tag2.test"
 	tagArray[1] = tag1
 
-	err := Replace(masterDb, tagArray)
+	err := Replace(testDB.DB, tagArray)
 	if err != nil {
 		t.Error("Unable to insert tags", err.Error())
 	}
@@ -266,8 +267,8 @@ func TestRetrieveOdataAllWithOdataQuery(t *testing.T) {
 	odataMap := make(map[string][]string)
 	odataMap["$filter"] = append(odataMap["$filter"], "facility_id eq facility1")
 
-	//tags, err := RetrieveOdataAll(masterDb, odataMap)
-	tags, err := RetrieveOdataAll(masterDb, odataMap)
+	//tags, err := RetrieveOdataAll(testDB.DB, odataMap)
+	tags, err := RetrieveOdataAll(testDB.DB, odataMap)
 	if err != nil {
 		t.Error("Error in retrieving tags based on odata query")
 	} else {
@@ -279,7 +280,7 @@ func TestRetrieveOdataAllWithOdataQuery(t *testing.T) {
 			t.Error("Expected one tag to be retrieved based on query", len(tagSlice))
 		}
 	}
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 }
 
 func unmarshallTagsInterface(tags interface{}) ([]Tag, error) {
@@ -299,10 +300,10 @@ func unmarshallTagsInterface(tags interface{}) ([]Tag, error) {
 
 func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 
 	numOfSamples := 600
 	tagSlice := make([]Tag, numOfSamples)
@@ -317,14 +318,14 @@ func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
 		tagSlice[i] = tag
 	}
 
-	err := Replace(masterDb, tagSlice)
+	err := Replace(testDB.DB, tagSlice)
 	if err != nil {
 		t.Errorf("Unable to insert tags in bulk: %s", err.Error())
 	}
 
 	odataMap := make(map[string][]string)
 
-	tags, err := RetrieveOdataAll(masterDb, odataMap)
+	tags, err := RetrieveOdataAll(testDB.DB, odataMap)
 	if err != nil {
 		t.Error("Error in retrieving tags")
 	} else {
@@ -336,20 +337,20 @@ func TestRetrieveOdataAllNoOdataQuery(t *testing.T) {
 			t.Error("Number of tags in database and number of tags retrieved do not match")
 		}
 	}
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 }
 
 func TestInsert(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertSample(t, masterDb)
+	insertSample(t, testDB.DB)
 }
 
 func TestDataReplace(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	tagArray := make([]Tag, 2)
 
@@ -369,11 +370,11 @@ func TestDataReplace(t *testing.T) {
 	tag1.Event = "arrived"
 	tagArray[1] = tag1
 
-	err := Replace(masterDb, tagArray)
+	err := Replace(testDB.DB, tagArray)
 	if err != nil {
 		t.Error("Unable to replace tags", err.Error())
 	}
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 }
 
 func TestRetrieveSizeLimitWithTop(t *testing.T) {
@@ -386,8 +387,8 @@ func TestRetrieveSizeLimitWithTop(t *testing.T) {
 		t.Error("Failed to parse test URL")
 	}
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	numOfSamples := 10
 
@@ -404,11 +405,11 @@ func TestRetrieveSizeLimitWithTop(t *testing.T) {
 		tagSlice[i] = tag
 	}
 
-	if replaceErr := Replace(masterDb, tagSlice); replaceErr != nil {
+	if replaceErr := Replace(testDB.DB, tagSlice); replaceErr != nil {
 		t.Errorf("Unable to replace tags: %s", replaceErr.Error())
 	}
 
-	results, count, err := Retrieve(masterDb, testURL.Query(), sizeLimit)
+	results, count, err := Retrieve(testDB.DB, testURL.Query(), sizeLimit)
 	if err != nil {
 		t.Errorf("Retrieve failed with error %v", err.Error())
 	}
@@ -418,7 +419,7 @@ func TestRetrieveSizeLimitWithTop(t *testing.T) {
 	if resultSlice.Len() > sizeLimit {
 		t.Errorf("Error retrieving results with size limit. Expected: %d , received: %d", sizeLimit, count.Count)
 	}
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 }
 
 func TestRetrieveSizeLimitInvalidTop(t *testing.T) {
@@ -431,10 +432,10 @@ func TestRetrieveSizeLimitInvalidTop(t *testing.T) {
 		t.Error("Failed to parse test URL")
 	}
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	_, _, err = Retrieve(masterDb, testURL.Query(), sizeLimit)
+	_, _, err = Retrieve(testDB.DB, testURL.Query(), sizeLimit)
 	if err == nil {
 		t.Errorf("Expecting an error for invalid $top value")
 	}
@@ -443,8 +444,8 @@ func TestRetrieveSizeLimitInvalidTop(t *testing.T) {
 
 func TestDataReplace_Bulk(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	numOfSamples := 600
 
@@ -461,7 +462,7 @@ func TestDataReplace_Bulk(t *testing.T) {
 		tagSlice[i] = tag
 	}
 
-	err := Replace(masterDb, tagSlice)
+	err := Replace(testDB.DB, tagSlice)
 	if err != nil {
 		t.Errorf("Unable to replace tags: %s", err.Error())
 	}
@@ -475,7 +476,7 @@ func TestDataReplace_Bulk(t *testing.T) {
 		testIndex = int(indBig.Int64())
 	}
 	epcToTest := epcSlice[testIndex]
-	gotTag, err := FindByEpc(masterDb, epcToTest)
+	gotTag, err := FindByEpc(testDB.DB, epcToTest)
 
 	if err != nil {
 		t.Error("Unable to retrieve tags")
@@ -484,19 +485,19 @@ func TestDataReplace_Bulk(t *testing.T) {
 	if !gotTag.IsTagReadByRspController() {
 		t.Error("Unable to retrieve tags")
 	}
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 }
 
 // nolint :dupl
 func TestDeleteTagCollection(t *testing.T) {
 
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	// have to insert something before we can delete it
-	insertSample(t, masterDb)
+	insertSample(t, testDB.DB)
 
-	if err := DeleteTagCollection(masterDb); err != nil {
+	if err := DeleteTagCollection(testDB.DB); err != nil {
 		if err == web.ErrNotFound {
 			t.Fatal("Tag Not found, nothing to delete")
 		}
@@ -506,11 +507,11 @@ func TestDeleteTagCollection(t *testing.T) {
 
 //nolint:dupl
 func TestDelete_nonExistItem(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	// we will try to delete random gibberish
-	if err := Delete(masterDb, "emptyId"); err != nil {
+	if err := Delete(testDB.DB, "emptyId"); err != nil {
 		if err == web.ErrNotFound {
 			// because we didn't find it, it should succeed
 			t.Log("Tag NOT FOUND, this is the expected result")
@@ -521,8 +522,8 @@ func TestDelete_nonExistItem(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := "30143639F8419105417AED6F"
 	facilityID := "TestFacility"
@@ -534,7 +535,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	err := Replace(masterDb, tagArray)
+	err := Replace(testDB.DB, tagArray)
 	if err != nil {
 		t.Error("Unable to insert tag", err.Error())
 	}
@@ -542,13 +543,13 @@ func TestUpdate(t *testing.T) {
 	objectMap := make(map[string]string)
 	objectMap["qualified_state"] = "sold"
 
-	err = Update(masterDb, epc, facilityID, objectMap)
+	err = Update(testDB.DB, epc, facilityID, objectMap)
 	if err != nil {
 		t.Error("Unable to update the tag", err.Error())
 	}
 
 	// verify that update was successful
-	tag, err := FindByEpc(masterDb, epc)
+	tag, err := FindByEpc(testDB.DB, epc)
 	if err != nil {
 		t.Errorf("Error trying to find tag by epc %s", err.Error())
 	} else if !tag.IsTagReadByRspController() {
@@ -558,21 +559,21 @@ func TestUpdate(t *testing.T) {
 	}
 
 	//clean data
-	clearAllData(t, masterDb)
-	err = Update(masterDb, epc, facilityID, objectMap)
+	clearAllData(t, testDB.DB)
+	err = Update(testDB.DB, epc, facilityID, objectMap)
 	if err == nil {
 		t.Error("Tag not found error not caught")
 	}
 }
 
 func TestFindByEpc_found(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := t.Name()
-	insertSampleCustom(t, masterDb, epc)
+	insertSampleCustom(t, testDB.DB, epc)
 
-	tag, err := FindByEpc(masterDb, epc)
+	tag, err := FindByEpc(testDB.DB, epc)
 	if err != nil {
 		t.Errorf("Error trying to find tag by epc %s", err.Error())
 	} else if !tag.IsTagReadByRspController() {
@@ -585,22 +586,22 @@ func TestFindByEpc_found(t *testing.T) {
 		pq.QuoteIdentifier(tagsTable),
 	)
 
-	_, err = masterDb.Exec(selectQuery)
+	_, err = testDB.DB.Exec(selectQuery)
 	if err != nil {
 		if err == web.ErrNotFound {
 			t.Fatal("Tag Not found, nothing to delete")
 		}
 		t.Error("Unable to delete tag", err)
 	}
-	clearAllData(t, masterDb)
+	clearAllData(t, testDB.DB)
 }
 
 func TestFindByEpc_notFound(t *testing.T) {
-	masterDb := dbHost.CreateDB(t)
-	defer masterDb.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := t.Name()
-	tag, err := FindByEpc(masterDb, epc)
+	tag, err := FindByEpc(testDB.DB, epc)
 	if err != nil {
 		t.Errorf("Error trying to find tag by epc %s", err.Error())
 	} else if tag.IsTagReadByRspController() {
@@ -687,7 +688,7 @@ func clearAllData(t *testing.T, db *sql.DB) {
 }
 
 // nolint :dupl
-func insert(dbs *sql.DB, tag Tag) error {
+func insert(db *sql.DB, tag Tag) error {
 
 	obj, err := json.Marshal(tag)
 	if err != nil {
@@ -707,7 +708,7 @@ func insert(dbs *sql.DB, tag Tag) error {
 		pq.QuoteLiteral(string(obj)),
 	)
 
-	_, err = dbs.Exec(upsertStmt)
+	_, err = db.Exec(upsertStmt)
 	if err != nil {
 		return errors.Wrap(err, "error in inserting tag")
 	}

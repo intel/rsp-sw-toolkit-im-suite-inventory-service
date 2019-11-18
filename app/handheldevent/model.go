@@ -26,7 +26,7 @@ type HandheldEvent struct {
 	Event string `json:"event"`
 	// Time event was received in epoch
 	// min: 13
-	Timestamp int64     `json:"timestamp"`
+	Timestamp int64 `json:"timestamp"`
 }
 
 // CountType represents a wrapper for count and inlinecount

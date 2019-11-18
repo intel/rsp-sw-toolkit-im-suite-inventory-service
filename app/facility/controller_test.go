@@ -36,22 +36,23 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("facility_test")
+	defer dbHost.Close()
 	os.Exit(m.Run())
 }
 
 //nolint:dupl
 func TestNoDataRetrieve(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, dbs)
+	clearAllData(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10&$select=name,age")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	_, _, err = Retrieve(dbs, testURL.Query())
+	_, _, err = Retrieve(testDB.DB, testURL.Query())
 	if err != nil {
 		t.Error("Unable to retrieve facilities")
 	}
@@ -69,18 +70,18 @@ func clearAllData(t *testing.T, db *sql.DB) {
 }
 
 func TestWithDataRetrieve(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	clearAllData(t, dbs)
-	insertSample(t, dbs)
+	clearAllData(t, testDB.DB)
+	insertSample(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10&$select=name,age")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	facilities, count, err := Retrieve(dbs, testURL.Query())
+	facilities, count, err := Retrieve(testDB.DB, testURL.Query())
 
 	// Expecting nil count
 	if count != nil {
@@ -120,10 +121,10 @@ func TestRetrieveCount(t *testing.T) {
 		t.Error("failed to parse test url")
 	}
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	_, count, err := Retrieve(dbs, testURL.Query())
+	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
 	if count == nil {
 		t.Error("expecting CountType result")
@@ -142,10 +143,10 @@ func TestRetrieveInlinecount(t *testing.T) {
 		t.Error("failed to parse test url")
 	}
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	_, count, err := Retrieve(dbs, testURL.Query())
+	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
 	if count == nil {
 		t.Error("expecting CountType result")
@@ -157,24 +158,24 @@ func TestRetrieveInlinecount(t *testing.T) {
 }
 
 func TestInsert(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	clearAllData(t, dbs)
-	insertSample(t, dbs)
+	clearAllData(t, testDB.DB)
+	insertSample(t, testDB.DB)
 }
 
 // nolint :dupl
 func TestDelete(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	clearAllData(t, dbs)
+	clearAllData(t, testDB.DB)
 
 	// have to insert something before we can delete it
-	insertSample(t, dbs)
+	insertSample(t, testDB.DB)
 
-	if err := Delete(dbs, t.Name()); err != nil {
+	if err := Delete(testDB.DB, t.Name()); err != nil {
 		if err == web.ErrNotFound {
 			t.Fatal("Facility Not found, nothing to delete")
 		}
@@ -183,8 +184,8 @@ func TestDelete(t *testing.T) {
 }
 
 func TestInsertFacilities(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
 	var facilities []Facility
 	var facility Facility
@@ -199,17 +200,17 @@ func TestInsertFacilities(t *testing.T) {
 	coefficients.ProbInStoreRead = 0.1
 	coefficients.ProbUnreadToRead = 0.1
 
-	if err := Insert(dbs, &facilities, coefficients); err != nil {
+	if err := Insert(testDB.DB, &facilities, coefficients); err != nil {
 		t.Errorf("error inserting facilities %s", err.Error())
 	}
 }
 
 func TestUpdateExistingItem(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	clearAllData(t, dbs)
-	insertSampleCustom(t, dbs, "TestUpdateExistingItem")
+	clearAllData(t, testDB.DB)
+	insertSampleCustom(t, testDB.DB, "TestUpdateExistingItem")
 	// Mock data
 	var updateFacility Facility
 	updateFacility.Name = "TestUpdateExistingItem"
@@ -218,7 +219,7 @@ func TestUpdateExistingItem(t *testing.T) {
 	updateFacility.Coefficients.ProbInStoreRead = 0.15
 	updateFacility.Coefficients.ProbExitError = 0.15
 
-	if err := UpdateCoefficients(dbs, updateFacility); err != nil {
+	if err := UpdateCoefficients(testDB.DB, updateFacility); err != nil {
 		if err == web.ErrNotFound {
 			t.Error("Facility NOT FOUND")
 		} else {
@@ -229,12 +230,12 @@ func TestUpdateExistingItem(t *testing.T) {
 
 //nolint:dupl
 func TestDelete_nonExistItem(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
 	// we will try to delete random gibberish
 
-	if err := Delete(dbs, "emptyId"); err != nil {
+	if err := Delete(testDB.DB, "emptyId"); err != nil {
 		if err == web.ErrNotFound {
 			// because we didn't find it, it should succeed
 			t.Log("Facility NOT FOUND, this is the expected result")
@@ -245,10 +246,10 @@ func TestDelete_nonExistItem(t *testing.T) {
 }
 
 func TestUpdate_nonExistItem(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.DB.Close()
 
-	clearAllData(t, dbs)
+	clearAllData(t, testDB.DB)
 	// Mock data
 	var updateFacility Facility
 	updateFacility.Name = "TestUpdateExistingItem"
@@ -257,7 +258,7 @@ func TestUpdate_nonExistItem(t *testing.T) {
 	updateFacility.Coefficients.ProbInStoreRead = 0.15
 	updateFacility.Coefficients.ProbExitError = 0.15
 
-	if err := UpdateCoefficients(dbs, updateFacility); err != nil {
+	if err := UpdateCoefficients(testDB.DB, updateFacility); err != nil {
 		if err == web.ErrNotFound {
 			t.Log("Facility NOT FOUND")
 		} else {
