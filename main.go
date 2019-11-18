@@ -59,8 +59,6 @@ const (
 )
 
 const (
-	controllerReady = "controller_ready"
-
 	asnData                  = "ASN_data"
 	inventoryData            = "inventory_data"
 	deviceAlert              = "device_alert"
@@ -69,6 +67,7 @@ const (
 	schedulerRunState        = "scheduler_run_state"
 	inventoryEvent           = "inventory_event"
 	controllerStatusUpdate   = "rsp_controller_status_update"
+	controllerReady          = "controller_ready"
 )
 
 var (
