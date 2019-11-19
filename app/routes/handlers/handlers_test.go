@@ -78,7 +78,9 @@ func TestMain(m *testing.M) {
 		os.Exit(m.Run())
 	}
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 func TestGetIndex(t *testing.T) {
@@ -121,8 +123,8 @@ func TestGetTags(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	request, err := http.NewRequest("GET", "/tags", nil)
 	if err != nil {
@@ -131,7 +133,7 @@ func TestGetTags(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetTags)
 
@@ -181,8 +183,8 @@ func TestGetOdata(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	for _, item := range testCases {
 
@@ -193,7 +195,7 @@ func TestGetOdata(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 
-		inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+		inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 		handler := web.Handler(inventory.GetTags)
 
@@ -205,7 +207,7 @@ func TestGetOdata(t *testing.T) {
 	}
 }
 
-func insertFacilitiesHelper(t *testing.T, dbs *sql.DB) {
+func insertFacilitiesHelper(t *testing.T, db *sql.DB) {
 	var facilities []facility.Facility
 	var testFacility facility.Facility
 	testFacility.Name = "Test"
@@ -219,7 +221,7 @@ func insertFacilitiesHelper(t *testing.T, dbs *sql.DB) {
 	coefficients.ProbInStoreRead = 0.1
 	coefficients.ProbUnreadToRead = 0.1
 
-	if err := facility.Insert(dbs, &facilities, coefficients); err != nil {
+	if err := facility.Insert(db, &facilities, coefficients); err != nil {
 		t.Errorf("error inserting facilities %s", err.Error())
 	}
 }
@@ -244,10 +246,10 @@ func TestGetSelectTags(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertFacilitiesHelper(t, masterDB)
+	insertFacilitiesHelper(t, testDB.DB)
 	epc := "100683590000000000001106"
 	facilityID := "Test"
 	lastRead := int64(1506638821662)
@@ -319,10 +321,10 @@ func TestGetSelectTags(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetTags)
-	testHandlerHelper(selectTests, "GET", handler, masterDB, t)
+	testHandlerHelper(selectTests, "GET", handler, testDB.DB, t)
 }
 
 // nolint :dupl
@@ -346,8 +348,8 @@ func TestPostCurrentInventory(t *testing.T) {
 	}))
 
 	defer testServer.Close()
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var currentInventoryTests = []inputTest{
 		{
@@ -376,15 +378,15 @@ func TestPostCurrentInventory(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.PostCurrentInventory)
 
-	testHandlerHelper(currentInventoryTests, "POST", handler, masterDB, t)
+	testHandlerHelper(currentInventoryTests, "POST", handler, testDB.DB, t)
 }
 
 //nolint :gocyclo
-func testHandlerHelper(input []inputTest, requestType string, handler web.Handler, dbs *sql.DB, t *testing.T) {
+func testHandlerHelper(input []inputTest, requestType string, handler web.Handler, db *sql.DB, t *testing.T) {
 	var failures []*httptest.ResponseRecorder
 
 	for i, item := range input {
@@ -393,7 +395,7 @@ func testHandlerHelper(input []inputTest, requestType string, handler web.Handle
 		}
 
 		if item.setup != nil {
-			if err := item.setup(dbs, t); err != nil {
+			if err := item.setup(db, t); err != nil {
 				t.Errorf("Unable to setup test function: %s", err.Error())
 			}
 		}
@@ -417,7 +419,7 @@ func testHandlerHelper(input []inputTest, requestType string, handler web.Handle
 		for _, statusCode := range item.code {
 			if statusCode == recorder.Code {
 				if item.validate != nil {
-					if err := item.validate(dbs, recorder, t); err != nil {
+					if err := item.validate(db, recorder, t); err != nil {
 						validateErr = err
 						success = false
 						break
@@ -445,7 +447,7 @@ func testHandlerHelper(input []inputTest, requestType string, handler web.Handle
 		}
 
 		if item.destroy != nil {
-			item.destroy(dbs, t)
+			item.destroy(db, t)
 		}
 	}
 
@@ -483,8 +485,8 @@ func TestSearchByGtinPositive(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var searchGtinTests = []inputTest{
 		// Expected input with count_only = false
@@ -509,11 +511,11 @@ func TestSearchByGtinPositive(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetSearchByGtin)
 
-	testHandlerHelper(searchGtinTests, "POST", handler, masterDB, t)
+	testHandlerHelper(searchGtinTests, "POST", handler, testDB.DB, t)
 }
 
 // nolint :dupl
@@ -539,8 +541,8 @@ func TestSearchByGtinNegative(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var searchGtinTests = []inputTest{
 		// No facility id
@@ -582,41 +584,41 @@ func TestSearchByGtinNegative(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetSearchByGtin)
 
-	testHandlerHelper(searchGtinTests, "POST", handler, masterDB, t)
+	testHandlerHelper(searchGtinTests, "POST", handler, testDB.DB, t)
 
 }
 
 func insertTag(t tag.Tag) dbFunc {
-	return func(dbs *sql.DB, _ *testing.T) error {
-		return tag.Replace(dbs, []tag.Tag{t})
+	return func(db *sql.DB, _ *testing.T) error {
+		return tag.Replace(db, []tag.Tag{t})
 	}
 }
 
 func deleteTag(epc string) dbFunc {
-	return func(dbs *sql.DB, _ *testing.T) error {
-		return tag.Delete(dbs, epc)
+	return func(db *sql.DB, _ *testing.T) error {
+		return tag.Delete(db, epc)
 	}
 }
 
 func deleteAllTags() dbFunc {
 
-	return func(dbs *sql.DB, _ *testing.T) error {
+	return func(db *sql.DB, _ *testing.T) error {
 		selectQuery := fmt.Sprintf(`DELETE FROM %s`,
 			pq.QuoteIdentifier(tagsTable),
 		)
-		_, err := dbs.Exec(selectQuery)
+		_, err := db.Exec(selectQuery)
 		return err
 	}
 }
 
-func getTagCount(dbs *sql.DB) (int, error) {
+func getTagCount(db *sql.DB) (int, error) {
 	var count int
 
-	row := dbs.QueryRow("SELECT count(*) FROM " + tagsTable)
+	row := db.QueryRow("SELECT count(*) FROM " + tagsTable)
 	err := row.Scan(&count)
 	if err != nil {
 		return 0, err
@@ -626,9 +628,9 @@ func getTagCount(dbs *sql.DB) (int, error) {
 }
 
 func validateAll(fs []validateFunc) validateFunc {
-	return func(dbs *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error {
+	return func(db *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error {
 		for _, f := range fs {
-			if err := f(dbs, r, t); err != nil {
+			if err := f(db, r, t); err != nil {
 				return err
 			}
 		}
@@ -718,8 +720,8 @@ func validateResultSize(size int) validateFunc {
 }
 
 func validateTagCount(count int) validateFunc {
-	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		n, err := getTagCount(dbs)
+	return func(db *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		n, err := getTagCount(db)
 		if err != nil {
 			return err
 		}
@@ -732,8 +734,8 @@ func validateTagCount(count int) validateFunc {
 
 // nolint :dupl
 func validateQualifiedStateUpdate(epc string, qualifiedState string) validateFunc {
-	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		tagInDb, err := tag.FindByEpc(dbs, epc)
+	return func(db *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		tagInDb, err := tag.FindByEpc(db, epc)
 		if err != nil {
 			return err
 		}
@@ -746,8 +748,8 @@ func validateQualifiedStateUpdate(epc string, qualifiedState string) validateFun
 
 // nolint :dupl
 func validateEpcContextSet(epc string, epcContext string) validateFunc {
-	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		tagInDb, err := tag.FindByEpc(dbs, epc)
+	return func(db *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		tagInDb, err := tag.FindByEpc(db, epc)
 		if err != nil {
 			return err
 		}
@@ -760,8 +762,8 @@ func validateEpcContextSet(epc string, epcContext string) validateFunc {
 
 // nolint :dupl
 func validateEpcContextDelete(epc string) validateFunc {
-	return func(dbs *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
-		tagInDb, err := tag.FindByEpc(dbs, epc)
+	return func(db *sql.DB, _ *httptest.ResponseRecorder, _ *testing.T) error {
+		tagInDb, err := tag.FindByEpc(db, epc)
 		if err != nil {
 			return err
 		}
@@ -773,8 +775,8 @@ func validateEpcContextDelete(epc string) validateFunc {
 }
 
 func TestUpdateQualifiedState(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := "100683590000000000001106"
 	facility := "test-facility"
@@ -821,18 +823,18 @@ func TestUpdateQualifiedState(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.UpdateQualifiedState)
 
-	testHandlerHelper(qualifiedStateTests, "PUT", handler, masterDB, t)
+	testHandlerHelper(qualifiedStateTests, "PUT", handler, testDB.DB, t)
 
 }
 
 // nolint :dupl
 func TestGetFacilities(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	request, err := http.NewRequest("GET", "/facilities", nil)
 	if err != nil {
@@ -841,7 +843,7 @@ func TestGetFacilities(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.GetFacilities)
 
@@ -855,8 +857,8 @@ func TestGetFacilities(t *testing.T) {
 }
 
 func TestGetHandheldEvents(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	request, err := http.NewRequest("GET", "/handheldevents", nil)
 	if err != nil {
@@ -865,7 +867,7 @@ func TestGetHandheldEvents(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.GetHandheldEvents)
 
@@ -965,8 +967,8 @@ func TestSearchByEpcPositive(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var searchEpcTests = []inputTest{
 		{
@@ -1003,11 +1005,11 @@ func TestSearchByEpcPositive(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetSearchByEpc)
 
-	testHandlerHelper(searchEpcTests, "POST", handler, masterDB, t)
+	testHandlerHelper(searchEpcTests, "POST", handler, testDB.DB, t)
 }
 
 // nolint :dupl
@@ -1033,8 +1035,8 @@ func TestSearchByEpcNegative(t *testing.T) {
 
 	defer testServer.Close()
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var searchEpcTests = []inputTest{
 		// No facility id
@@ -1080,11 +1082,11 @@ func TestSearchByEpcNegative(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
 	handler := web.Handler(inventory.GetSearchByEpc)
 
-	testHandlerHelper(searchEpcTests, "POST", handler, masterDB, t)
+	testHandlerHelper(searchEpcTests, "POST", handler, testDB.DB, t)
 }
 
 func TestUpdateCoefficientsPositive(t *testing.T) {
@@ -1102,13 +1104,13 @@ func TestUpdateCoefficientsPositive(t *testing.T) {
 		},
 	}
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 	handler := web.Handler(inventory.UpdateCoefficients)
 
-	testHandlerHelper(searchGtinTests, "PUT", handler, masterDB, t)
+	testHandlerHelper(searchGtinTests, "PUT", handler, testDB.DB, t)
 
 }
 
@@ -1145,18 +1147,18 @@ func TestUpdateCoefficientsNegative(t *testing.T) {
 		},
 	}
 
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 	handler := web.Handler(inventory.UpdateCoefficients)
 
-	testHandlerHelper(searchGtinTests, "PUT", handler, masterDB, t)
+	testHandlerHelper(searchGtinTests, "PUT", handler, testDB.DB, t)
 
 }
 func TestSetEpcContext(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := "100683590000000000001106"
 	facility := "test-facility"
@@ -1192,17 +1194,17 @@ func TestSetEpcContext(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.SetEpcContext)
 
-	testHandlerHelper(epcContextTests, "PUT", handler, masterDB, t)
+	testHandlerHelper(epcContextTests, "PUT", handler, testDB.DB, t)
 
 }
 
 func TestDeleteEpcContext(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := "100683590000000000001106"
 	facility := "test-facility"
@@ -1226,17 +1228,17 @@ func TestDeleteEpcContext(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.DeleteEpcContext)
 
-	testHandlerHelper(epcContextTests, "DELETE", handler, masterDB, t)
+	testHandlerHelper(epcContextTests, "DELETE", handler, testDB.DB, t)
 
 }
 
 func TestDeleteAllTags(t *testing.T) {
-	masterDB := dbHost.CreateDB(t)
-	defer masterDB.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	epc := "100683590000000000001106"
 	facility := "test-facility"
@@ -1260,9 +1262,9 @@ func TestDeleteAllTags(t *testing.T) {
 		},
 	}
 
-	inventory := Inventory{masterDB, config.AppConfig.ResponseLimit, ""}
+	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, ""}
 
 	handler := web.Handler(inventory.DeleteAllTags)
 
-	testHandlerHelper(deleteAllTagTests, "DELETE", handler, masterDB, t)
+	testHandlerHelper(deleteAllTagTests, "DELETE", handler, testDB.DB, t)
 }

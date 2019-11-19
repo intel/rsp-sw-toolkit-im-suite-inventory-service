@@ -19,8 +19,8 @@ get_id = `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1`
 
 log = docker logs $1$2 $(get_id) 2>&1
 
-test =	echo "Go Testing..."; \
-		go test ./... $1;
+test =	echo "\e[36mGo Testing...\e[0m"; \
+		go test ./... $1
 
 .PHONY: build
 
@@ -72,7 +72,7 @@ fmt:
 	go fmt ./...
 
 test:
-	@$(call test,$(args))
+	@$(call test,-v $(args))
 
 force-test:
-	@$(call test,-count=1)
+	@$(call test,-v -count=1 $(args))

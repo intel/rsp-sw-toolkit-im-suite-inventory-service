@@ -1,7 +1,6 @@
 package tagprocessor
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
@@ -16,19 +15,12 @@ type testDataset struct {
 	tags           []*Tag
 	readTimeOrig   int64
 	inventoryEvent *jsonrpc.InventoryEvent
-	masterDb       *sql.DB
 }
 
-func newTestDataset(masterDb *sql.DB, tagCount int) testDataset {
-	ds := testDataset{
-		masterDb: masterDb,
-	}
+func newTestDataset(tagCount int) testDataset {
+	ds := testDataset{}
 	ds.initialize(tagCount)
 	return ds
-}
-
-func (ds *testDataset) close() {
-	ds.masterDb.Close()
 }
 
 func (ds *testDataset) resetEvents() {

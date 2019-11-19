@@ -27,8 +27,8 @@ func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 	testServer := buildTestServer(t, result)
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	dailyInvPercConfig := config.AppConfig.DailyInventoryPercentage
 	probUnreadToReadConfig := config.AppConfig.ProbUnreadToRead
@@ -41,7 +41,7 @@ func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 		},
 	}
 
-	if err := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); err != nil {
+	if err := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
 	for _, val := range tags {
@@ -72,8 +72,8 @@ func TestApplyConfidenceFacilitiesDontMatch(t *testing.T) {
 	testServer := buildTestServer(t, result)
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	dailyInvPercConfig := config.AppConfig.DailyInventoryPercentage
 	probUnreadToReadConfig := config.AppConfig.ProbUnreadToRead
@@ -86,9 +86,9 @@ func TestApplyConfidenceFacilitiesDontMatch(t *testing.T) {
 		},
 	}
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if err := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); err != nil {
+	if err := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
 
@@ -118,8 +118,8 @@ func TestApplyConfidenceProductIdCoeffOverridesFacilityCoeffMatch(t *testing.T) 
 
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -139,15 +139,15 @@ func TestApplyConfidenceProductIdCoeffOverridesFacilityCoeffMatch(t *testing.T) 
 		},
 	}
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if err := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); err != nil {
+	if err := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
 
 	for _, val := range tags {
 
-		facilities, err := facility.CreateFacilityMap(dbs)
+		facilities, err := facility.CreateFacilityMap(testDB.DB)
 		if err != nil {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
@@ -178,8 +178,8 @@ func TestApplyConfidenceProductIdCoeffNull(t *testing.T) {
 
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -199,15 +199,15 @@ func TestApplyConfidenceProductIdCoeffNull(t *testing.T) {
 		},
 	}
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if err := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); err != nil {
+	if err := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
 
 	for _, val := range tags {
 
-		facilities, err := facility.CreateFacilityMap(dbs)
+		facilities, err := facility.CreateFacilityMap(testDB.DB)
 		if err != nil {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
@@ -238,8 +238,8 @@ func TestApplyConfidenceProductIdCoeffOverridesSomeNull(t *testing.T) {
 
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -259,15 +259,15 @@ func TestApplyConfidenceProductIdCoeffOverridesSomeNull(t *testing.T) {
 		},
 	}
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if err := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); err != nil {
+	if err := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
 
 	for _, val := range tags {
 
-		facilities, err := facility.CreateFacilityMap(dbs)
+		facilities, err := facility.CreateFacilityMap(testDB.DB)
 		if err != nil {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
@@ -298,8 +298,8 @@ func TestApplyConfidenceFacilityCoeffMatch(t *testing.T) {
 
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -319,15 +319,15 @@ func TestApplyConfidenceFacilityCoeffMatch(t *testing.T) {
 		},
 	}
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if err := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); err != nil {
+	if err := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); err != nil {
 		t.Fatalf("Error returned from applyConfidence %v", err)
 	}
 
 	for _, val := range tags {
 
-		facilities, err := facility.CreateFacilityMap(dbs)
+		facilities, err := facility.CreateFacilityMap(testDB.DB)
 		if err != nil {
 			t.Fatalf("Couldn't create facilityItem map %v", err)
 		}
@@ -361,8 +361,8 @@ func TestApplyConfidenceMixedTags(t *testing.T) {
 
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -375,9 +375,9 @@ func TestApplyConfidenceMixedTags(t *testing.T) {
 		},
 	}
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if confErr := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); confErr != nil {
+	if confErr := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); confErr != nil {
 		t.Fatalf("Error returned from applyConfidence %v", confErr)
 	}
 
@@ -387,7 +387,7 @@ func TestApplyConfidenceMixedTags(t *testing.T) {
 	probUnreadToReadConfig := config.AppConfig.ProbUnreadToRead
 	probInStoreConfig := config.AppConfig.ProbInStoreRead
 	probExitErrorConfig := config.AppConfig.ProbExitError
-	facilities, err := facility.CreateFacilityMap(dbs)
+	facilities, err := facility.CreateFacilityMap(testDB.DB)
 
 	if err != nil {
 		t.Fatalf("Couldn't create facility map %v", err)
@@ -429,10 +429,10 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 
 	defer testServer.Close()
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearDailyTurnHistory(t, dbs)
+	clearDailyTurnHistory(t, testDB.DB)
 
 	productId := "00111111"
 
@@ -468,20 +468,20 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 	}
 
 	computedDailyTurn := 0.5
-	insertSampleDailyTurnHistory(t, dbs, productId, computedDailyTurn)
+	insertSampleDailyTurnHistory(t, testDB.DB, productId, computedDailyTurn)
 
 	dailyInvPercConfig := config.AppConfig.DailyInventoryPercentage
 	probUnreadToReadConfig := config.AppConfig.ProbUnreadToRead
 	probInStoreConfig := config.AppConfig.ProbInStoreRead
 	probExitErrorConfig := config.AppConfig.ProbExitError
 
-	insertFacilitiesHelper(t, dbs)
+	insertFacilitiesHelper(t, testDB.DB)
 
-	if confErr := ApplyConfidence(dbs, tags, testServer.URL+"/skus"); confErr != nil {
+	if confErr := ApplyConfidence(testDB.DB, tags, testServer.URL+"/skus"); confErr != nil {
 		t.Fatalf("Error returned from applyConfidence %v", confErr)
 	}
 
-	facilities, err := facility.CreateFacilityMap(dbs)
+	facilities, err := facility.CreateFacilityMap(testDB.DB)
 	if err != nil {
 		t.Fatalf("Couldn't create facility map %v", err)
 	}
@@ -546,7 +546,7 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 			}
 		}
 
-		clearDailyTurnHistory(t, dbs)
+		clearDailyTurnHistory(t, testDB.DB)
 	}
 }
 

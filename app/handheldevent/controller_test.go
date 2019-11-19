@@ -35,38 +35,40 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("handheldEvent_test")
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 //nolint: dupl
 func TestNoDataRetrieve(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	clearAllData(t, dbs)
+	clearAllData(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10&$select=event,timestamp")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	_, _, err = Retrieve(dbs, testURL.Query())
+	_, _, err = Retrieve(testDB.DB, testURL.Query())
 	if err != nil {
 		t.Error("Unable to retrieve handheld events")
 	}
 }
 func TestWithDataRetrieve(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertSample(t, dbs)
+	insertSample(t, testDB.DB)
 
 	testURL, err := url.Parse("http://localhost/test?$top=10&$select=event,timestamp")
 	if err != nil {
 		t.Error("failed to parse test url")
 	}
 
-	events, count, err := Retrieve(dbs, testURL.Query())
+	events, count, err := Retrieve(testDB.DB, testURL.Query())
 
 	// Expecting nil count
 	if count != nil {
@@ -92,12 +94,12 @@ func TestRetrieveCount(t *testing.T) {
 		t.Error("failed to parse test url")
 	}
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertSample(t, dbs)
+	insertSample(t, testDB.DB)
 
-	_, count, err := Retrieve(dbs, testURL.Query())
+	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
 	if count == nil {
 		t.Error("expecting CountType result")
@@ -116,10 +118,10 @@ func TestRetrieveInlinecount(t *testing.T) {
 		t.Error("failed to parse test url")
 	}
 
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	_, count, err := Retrieve(dbs, testURL.Query())
+	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
 	if count == nil {
 		t.Error("expecting CountType result")
@@ -131,17 +133,17 @@ func TestRetrieveInlinecount(t *testing.T) {
 }
 
 func TestInsert(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertSample(t, dbs)
+	insertSample(t, testDB.DB)
 }
 
 func TestInsertHandHeldEvents(t *testing.T) {
-	dbs := dbHost.CreateDB(t)
-	defer dbs.Close()
+	testDB := dbHost.CreateDB(t)
+	defer testDB.Close()
 
-	insertSample(t, dbs)
+	insertSample(t, testDB.DB)
 	eventNames := []string{"FullScanStart", "FullScanStop", "Calculate"}
 
 	for _, eventName := range eventNames {
@@ -150,7 +152,7 @@ func TestInsertHandHeldEvents(t *testing.T) {
 		eventData.Event = eventName
 		eventData.Timestamp = time.Now().Unix()
 
-		if err := Insert(dbs, eventData); err != nil {
+		if err := Insert(testDB.DB, eventData); err != nil {
 			t.Errorf("error inserting handheld event %s", err.Error())
 		}
 	}
