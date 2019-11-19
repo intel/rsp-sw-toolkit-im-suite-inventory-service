@@ -2,24 +2,13 @@ package tagprocessor
 
 import (
 	"fmt"
-	_ "github.com/lib/pq"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-	"os"
 	"testing"
 )
 
-var dbHost integrationtest.DBHost
-
-func TestMain(m *testing.M) {
-	dbHost = integrationtest.InitHost("lib_test")
-	os.Exit(m.Run())
-}
-
 func TestPosDoesNotGenerateArrival(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 10)
-	defer ds.close()
+	ds := newTestDataset(10)
 
 	front := generateTestSensor(salesFloor, sensor.NoPersonality)
 	posSensor := generateTestSensor(salesFloor, sensor.POS)
@@ -57,9 +46,7 @@ func TestPosDoesNotGenerateArrival(t *testing.T) {
 }
 
 func TestBasicArrival(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 10)
-	defer ds.close()
-
+	ds := newTestDataset(10)
 	front := generateTestSensor(salesFloor, sensor.NoPersonality)
 
 	ds.readAll(front, rssiWeak, 1)
@@ -76,8 +63,7 @@ func TestBasicArrival(t *testing.T) {
 }
 
 func TestTagMoveWeakRssi(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 10)
-	defer ds.close()
+	ds := newTestDataset(10)
 
 	back1 := generateTestSensor(backStock, sensor.NoPersonality)
 	back2 := generateTestSensor(backStock, sensor.NoPersonality)
@@ -125,8 +111,7 @@ func TestMoveAntennaLocation(t *testing.T) {
 
 	for _, antId := range antennaIds {
 		t.Run(fmt.Sprintf("Antenna-%d", antId), func(t *testing.T) {
-			ds := newTestDataset(dbHost.CreateDB(t), 1)
-			defer ds.close()
+			ds := newTestDataset(1)
 
 			// start all tags at antenna port 0
 			ds.readAll(back01, rssiMin, 1)
@@ -154,8 +139,7 @@ func TestMoveAntennaLocation(t *testing.T) {
 }
 
 func TestMoveSameFacility(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 10)
-	defer ds.close()
+	ds := newTestDataset(10)
 
 	back1 := generateTestSensor(backStock, sensor.NoPersonality)
 	back2 := generateTestSensor(backStock, sensor.NoPersonality)
@@ -185,8 +169,7 @@ func TestMoveSameFacility(t *testing.T) {
 }
 
 func TestMoveDifferentFacility(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 10)
-	defer ds.close()
+	ds := newTestDataset(10)
 
 	front := generateTestSensor(salesFloor, sensor.NoPersonality)
 	back := generateTestSensor(backStock, sensor.NoPersonality)
@@ -216,8 +199,7 @@ func TestMoveDifferentFacility(t *testing.T) {
 }
 
 func TestBasicExit(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 9)
-	defer ds.close()
+	ds := newTestDataset(9)
 
 	back := generateTestSensor(backStock, sensor.NoPersonality)
 	frontExit := generateTestSensor(salesFloor, sensor.Exit)
@@ -278,8 +260,7 @@ func TestBasicExit(t *testing.T) {
 }
 
 func TestExitingArrivalDepartures(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 5)
-	defer ds.close()
+	ds := newTestDataset(5)
 
 	back := generateTestSensor(backStock, sensor.NoPersonality)
 	frontExit := generateTestSensor(salesFloor, sensor.Exit)
@@ -334,8 +315,7 @@ func TestExitingArrivalDepartures(t *testing.T) {
 }
 
 func TestTagDepartAndReturnFromExit(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 4)
-	defer ds.close()
+	ds := newTestDataset(4)
 
 	back := generateTestSensor(backStock, sensor.NoPersonality)
 	frontExit := generateTestSensor(salesFloor, sensor.Exit)
@@ -373,8 +353,7 @@ func TestTagDepartAndReturnFromExit(t *testing.T) {
 }
 
 func TestTagDepartAndReturnPOS(t *testing.T) {
-	ds := newTestDataset(dbHost.CreateDB(t), 5)
-	defer ds.close()
+	ds := newTestDataset(5)
 
 	back := generateTestSensor(backStock, sensor.NoPersonality)
 	frontPos := generateTestSensor(salesFloor, sensor.POS)

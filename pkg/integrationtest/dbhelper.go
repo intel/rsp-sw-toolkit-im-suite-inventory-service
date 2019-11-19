@@ -14,50 +14,58 @@ package integrationtest
 import (
 	"database/sql"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"log"
+	"strings"
 	"sync"
 	"testing"
-	"time"
 )
 
-type DBHost string
+type TestDB struct {
+	DB     *sql.DB
+	dbName string
+	dbHost *DBHost
+	t      *testing.T
+}
 
-// InitHost returns a DBHost instance constructed from the given name, appended
-// with _HH:MM:SS to ensure that if parallel testing instances for the inventory
-// service are hitting the same mongodb, they will not use the same database
-// names unless they are launched within the same second.
-func InitHost(dbName string) DBHost {
+type DBHost struct {
+	Name     string
+	masterDB *sql.DB
+}
+
+func NewDBHost(name string) DBHost {
+	return DBHost{
+		Name: name,
+	}
+}
+
+// InitHost returns a DBHost instance constructed from the given name
+func InitHost(name string) DBHost {
 	if err := config.InitConfig(); err != nil {
 		log.Fatalf("unable to initialize config: %+v", err)
 	}
-	return DBHost(dbName + time.Now().Format("_15:04:05"))
+	dbHost := NewDBHost(name)
+	dbHost.Connect()
+	return dbHost
 }
 
 var dbNamesToInstances = map[string]int{}
 var dbNameLock = sync.Mutex{}
 
-// CreateDB returns a database session constructed as DBHost_testName, where
-// testName is taken from t.Testing.Name().
-//
-// Because mongodb names can only be 64 characters, longer names are truncated
-// to 62 characters, and a monotonically increasing, two-digit identifier is
-// appended to the name, ensuring uniqueness (unless you manage to construct
-// over 100 very long names with nearly identical prefixes, in which case you
-// should really reconsider your identifier habits). In that unlikely case, mongo
-// will return an "Invalid database name" error.
-//
-// Note that mongo also restricts the use of `/\. "$` on all OSes and
-// additionally `*<>:|?` on Windows; since none of those are valid Go identifiers
-// anyway, this is ignored.
-func (dbHost DBHost) CreateDB(t *testing.T) *sql.DB {
+func (dbHost *DBHost) CreateDB(t *testing.T) TestDB {
 	t.Helper()
 
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
 
-	dbName := string(dbHost) + t.Name()
+	dbName := dbHost.Name + "_" + t.Name()
+
+	illegalChars := []string{":", "/", "-"}
+	for _, illegalChar := range illegalChars {
+		dbName = strings.ReplaceAll(dbName, illegalChar, "_")
+	}
 	if len(dbName) > 63 {
 		dbName = dbName[:62]
 	}
@@ -68,21 +76,73 @@ func (dbHost DBHost) CreateDB(t *testing.T) *sql.DB {
 	dbNameLock.Unlock()
 	t.Logf("using db %s", dbName)
 
-	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", config.AppConfig.DbHost,
-		config.AppConfig.DbPort,
-		config.AppConfig.DbUser, config.AppConfig.DbPass,
-		dbName)
+	var err error
+	// Create the new database
+	if _, err = dbHost.masterDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS \"%s\";", dbName)); err != nil {
+		t.Fatalf("Unable to drop existing db for: %s: %v", dbName, err)
+	}
+	if _, err = dbHost.masterDB.Exec(fmt.Sprintf("CREATE DATABASE \"%s\" OWNER %s;", dbName, config.AppConfig.DbUser)); err != nil {
+		t.Fatalf("Unable to create to db for: %s: %v", dbName, err)
+	}
 
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable",
+		config.AppConfig.DbHost,
+		config.AppConfig.DbPort,
+		config.AppConfig.DbUser,
+		dbName)
+	if config.AppConfig.DbPass != "" {
+		psqlInfo += " password=" + config.AppConfig.DbPass
+	}
+	// Re-connect to the new database
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
-		t.Fatalf("Unable to connect to db server at %s", dbName)
+		t.Fatalf("Unable to connect to db server at %s: %v", dbName, err)
+	}
+	if err = db.Ping(); err != nil {
+		t.Fatalf("Unable to ping db server at %s: %v", dbName, err)
 	}
 
 	// Creation of tables and indexes
-	_, err = db.Exec(config.DbSchema)
-	if err != nil {
-		t.Fatalf("Unable to create to db tables and indexes for: %s", dbName)
+	if _, err = db.Exec(config.DbSchema); err != nil {
+		t.Fatalf("Unable to create to db tables and indexes for: %s: %v", dbName, err)
 	}
 
-	return db
+	return TestDB{dbName: dbName, DB: db, dbHost: dbHost, t: t}
+}
+
+func (dbHost *DBHost) Connect() {
+	var err error
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable",
+		config.AppConfig.DbHost,
+		config.AppConfig.DbPort,
+		config.AppConfig.DbUser,
+		config.AppConfig.DbName)
+	if config.AppConfig.DbPass != "" {
+		psqlInfo += " password=" + config.AppConfig.DbPass
+	}
+
+	dbHost.masterDB, err = sql.Open("postgres", psqlInfo)
+	if err != nil {
+		log.Fatalf("Unable to connect to db server: %v", err)
+	}
+	if err = dbHost.masterDB.Ping(); err != nil {
+		log.Fatalf("Unable to ping db server: %v", err)
+	}
+}
+
+func (testDB *TestDB) Close() {
+	testDB.t.Logf("dropping db %s", testDB.dbName)
+	// Drop the temp database
+	if _, err := testDB.dbHost.masterDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", testDB.dbName)); err != nil {
+		testDB.t.Errorf("Unable to drop to db for: %s: %v", testDB.dbName, err)
+	}
+	if err := testDB.DB.Close(); err != nil {
+		testDB.t.Errorf("error on db close: %v", err)
+	}
+}
+
+func (dbHost *DBHost) Close() {
+	if err := dbHost.masterDB.Close(); err != nil {
+		logrus.Errorf("error on db close: %v", err)
+	}
 }

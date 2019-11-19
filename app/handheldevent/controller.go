@@ -79,7 +79,7 @@ func Retrieve(dbs *sql.DB, query url.Values) (interface{}, *CountType, error) {
 	if err != nil {
 		if errors.Cause(err) == odata.ErrInvalidInput {
 			mInputErr.Update(1)
-			return nil, nil,  errors.Wrap(web.ErrInvalidInput, err.Error())
+			return nil, nil, errors.Wrap(web.ErrInvalidInput, err.Error())
 		}
 		return nil, nil, errors.Wrap(err, "error in retrieving handheld events")
 	}

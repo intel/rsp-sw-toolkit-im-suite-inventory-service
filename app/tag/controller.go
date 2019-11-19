@@ -38,9 +38,9 @@ import (
 )
 
 const (
-	tagsTable   = "tags"
-	jsonb = "data"
-	epcColumn = "epc"
+	tagsTable      = "tags"
+	jsonb          = "data"
+	epcColumn      = "epc"
 	facilityColumn = "facility_id"
 	// UndefinedProductID is the constant to set the product id when it cannot be decoded
 	UndefinedProductID = "undefined"
@@ -434,7 +434,7 @@ func Update(dbs *sql.DB, epc string, facilityId string, object map[string]string
 			mUpdateErr.Update(1)
 			return err
 		} else {
-			 updatedRow, err := result.RowsAffected()
+			updatedRow, err := result.RowsAffected()
 			{
 				if err != nil {
 					mUpdateErr.Update(1)
