@@ -35,14 +35,15 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("handheldEvent_test")
-	defer dbHost.Close()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 //nolint: dupl
 func TestNoDataRetrieve(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 
@@ -58,7 +59,7 @@ func TestNoDataRetrieve(t *testing.T) {
 }
 func TestWithDataRetrieve(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	insertSample(t, testDB.DB)
 
@@ -94,7 +95,7 @@ func TestRetrieveCount(t *testing.T) {
 	}
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	insertSample(t, testDB.DB)
 
@@ -118,7 +119,7 @@ func TestRetrieveInlinecount(t *testing.T) {
 	}
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
@@ -133,14 +134,14 @@ func TestRetrieveInlinecount(t *testing.T) {
 
 func TestInsert(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	insertSample(t, testDB.DB)
 }
 
 func TestInsertHandHeldEvents(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	insertSample(t, testDB.DB)
 	eventNames := []string{"FullScanStart", "FullScanStop", "Calculate"}

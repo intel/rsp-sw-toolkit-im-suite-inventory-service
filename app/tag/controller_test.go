@@ -45,8 +45,9 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("tag_test")
-	defer dbHost.Close()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 // nolint :dupl
@@ -123,7 +124,7 @@ func TestWithDataRetrieve(t *testing.T) {
 /*func TestCursor(t *testing.T) {
 
 	testDB := dbTestSetup(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 	insertSample(t, testDB.DB)

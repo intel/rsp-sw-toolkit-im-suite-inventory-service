@@ -45,8 +45,9 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("dailyTurn_test")
-	defer dbHost.Close()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 func TestFindHistoryByProductId(t *testing.T) {

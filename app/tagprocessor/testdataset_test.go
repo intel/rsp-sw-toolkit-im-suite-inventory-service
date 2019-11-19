@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"strings"
@@ -16,19 +15,12 @@ type testDataset struct {
 	tags           []*Tag
 	readTimeOrig   int64
 	inventoryEvent *jsonrpc.InventoryEvent
-	testDB         integrationtest.TestDB
 }
 
-func newTestDataset(testDB integrationtest.TestDB, tagCount int) testDataset {
-	ds := testDataset{
-		testDB: testDB,
-	}
+func newTestDataset(tagCount int) testDataset {
+	ds := testDataset{}
 	ds.initialize(tagCount)
 	return ds
-}
-
-func (ds *testDataset) close() {
-	ds.testDB.Close()
 }
 
 func (ds *testDataset) resetEvents() {

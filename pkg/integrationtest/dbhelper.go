@@ -32,7 +32,6 @@ type TestDB struct {
 type DBHost struct {
 	Name     string
 	masterDB *sql.DB
-	dbNames  []string
 }
 
 func NewDBHost(name string) DBHost {
@@ -85,7 +84,6 @@ func (dbHost *DBHost) CreateDB(t *testing.T) TestDB {
 	if _, err = dbHost.masterDB.Exec(fmt.Sprintf("CREATE DATABASE \"%s\" OWNER %s;", dbName, config.AppConfig.DbUser)); err != nil {
 		t.Fatalf("Unable to create to db for: %s: %v", dbName, err)
 	}
-	dbHost.dbNames = append(dbHost.dbNames, dbName)
 
 	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable",
 		config.AppConfig.DbHost,
@@ -93,7 +91,7 @@ func (dbHost *DBHost) CreateDB(t *testing.T) TestDB {
 		config.AppConfig.DbUser,
 		dbName)
 	if config.AppConfig.DbPass != "" {
-		psqlInfo += fmt.Sprintf(" password=%s", config.AppConfig.DbPass)
+		psqlInfo += " password=" + config.AppConfig.DbPass
 	}
 	// Re-connect to the new database
 	db, err := sql.Open("postgres", psqlInfo)
@@ -120,7 +118,7 @@ func (dbHost *DBHost) Connect() {
 		config.AppConfig.DbUser,
 		config.AppConfig.DbName)
 	if config.AppConfig.DbPass != "" {
-		psqlInfo += fmt.Sprintf(" password=%s", config.AppConfig.DbPass)
+		psqlInfo += " password=" + config.AppConfig.DbPass
 	}
 
 	dbHost.masterDB, err = sql.Open("postgres", psqlInfo)
@@ -144,13 +142,6 @@ func (testDB *TestDB) Close() {
 }
 
 func (dbHost *DBHost) Close() {
-	for _, dbName := range dbHost.dbNames {
-		logrus.Debugf("dropping db %s", dbName)
-		// Drop the temp database
-		if _, err := dbHost.masterDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s;", dbName)); err != nil {
-			logrus.Errorf("Unable to drop to db for: %s: %v", dbName, err)
-		}
-	}
 	if err := dbHost.masterDB.Close(); err != nil {
 		logrus.Errorf("error on db close: %v", err)
 	}

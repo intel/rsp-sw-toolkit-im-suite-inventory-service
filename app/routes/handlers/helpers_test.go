@@ -28,7 +28,7 @@ func TestApplyConfidenceFacilitiesDontExist(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	dailyInvPercConfig := config.AppConfig.DailyInventoryPercentage
 	probUnreadToReadConfig := config.AppConfig.ProbUnreadToRead
@@ -73,7 +73,7 @@ func TestApplyConfidenceFacilitiesDontMatch(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	dailyInvPercConfig := config.AppConfig.DailyInventoryPercentage
 	probUnreadToReadConfig := config.AppConfig.ProbUnreadToRead
@@ -119,7 +119,7 @@ func TestApplyConfidenceProductIdCoeffOverridesFacilityCoeffMatch(t *testing.T) 
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -179,7 +179,7 @@ func TestApplyConfidenceProductIdCoeffNull(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -239,7 +239,7 @@ func TestApplyConfidenceProductIdCoeffOverridesSomeNull(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -299,7 +299,7 @@ func TestApplyConfidenceFacilityCoeffMatch(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -362,7 +362,7 @@ func TestApplyConfidenceMixedTags(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	var tags = []tag.Tag{
 		{
@@ -430,7 +430,7 @@ func TestApplyConfidenceWithDailyTurn(t *testing.T) {
 	defer testServer.Close()
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearDailyTurnHistory(t, testDB.DB)
 

@@ -36,8 +36,9 @@ var dbHost integrationtest.DBHost
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("facility_test")
-	defer dbHost.Close()
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 //nolint:dupl
@@ -71,7 +72,7 @@ func clearAllData(t *testing.T, db *sql.DB) {
 
 func TestWithDataRetrieve(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 	insertSample(t, testDB.DB)
@@ -122,7 +123,7 @@ func TestRetrieveCount(t *testing.T) {
 	}
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
@@ -144,7 +145,7 @@ func TestRetrieveInlinecount(t *testing.T) {
 	}
 
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	_, count, err := Retrieve(testDB.DB, testURL.Query())
 
@@ -159,7 +160,7 @@ func TestRetrieveInlinecount(t *testing.T) {
 
 func TestInsert(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 	insertSample(t, testDB.DB)
@@ -168,7 +169,7 @@ func TestInsert(t *testing.T) {
 // nolint :dupl
 func TestDelete(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 
@@ -185,7 +186,7 @@ func TestDelete(t *testing.T) {
 
 func TestInsertFacilities(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	var facilities []Facility
 	var facility Facility
@@ -207,7 +208,7 @@ func TestInsertFacilities(t *testing.T) {
 
 func TestUpdateExistingItem(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 	insertSampleCustom(t, testDB.DB, "TestUpdateExistingItem")
@@ -231,7 +232,7 @@ func TestUpdateExistingItem(t *testing.T) {
 //nolint:dupl
 func TestDelete_nonExistItem(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	// we will try to delete random gibberish
 
@@ -247,7 +248,7 @@ func TestDelete_nonExistItem(t *testing.T) {
 
 func TestUpdate_nonExistItem(t *testing.T) {
 	testDB := dbHost.CreateDB(t)
-	defer testDB.DB.Close()
+	defer testDB.Close()
 
 	clearAllData(t, testDB.DB)
 	// Mock data

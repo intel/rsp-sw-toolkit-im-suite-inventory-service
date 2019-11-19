@@ -549,8 +549,10 @@ func runBackgroundTasks(db mainDB, aggregateDepartedTicker *time.Ticker, ageoutT
 func dbSetup(host, port, user, password, dbname string) (*sql.DB, error) {
 
 	// Connect to PostgreSQL database
-	psqlConfig := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
-
+	psqlConfig := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable", host, port, user, dbname)
+	if password != "" {
+		psqlConfig += " password=" + password
+	}
 	db, err := sql.Open(dbname, psqlConfig)
 	if err != nil {
 		return nil, err

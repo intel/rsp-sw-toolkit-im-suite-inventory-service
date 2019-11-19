@@ -71,7 +71,6 @@ var isProbabilisticPluginFound bool
 
 func TestMain(m *testing.M) {
 	dbHost = integrationtest.InitHost("handlers_test")
-	defer dbHost.Close()
 
 	if err := loadConfidencePlugin(); err != nil {
 		isProbabilisticPluginFound = false
@@ -79,7 +78,9 @@ func TestMain(m *testing.M) {
 		os.Exit(m.Run())
 	}
 
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	dbHost.Close()
+	os.Exit(exitCode)
 }
 
 func TestGetIndex(t *testing.T) {
