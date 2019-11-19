@@ -60,37 +60,6 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-/*func TestMain(m *testing.M) {
-
-	if err := config.InitConfig(); err != nil {
-		log.Fatal(err)
-	}
-
-	os.Exit(m.Run())
-}*/
-
-/*func dbTestSetup(t *testing.T) (*sql.DB, error) {
-
-	// Connect to PostgreSQL
-	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", config.AppConfig.DbHost,
-		config.AppConfig.DbPort,
-		config.AppConfig.DbUser, config.AppConfig.DbPass,
-		config.AppConfig.DbName)
-
-	testDB.DB, err := sql.Open("postgres", psqlInfo)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Creation of tables and indexes
-	_, err = testDB.DB.Exec(tag.DbSchema)
-	if err != nil {
-		return nil, err
-	}
-
-	return testDB.DB, nil
-}*/
-
 // POC only implementation
 func TestMarkDepartedIfUnseen(t *testing.T) {
 	timestamp := 1500583263000 // Thursday, July 20, 2017 1:41:03 PM
