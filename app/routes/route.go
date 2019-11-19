@@ -195,6 +195,7 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// responses:
 		//   200:
+		//     description: OK
 		//     schema:
 		//       type: object
 		//       properties:
@@ -205,14 +206,16 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//             "$ref": "#/definitions/Facility"
 		//         count:
 		//           description: Count of records for query
-		//           type: int
+		//           type: integer
 		//
 		//   400:
+		//     description: BadRequest
 		//     schema:
-		//       "$ref": "#/definitions/schemaValidation"
+		//       "$ref": "#/responses/schemaValidation"
 		//   500:
+		//     description: InternalError
 		//     schema:
-		//       "$ref": "#/definitions/internalError"
+		//       "$ref": "#/responses/internalError"
 		//
 		{
 			"GetFacilities",
@@ -265,6 +268,7 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// responses:
 		//   200:
+		//     description: OK
 		//     schema:
 		//       description: Results Response
 		//       type: object
@@ -276,11 +280,11 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//             "$ref": "#/definitions/HandheldEvent"
 		//         count:
 		//           description: Count of records for query
-		//           type: int
+		//           type: integer
 		//   400:
-		//     "$ref": "#/definitions/schemaValidation"
+		//     "$ref": "#/responses/schemaValidation"
 		//   500:
-		//     "$ref": "#/definitions/internalError"
+		//     "$ref": "#/responses/internalError"
 		//
 		{
 			"GetHandheldEvents",
@@ -421,14 +425,14 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		//     Schemes: http
 		//
-		//     Responses:
-		//       200: body:resultsResponse
-		//       400: schemaValidation
-		//       403: forbidden
-		//       500: internalError
-		//       502: externalError
-		//       503: serviceUnavailable
-		//       504: externalServiceTimeout
+		// responses:
+		//   200: body:resultsResponse
+		//   400: schemaValidation
+		//   403: forbidden
+		//   500: internalError
+		//   502: externalError
+		//   503: serviceUnavailable
+		//   504: externalServiceTimeout
 		//
 		{
 			"GetSearchByGtin",

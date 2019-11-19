@@ -49,7 +49,7 @@ import (
 )
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients
-// this function can be reused by RRS endpoint and RRP endpoints with odata for multiple facilities
+// this function can be reused by endpoints with odata for multiple facilities
 func ApplyConfidence(session *sql.DB, tags []tag.Tag, url string) error {
 
 	if len(tags) == 0 {
