@@ -1,55 +1,39 @@
-# Inventory service
+# Intel® Inventory Suite inventory-service
+[![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE)
 
-See inventory-service.json for swagger documentation
+Inventory service is a microservice in the Intel® Inventory Suite that provides business context to raw RFID reads from Intel® RSP.
+Some of the features are:
+- Generates events based on raw RFID data. (arrival, move, and departed)
+- Events are re-published to EdgeX Core data.
+- Location history of a RFID tag.
+- Data persistence in PostgreSQL.
+- RESTful APIs using odata. 
 
-## Linting
-We use gometalinter.v2 for linting of code. The linter options are in a config file stored in the Go-Mongo-Docker-Build repository. You must clone this repository and pull latest prior to running the linter as follows:
-```bash
-gometalinter.v2 --vendor --deadline=120s --disable gotype --config=../../RSP-Inventory-Suite/ci-go-build-image/linter.json ./...
+# Depends on
+
+- EdgeX Core-data
+- Product-data-service 
+- Rfid-alert-service
+- Cloud-connector 
+
+# Install and Deploy via Docker Container #
+
+Intel® RSP Software Toolkit 
+
+- [RSP Controller](https://github.com/intel/rsp-sw-toolkit-gw)
+- [RSP MQTT Device Service](https://github.com/intel/rsp-sw-toolkit-im-suite-mqtt-device-service)
+
+EdgeX and RSP MQTT Device Service should be running at this point.
+
+### Installation ###
+
 ```
-## Testing
-In order to test your micro service using docker, compile your project and run docker-compose to orchestrate dependencies such as context sensing brokers (in & out), inventory-service and mapping-sku-service:
-
-Compile and run your micro service in docker:
-
-```bash
-$ ./build.sh
-$ sudo docker-compose up
+git clone https://github.impcloud.net/RSP-Inventory-Suite/inventory-service.git
+cd inventory-service
+sudo make build
+sudo make deploy
 ```
 
-### MongoDB Server
-A mongodb server is required to run the unit tests. A quick way to get one up and running with docker:
-```bash
-$ mkdir -p ~/data
-$ docker run -d -p 27017:27017 -v ~/data:/data/db mongo
-```
+### API Documentation ###
 
-## Swagger documentation
-We use swagger to document the service details. See the following Wiki for details on using swagger to document the this service:
-https://wiki.ith.intel.com/display/RSP/How+to+use+go-swagger
-
-Use the following commands to generate and validate your swagger once you have instrumented the code:
-
- ### Generate Updated Swagger Doc
- Make sure you have goswagger installed (https://github.com/go-swagger/go-swagger): 
- 
- `go get -u github.com/go-swagger/go-swagger/cmd/swagger`
- 
-  then run:
-  
- `swagger generate spec -m -o inventory-service.json`
- 
- #### Validate Generated Swagger Doc
- Run the following swagger command to validate the generated swagger JSON documentation file:
- 
- `swagger validate ./inventory-service.json`
- 
- Alternatively, the online swagger editor webpage (https://editor.swagger.io/) can also be used to validate the generated documentation. Just copy and paste the contents of JSON `inventory-service.json` onto the editing area of that webpage.
- 
- 
-## Docker Image
-The code pipeline will build the service and create the docker image and push it to: 
-
-```280211473891.dkr.ecr.us-west-2.amazonaws.com/inventory-service```
-
-Copyright 2018 Intel(R) Corporation, All rights reserved.
+Go to [https://editor.swagger.io](https://editor.swagger.io) and import inventory-service.yml file.

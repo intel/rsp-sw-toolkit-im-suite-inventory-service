@@ -5,14 +5,7 @@ ENV GO111MODULE=on
 RUN echo http://nl.alpinelinux.org/alpine/v3.6/main > /etc/apk/repositories; \
     echo http://nl.alpinelinux.org/alpine/v3.6/community >> /etc/apk/repositories
 
-RUN apk update && apk add zeromq zeromq-dev libsodium-dev pkgconfig build-base bash util-linux
-
-RUN apk update && \
-    apk add --no-cache linux-headers gcc musl-dev git && \
-    apk add --no-cache \
-        --virtual=.build-dependencies &&\
-    ln -s locale.h /usr/include/xlocale.h && \
-    rm /usr/include/xlocale.h
+RUN apk add --no-cache musl-dev git zeromq zeromq-dev libsodium-dev bash gcc
 
 # Authentication needed to pull git modules from github.impcloud.net
 RUN git config --global credential.helper store
@@ -34,7 +27,7 @@ FROM alpine:3.7 as builder
 RUN echo http://nl.alpinelinux.org/alpine/v3.7/main > /etc/apk/repositories; \
     echo http://nl.alpinelinux.org/alpine/v3.7/community >> /etc/apk/repositories
     
-RUN apk --no-cache add zeromq util-linux bash curl
+RUN apk --no-cache add zeromq curl
 
 RUN mkdir -p /rootfs/curl
 

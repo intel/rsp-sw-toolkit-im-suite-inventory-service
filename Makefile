@@ -1,78 +1,47 @@
+ # INTEL CONFIDENTIAL
+ # Copyright (2019) Intel Corporation.
+ #
+ # The source code contained or described herein and all documents related to the source code ("Material")
+ # are owned by Intel Corporation or its suppliers or licensors. Title to the Material remains with
+ # Intel Corporation or its suppliers and licensors. The Material may contain trade secrets and proprietary
+ # and confidential information of Intel Corporation and its suppliers and licensors, and is protected by
+ # worldwide copyright and trade secret laws and treaty provisions. No part of the Material may be used,
+ # copied, reproduced, modified, published, uploaded, posted, transmitted, distributed, or disclosed in
+ # any way without Intel/'s prior express written permission.
+ # No license under any patent, copyright, trade secret or other intellectual property right is granted
+ # to or conferred upon you by disclosure or delivery of the Materials, either expressly, by implication,
+ # inducement, estoppel or otherwise. Any license under such intellectual property rights must be express
+ # and approved by Intel in writing.
+ # Unless otherwise agreed by Intel in writing, you may not remove or alter this notice or any other
+ # notice embedded in Materials by Intel or Intel's suppliers or licensors in any way.
 
-STACK_NAME ?= Inventory-Suite-Dev
-SERVICE_NAME ?= inventory
-PROJECT_NAME ?= inventory-service
+.PHONY: build deploy stop init
 
-scale = docker service scale $(STACK_NAME)_$(SERVICE_NAME)=$1 $2
+MICROSERVICES=inventory-service 
+			  
+BUILDABLE=$(MICROSERVICES)
+.PHONY: $(BUILDABLE)
 
-wait_for_service =	@printf "Waiting for $(SERVICE_NAME) service to$1..."; \
-					while [  $2 -z $(get_id) ]; \
-                 	do \
-                 		printf "."; \
-                 		sleep 0.3;\
-                 	done; \
-                 	printf "\n";
+build: $(BUILDABLE)
 
-trap_ctrl_c = trap 'exit 0' INT;
+$(MICROSERVICES):
+	docker build --rm \
+		--build-arg GIT_TOKEN=$(GIT_TOKEN) \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		-f Dockerfile_dev \
+		-t rsp/$@:dev \
+		.
 
-get_id = `docker ps -qf name=$(STACK_NAME)_$(SERVICE_NAME).1`
+deploy: init
+	docker stack deploy \
+		--with-registry-auth \
+		--compose-file docker-compose.yml \
+		Inventory-service-Dev
 
-log = docker logs $1$2 $(get_id) 2>&1
+init: 
+	docker swarm init 2>/dev/null || true
 
-test =	echo "\e[36mGo Testing...\e[0m"; \
-		go test ./... $1
+stop:	
+	docker stack rm Inventory-service-Dev
 
-.PHONY: build
-
-build:
-	$(MAKE) -C .. $(PROJECT_NAME)
-
-iterate:
-	$(call scale,0,-d)
-	$(MAKE) build
-	# make sure it has stopped before we try and start it again
-	$(call wait_for_service, stop, !)
-	$(call scale,1,-d)
-	$(call wait_for_service, start)
-	$(MAKE) tail
-
-restart:
-	$(call scale,0,-d)
-	$(call wait_for_service, stop, !)
-	$(call scale,1,-d)
-	$(call wait_for_service, start)
-
-tail:
-	$(trap_ctrl_c) $(call log,-f --tail 10,$(args))
-
-stop:
-	$(call scale,0,$(args))
-
-start:
-	$(call scale,1,$(args))
-
-stop-d:
-	$(call scale,0,-d)
-
-start-d:
-	$(call scale,1,-d)
-
-wait-stop:
-	$(call scale,0,-d)
-	$(call wait_for_service, stop, !)
-
-wait-start:
-	$(call scale,1,-d)
-	$(call wait_for_service, start)
-
-scale:
-	$(call scale,$(n),$(args))
-
-fmt:
-	go fmt ./...
-
-test:
-	@$(call test,-v $(args))
-
-force-test:
-	@$(call test,-v -count=1 $(args))
