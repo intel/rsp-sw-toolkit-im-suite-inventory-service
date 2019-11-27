@@ -553,7 +553,7 @@ func dbSetup(host, port, user, password, dbname string) (*sql.DB, error) {
 	if password != "" {
 		psqlConfig += " password=" + password
 	}
-	db, err := sql.Open(dbname, psqlConfig)
+	db, err := sql.Open("postgres", psqlConfig)
 	if err != nil {
 		return nil, err
 	}
