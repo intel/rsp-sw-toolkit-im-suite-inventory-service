@@ -115,6 +115,7 @@ func main() {
 		config.AppConfig.DbPort,
 		config.AppConfig.DbUser, config.AppConfig.DbPass,
 		config.AppConfig.DbName,
+		config.AppConfig.DbSSLMode,
 	)
 	if err != nil {
 		mDbConnError.Update(1)
@@ -546,10 +547,11 @@ func runBackgroundTasks(db mainDB, aggregateDepartedTicker *time.Ticker, ageoutT
 	}
 }
 
-func dbSetup(host, port, user, password, dbname string) (*sql.DB, error) {
+func dbSetup(host, port, user, password, dbname, sslmode string) (*sql.DB, error) {
 
 	// Connect to PostgreSQL database
-	psqlConfig := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable", host, port, user, dbname)
+	psqlConfig := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
+		host, port, user, dbname, sslmode)
 	if password != "" {
 		psqlConfig += " password=" + password
 	}
