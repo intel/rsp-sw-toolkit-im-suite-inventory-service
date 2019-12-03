@@ -14,5 +14,5 @@ require (
 	github.impcloud.net/RSP-Inventory-Suite/expect v1.1.0
 	github.impcloud.net/RSP-Inventory-Suite/go-odata v1.0.0
 	github.impcloud.net/RSP-Inventory-Suite/tagcode v1.2.0
-	github.impcloud.net/RSP-Inventory-Suite/utilities v0.0.0-20190318223020-7136022498b9
+	github.impcloud.net/RSP-Inventory-Suite/utilities v0.0.0-20191126181045-6c39c9656448
 )
