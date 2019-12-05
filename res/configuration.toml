@@ -40,5 +40,5 @@ EnableRemote = false
 File = ""
 
 [Binding]
- Type="messagebus"
- SubscribeTopic=""
+Type="messagebus"
+SubscribeTopic=""

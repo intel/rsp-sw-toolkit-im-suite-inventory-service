@@ -20,7 +20,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -50,7 +49,12 @@ func NewSkuMapping(url string) SkuMapping {
 
 // processTagData inserts data from Edgex into database
 //nolint :gocyclo
-func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, masterDB *sql.DB, source string, tagsGauge *metrics.GaugeCollection) error {
+func (skuMapping SkuMapping) processTagData(invApp *inventoryApp, invEvent *jsonrpc.InventoryEvent, source string, tagsGauge *metrics.GaugeCollection) error {
+
+	numberOfTags := len(invEvent.Params.Data)
+	if numberOfTags == 0 {
+		return nil
+	}
 
 	mProcessTagLatency := metrics.GetOrRegisterTimer(`Inventory.ProcessTagData-Latency`, nil)
 	processTagTimer := time.Now()
@@ -62,13 +66,12 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 	// POC only implementation
 	currentTimeMillis := helper.UnixMilliNow()
 
-	numberOfTags := len(invEvent.Params.Data)
-
 	if tagsGauge != nil {
 		(*tagsGauge).Add(int64(numberOfTags))
 	}
 	log.Debugf("Processing %d Tag Events", numberOfTags)
 	tagsFiltered := 0
+
 	for _, tempTag := range invEvent.Params.Data {
 		if len(config.AppConfig.EpcFilters) > 0 {
 			// ignore tags that don't match our filters
@@ -88,7 +91,7 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 
 		// Note: If bottlenecks may need to redesign to eliminate large number
 		// of queries to DB currently this will make a call to the DB PER tag
-		tagFromDB, err := tag.FindByEpc(masterDB, tempTag.EpcCode)
+		tagFromDB, err := tag.FindByEpc(invApp.masterDB, tempTag.EpcCode)
 
 		if err != nil {
 			return errors.Wrap(err, "Error retrieving tag from database")
@@ -109,7 +112,6 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 
 		log.Trace("Previous and Current Tag State:\n")
 		log.Trace(tagStateChange)
-
 	}
 
 	log.Debugf("Filtered %d Tags.", tagsFiltered)
@@ -117,11 +119,11 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 	// If at least 1 tag passed the whitelist, then insert
 	if len(tagData) > 0 {
 
-		if err := tag.Replace(masterDB, tagData); err != nil {
+		if err := tag.Replace(invApp.masterDB, tagData); err != nil {
 			return errors.Wrap(err, "error replacing tags")
 		}
 
-		if err := handlers.ApplyConfidence(masterDB, tagData, skuMapping.url); err != nil {
+		if err := handlers.ApplyConfidence(invApp.masterDB, tagData, skuMapping.url); err != nil {
 			return err
 		}
 
@@ -150,6 +152,8 @@ func (skuMapping SkuMapping) processTagData(invEvent *jsonrpc.InventoryEvent, ma
 				}
 			}()
 		}
+
+		go invApp.pushEventsToCoreData(currentTimeMillis, invEvent.Params.ControllerId, tagData)
 	}
 
 	mProcessTagLatency.Update(time.Since(processTagTimer))

@@ -45,8 +45,8 @@ const (
 	tagsTable = "tags"
 )
 
-type dbFunc func(db *sql.DB, t *testing.T) error
-type validateFunc func(db *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error
+type dbFunc func(dbs *sql.DB, t *testing.T) error
+type validateFunc func(dbs *sql.DB, r *httptest.ResponseRecorder, t *testing.T) error
 
 var dbHost integrationtest.DBHost
 

@@ -23,7 +23,8 @@ type RSP struct {
 	FacilityId   string      `json:"facility_id" db:"facility_id"`
 	Personality  Personality `json:"personality" db:"personality"`
 	Aliases      []string    `json:"aliases" db:"aliases"`
-	IsInDeepScan bool        `json:"-" bson:"-"`
+	UpdatedOn    int64       `json:"updated_on" db:"updated_on"`
+	IsInDeepScan bool        `json:"-" db:"-"`
 }
 
 func NewRSP(deviceId string) *RSP {
@@ -31,9 +32,15 @@ func NewRSP(deviceId string) *RSP {
 		DeviceId:    deviceId,
 		Personality: NoPersonality,
 		FacilityId:  DefaultFacility,
+		UpdatedOn:   0,
 	}
-	// setup a default alias for antenna 0
-	rsp.Aliases = []string{rsp.AntennaAlias(0)}
+	// setup a default alias for antennas 0-3
+	rsp.Aliases = []string{
+		rsp.AntennaAlias(0),
+		rsp.AntennaAlias(1),
+		rsp.AntennaAlias(2),
+		rsp.AntennaAlias(3),
+	}
 	return &rsp
 }
 
@@ -49,8 +56,15 @@ func NewRSPFromConfigNotification(notification *jsonrpc.SensorConfigNotification
 
 // AntennaAlias gets the string alias of an RSP based on the antenna port
 // format is DeviceId-AntennaId,  ie. RSP-150009-0
+// If there is an alias defined for that antenna port, use that instead
+// Note that each antenna port is supposed to refer to that index in the
+// rsp.Aliases slice
 func (rsp *RSP) AntennaAlias(antennaId int) string {
-	return rsp.DeviceId + "-" + strconv.Itoa(antennaId)
+	if len(rsp.Aliases) > antennaId {
+		return rsp.Aliases[antennaId]
+	} else {
+		return rsp.DeviceId + "-" + strconv.Itoa(antennaId)
+	}
 }
 
 // IsExitSensor returns true if this RSP has the EXIT personality
