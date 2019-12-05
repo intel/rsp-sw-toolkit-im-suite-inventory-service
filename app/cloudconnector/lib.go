@@ -9,7 +9,7 @@ import (
 )
 
 func SendEvent(invEvent *jsonrpc.InventoryEvent, tagData []tag.Tag) error {
-	// todo: do we need to handle chunkning the data into 250 item segements???
+	// todo: do we need to handle splitting the data into segments of 250 max?
 	payload := event.DataPayload{
 		SentOn:             helper.UnixMilliNow(),
 		ControllerId:       invEvent.Params.ControllerId,
