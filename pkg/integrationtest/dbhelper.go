@@ -1,3 +1,9 @@
+/* Apache v2 license
+*  Copyright (C) <2019> Intel Corporation
+*
+*  SPDX-License-Identifier: Apache-2.0
+ */
+
 // Package integrationtest exists to help with the current, somewhat unfortunate
 // state of the tests in the inventory service. It centralizes the database access
 // to ensure:
