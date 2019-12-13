@@ -73,33 +73,33 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		// Example of one object being returned:<br><br>
 		// ```
 		// {
-		// &#8195"results":[
-		// &#8195&#8195&#8195{
-		// 	&#9"arrived": 1501863300375,
-		// 	&#9"encode_format": "tbd",
-		// 	&#9"epc": "30143639F84191AD22900204",
-		// 	&#9"epc_state": "",
-		// 	&#9"event": "cycle_count",
-		// 	&#9"facility_id": "",
-		// 	&#9"fixed": 1,
-		// 	&#9"gtin": "00888446671424",
-		// 	&#9"company_prefix": 36232,
-		// 	&#9"item_filter": 3,
-		// 	&#9"handheld": 1,
-		// 	&#9"last_read": 1501863300375,
-		// 	&#9"location_history": [
-		// 	&#8195&#8195&#9{
-		// 	&#9&#9"location": "RSP-95bd71",
-		// 	&#9&#9"source": "fixed",
-		// 	&#9&#9"timestamp": 1501863300375
-		// 	&#8195&#8195&#9}
-		// 	&#9],
-		// 	&#9"qualified_state": "unknown",
-		// 	&#9"source": "fixed",
-		// 	&#9"tid": "",
-		// 	&#9"ttl": 1503704119
-		// 	&#8195&#8195&#8195	}
-		// 	&#8195]
+		// "results":[
+		// {
+		// 	"arrived": 1501863300375,
+		// 	"encode_format": "tbd",
+		// 	"epc": "30143639F84191AD22900204",
+		// 	"epc_state": "",
+		// 	"event": "cycle_count",
+		// 	"facility_id": "",
+		// 	"fixed": 1,
+		// 	"gtin": "00888446671424",
+		// 	"company_prefix": 36232,
+		// 	"item_filter": 3,
+		// 	"handheld": 1,
+		// 	"last_read": 1501863300375,
+		// 	"location_history": [
+		// 	{
+		// 	"location": "RSP-95bd71",
+		// 	"source": "fixed",
+		// 	"timestamp": 1501863300375
+		// 	}
+		// 	],
+		// 	"qualified_state": "unknown",
+		// 	"source": "fixed",
+		// 	"tid": "",
+		// 	"ttl": 1503704119
+		// 		}
+		// 	]
 		// }
 		// ```
 		//
@@ -148,7 +148,7 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// Retrieves Data for Facilities
 		//
-		// This API call is used to retrieve facilities that are configured on RRS.<br><br>
+		// This API call is used to retrieve data for facilities that are configured on RSP.<br><br>
 		//
 		// /inventory/facilities
 		// /inventory/facilities?$filter=(name eq 'CH6_Common_Area') - Filter facilities by name
@@ -156,17 +156,17 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		// Example Result:
 		// ```
 		// {
-		// &#8195"results": [
-		// &#8195&#8195{
-		// &#8195&#8195&#8195&#8195"coefficients": {
-		// &#9"dailyinventorypercentage": 0.01,
-		// &#9"probexiterror": 0.1,
-		// &#9"probinstoreread": 0.75,
-		// &#9"probunreadtoread": 0.2
-		// &#8195&#8195&#8195&#8195},
-		// &#8195&#8195&#8195"name": "CH6"
-		// &#8195&#8195}
-		// &#8195]
+		// "results": [
+		// {
+		// "coefficients": {
+		// "dailyinventorypercentage": 0.01,
+		// "probexiterror": 0.1,
+		// "probinstoreread": 0.75,
+		// "probunreadtoread": 0.2
+		// },
+		// "name": "CH6"
+		// }
+		// ]
 		// }
 		// ```
 		//
@@ -224,22 +224,22 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		// Example Result:
 		// ```
 		// {
-		// &#8195"results": [
-		// &#8195&#8195{
-		// &#9"_id": "59d2818dd0cb6260bf85e3cf",
-		// &#9"timestamp": 1506967944919,
-		// &#9"event": "FullScanStart"
-		// &#8195&#8195},
-		// &#8195&#8195{
-		// &#9"_id": "59d28294d0cb6260bf85f70e",
-		// &#9"timestamp": 1506968207311,
-		// &#9"event": "FullScanComplete"
-		// &#8195&#8195},
-		// &#8195&#8195{
-		// &#9"_id": "59d28294d0cb6260bf85f710",
-		// &#9"timestamp": 1506968212265,
-		// &#9"event": "Calculate"
-		// &#8195&#8195}]
+		// "results": [
+		// {
+		// "_id": "59d2818dd0cb6260bf85e3cf",
+		// "timestamp": 1506967944919,
+		// "event": "FullScanStart"
+		// },
+		// {
+		// "_id": "59d28294d0cb6260bf85f70e",
+		// "timestamp": 1506968207311,
+		// "event": "FullScanComplete"
+		// },
+		// {
+		// "_id": "59d28294d0cb6260bf85f710",
+		// "timestamp": 1506968212265,
+		// "event": "Calculate"
+		// }]
 		// }
 		// ```
 		//
@@ -283,11 +283,11 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// Post current inventory snapshot to the cloud connector
 		//
-		// Example Input:
+		// Example Request Input:
 		// ```
 		// {
-		// 	&#8195&#8195"qualified_state":"sold",
-		// 	&#8195&#8195"facility_id":"store001"
+		// 	"qualified_state":"sold",
+		// 	"facility_id":"store001"
 		// }
 		// ```
 		//
@@ -326,26 +326,26 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 			"/inventory/query/current",
 			inventory.PostCurrentInventory,
 		},
-		//swagger:route POST /inventory/query/searchbygtin searchbygtin searchByGtin
+		//swagger:route POST /inventory/query/searchByProductID searchByProductID GetSearchByProductID
 		//
-		// Retrieves EPC data corresponding to specified GTIN(s)
+		// Retrieves EPC data corresponding to specified ProductID
 		//
-		// Returns a list of unique EPCs matching the GTIN(s) provided. Body parameters shall be provided in request body in JSON format.<br><br>
+		// Returns a list of unique EPCs matching the ProductID provided. Body parameters shall be provided in request body in JSON format.<br><br>
 		//
-		// Example Input:
+		// Example Request Input:
 		// ```
 		// {
-		// &#9"gtin":"00012345678905",
-		// &#9"facility_id":"store001",
-		// &#9"confidence":.75,
-		// &#9"cursor":"aGksIDovMSB0aGlz",
-		// &#9"size":500,
-		// &#9"count_only":false
+		// "productId":"00012345678905",
+		// "facility_id":"store001",
+		// "confidence":.75,
+		// "cursor":"aGksIDovMSB0aGlz",
+		// "size":500,
+		// "count_only":false
 		// }
 		// ```
 		//
 		//
-		// + gtin  - A valid GTIN-14 to search for
+		// + productId  - A valid productId(GTIN-14) to search for
 		// + facility_id  - Return only facilities provided
 		// + confidence  - Minimum probability items must meet
 		// + cursor  - Cursor from previous response used to retrieve next page of results
@@ -357,31 +357,31 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		// Example Response:
 		// ```
 		// {
-		// 	&#8195"paging":{
-		// 	&#8195&#8195&#8195"cursor":"string"
-		// 	&#8195},
-		// 	&#8195&#8195"results":[
-		// 	&#8195&#8195{
-		// 	&#9"epc":"string",
-		// 	&#9"facility_id":"string",
-		// 	&#9"event":"string",
-		// 	&#9"gtin":"string",
-		// 	&#9"last_read":0,
-		// 	&#9"arrived":0,
-		// 	&#9"epc_state":"string",
-		// 	&#9"confidence":0,
-		// 	&#9"encode_format":"string",
-		// 	&#9"tid":"string",
-		// 	&#9"qualified_state":"string",
-		// 	&#9"epc_context":"string",
-		// 	&#9"location_history":[
-		// 	&#9&#8195&#8195{
-		// 	&#9&#9"location":"string",
-		// 	&#9&#9"timestamp":0
-		// 	&#9&#8195&#8195}
-		// 	&#9]
-		// 	&#8195&#8195}
-		// 	&#8195]
+		// 	"paging":{
+		// 	"cursor":"string"
+		// 	},
+		// 	"results":[
+		// 	{
+		// 	"epc":"string",
+		// 	"facility_id":"string",
+		// 	"event":"string",
+		// 	"productId":"string",
+		// 	"last_read":0,
+		// 	"arrived":0,
+		// 	"epc_state":"string",
+		// 	"confidence":0,
+		// 	"encode_format":"string",
+		// 	"tid":"string",
+		// 	"qualified_state":"string",
+		// 	"epc_context":"string",
+		// 	"location_history":[
+		// 	{
+		// 	"location":"string",
+		// 	"timestamp":0
+		// 	}
+		// 	]
+		// 	}
+		// 	]
 		// }
 		// ```
 		//
@@ -391,7 +391,7 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//    + epc  - SGTIN EPC code
 		//    + facility_id  - Facility ID
 		//    + event  - Last event recorded for tag
-		//    + gtin  - GTIN-14 decoded from EPC
+		//    + productId  - productId(GTIN-14)
 		//    + last_read  - Tag last read Time in milliseconds epoch
 		//    + arrived  - Arrival time in milliseconds epoch
 		//    + epc_state  - Current state of tag, either 'present' or 'departed'
@@ -422,38 +422,35 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//   504: externalServiceTimeout
 		//
 		{
-			"GetSearchByGtin",
+			"GetSearchByProductID",
 			"POST",
-			"/inventory/query/searchbygtin",
-			inventory.GetSearchByGtin,
+			"/inventory/query/searchByProductID",
+			inventory.GetSearchByProductID,
 		},
 		//swagger:route PUT /inventory/update/coefficients update updateCoefficients
 		//
 		// Update Facility Coefficents
 		//
-		// This API call is used to retrieve handheld events that have been received. Coefficient variables are used to calculate the confidence of a tag. Default values are set as configuration variables. When a Heartbeat is received from RRS, the inventory-service extracts the one or more facility_id configured in the RSP Controller and if it doesn't exist in the database, applies the default coefficient values to each facility. <br><br>
+		// This API call is used to update probabilistic algorithm coefficients for a particular facility. Coefficient variables are used to calculate the confidence of a tag. Default values are set as configuration variables.<br><br>
 		//
 		//
-		// Example Schema:
+		// Example Request Input:
 		// ```
 		// 	{
-		// 	&#8195&#8195"coefficients": {
-		// 	&#8195&#8195&#9"dailyinventorypercentage": 0.01,
-		// 	&#8195&#8195&#9"probexiterror": 0.1,
-		// 	&#8195&#8195&#9"probinstoreread": 0.75,
-		// 	&#8195&#8195&#9"probunreadtoread": 0.2
-		// 	&#8195&#8195},
-		// 	&#8195&#8195"name": "Facility"
+		// 	"dailyinventorypercentage": 0.01,
+		// 	"probexiterror": 0.1,
+		// 	"probinstoreread": 0.75,
+		// 	"probunreadtoread": 0.2,
+		// 	"facility_id": "Facility"
 		// }
 		// ```
 		//
 		//
-		// + coefficients - The coefficients used in the probabilistic inventory algorithm
-		//    +  dailyinventorypercentage - Percent of inventory that is sold daily
-		//    +  probexiterror - Probability of an exit error (missed 'departed' event) occurring
-		//    +  probinstoreread - Probability of a tag in the store being read by the overhead sensor each day
-		//    +  probunreadtoread - Probability of an unreadable tag becoming readable again each day (i.e. moved or retagged)
-		// + name - Facility name
+		// +  dailyinventorypercentage - Percent of inventory that is sold daily
+		// +  probexiterror - Probability of an exit error (missed 'departed' event) occurring
+		// +  probinstoreread - Probability of a tag in the store being read by the overhead sensor each day
+		// +  probunreadtoread - Probability of an unreadable tag becoming readable again each day (i.e. moved or retagged)
+		// +  facility_id - Facility name
 		//
 		//     Consumes:
 		//     - application/json
@@ -480,12 +477,12 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// The update endpoint is for uploading inventory events such as those from a handheld RFID reader.<br><br>
 		//
-		// Example Input:
+		// Example Request Input:
 		// ```
 		// {
-		// &#9"qualified_state":"string",
-		// &#9"epc":"string",
-		// &#9"facility_id":"string"
+		// "qualified_state":"string",
+		// "epc":"string",
+		// "facility_id":"string"
 		// }
 		// ```
 		//
@@ -523,13 +520,13 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// Returns a list of tags with their EPCs matching a pattern. Body parameters shall be provided in request body in JSON format.<br><br>
 		//
-		// Example Input:
+		// Example Request Input:
 		// ```
 		// {
-		// &#9"epc":"3038E511C6E9A6400012D687",
-		// &#9"facility_id":"store001",
-		// &#9"cursor":"aGksIDovMSB0aGlz",
-		// &#9"size":500
+		// "epc":"3038E511C6E9A6400012D687",
+		// "facility_id":"store001",
+		// "cursor":"aGksIDovMSB0aGlz",
+		// "size":500
 		// }
 		// ```
 		//
@@ -541,31 +538,31 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		// Example Response:
 		// ```
 		// {
-		// 	&#8195"paging":{
-		// 	&#8195&#8195&#8195"cursor":"string"
-		// 	&#8195},
-		// 	&#8195&#8195"results":[
-		// 	&#8195&#8195{
-		// 	&#9"epc":"string",
-		// 	&#9"facility_id":"string",
-		// 	&#9"event":"string",
-		// 	&#9"gtin":"string",
-		// 	&#9"last_read":0,
-		// 	&#9"arrived":0,
-		// 	&#9"epc_state":"string",
-		// 	&#9"confidence":0,
-		// 	&#9"encode_format":"string",
-		// 	&#9"tid":"string",
-		// 	&#9"qualified_state":"string",
-		// 	&#9"epc_context":"string",
-		// 	&#9"location_history":[
-		// 	&#9&#8195&#8195{
-		// 	&#9&#9"location":"string",
-		// 	&#9&#9"timestamp":0
-		// 	&#9&#8195&#8195}
-		// 	&#9]
-		// 	&#8195&#8195}
-		// 	&#8195]
+		// 	"paging":{
+		// 	"cursor":"string"
+		// 	},
+		// 	"results":[
+		// 	{
+		// 	"epc":"string",
+		// 	"facility_id":"string",
+		// 	"event":"string",
+		// 	"gtin":"string",
+		// 	"last_read":0,
+		// 	"arrived":0,
+		// 	"epc_state":"string",
+		// 	"confidence":0,
+		// 	"encode_format":"string",
+		// 	"tid":"string",
+		// 	"qualified_state":"string",
+		// 	"epc_context":"string",
+		// 	"location_history":[
+		// 	{
+		// 	"location":"string",
+		// 	"timestamp":0
+		// 	}
+		// 	]
+		// 	}
+		// 	]
 		// }
 		// ```
 		//
@@ -617,12 +614,12 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// This endpoint allows the customer to arbitrarily set the context for a particular EPC. For example, the customer may want to mark the tag as received, sold, lost, stolen, and anything else the customer decides is appropriate. Body parameters shall be provided in request body in JSON format.<br><br>
 		//
-		// Example Input:
+		// Example Request Input:
 		// ```
 		// {
-		// &#9"epc_context":"received",
-		// &#9"epc":"3038E511C6E9A6400012D687",
-		// &#9"facility_id":"store555"
+		// "epc_context":"received",
+		// "epc":"3038E511C6E9A6400012D687",
+		// "facility_id":"store555"
 		// }
 		// ```
 		//
@@ -660,11 +657,11 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// This endpoint allows the customer to delete the context for a particular EPC. Body parameters shall be provided in request body in JSON format.<br><br>
 		//
-		// Example Input:
+		// Example Request Input:
 		// ```
 		// {
-		// &#9"epc":"3038E511C6E9A6400012D687",
-		// &#9"facility_id":"store100"
+		// "epc":"3038E511C6E9A6400012D687",
+		// "facility_id":"store100"
 		// }
 		// ```
 		//
@@ -699,7 +696,7 @@ func NewRouter(masterDB *sql.DB, maxSize int) *mux.Router {
 		//
 		// Delete Tag Collection in database
 		//
-		// This endpoint allows the customer to delete the context for a particular EPC. Body parameters shall be provided in request body in JSON format.<br><br>
+		// This endpoint allows the customer to delete all the tags in the tags table.<br><br>
 		//
 		//     Consumes:
 		//     - application/json

@@ -388,7 +388,7 @@ func mapRequestToOdata(odataMap map[string][]string, request *tag.RequestBody) m
 		filterSlice = append(filterSlice, "confidence ge "+strconv.FormatFloat(request.Confidence, 'f', -1, 64))
 	}
 	if request.ProductID != "" {
-		filterSlice = append(filterSlice, "gtin eq '"+request.ProductID+"'")
+		filterSlice = append(filterSlice, "productId eq '"+request.ProductID+"'")
 	}
 	if request.StartTime != 0 {
 		filterSlice = append(filterSlice, "last_read ge "+strconv.FormatInt(request.StartTime, 10))

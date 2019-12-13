@@ -6,12 +6,12 @@
 
 package schemas
 
-// SearchByGtinSchema required for request body validation
-const SearchByGtinSchema = `{
+// SearchByProductIDSchema required for request body validation
+const SearchByProductIdSchema = `{
 	"type": "object",
-	"required": ["gtin", "facility_id"],
+	"required": ["productId", "facility_id"],
 	"properties": {
-		"gtin": {
+		"productId": {
 			"type": "string",
 			"pattern": "^\\d{14}$"
 		},

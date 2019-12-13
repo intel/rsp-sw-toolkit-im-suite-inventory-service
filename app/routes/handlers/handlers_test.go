@@ -450,7 +450,7 @@ func testHandlerHelper(input []inputTest, requestType string, handler web.Handle
 }
 
 // nolint :dupl
-func TestSearchByGtinPositive(t *testing.T) {
+func TestSearchByProductIdPositive(t *testing.T) {
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		time.Sleep(1 * time.Second)
@@ -480,7 +480,7 @@ func TestSearchByGtinPositive(t *testing.T) {
 		{
 			input: []byte(`{
 					"facility_id":"store001",
-					"gtin":"00012345678905",				
+					"productId":"00012345678905",				
 					"count_only":false,
 					"size":500
 				  }`),
@@ -490,7 +490,7 @@ func TestSearchByGtinPositive(t *testing.T) {
 		{
 			input: []byte(`{
 				"facility_id":"store001",
-				"gtin":"00012345678905",				
+				"productId":"00012345678905",				
 				"count_only":true,
 				"size":500
 			  }`),
@@ -500,13 +500,13 @@ func TestSearchByGtinPositive(t *testing.T) {
 
 	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
-	handler := web.Handler(inventory.GetSearchByGtin)
+	handler := web.Handler(inventory.GetSearchByProductID)
 
 	testHandlerHelper(searchGtinTests, "POST", handler, testDB.DB, t)
 }
 
 // nolint :dupl
-func TestSearchByGtinNegative(t *testing.T) {
+func TestSearchByProductIdNegative(t *testing.T) {
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		time.Sleep(1 * time.Second)
@@ -536,7 +536,7 @@ func TestSearchByGtinNegative(t *testing.T) {
 		{
 			input: []byte(`{
 				"size":500,
-				"gtin":"00012345678905"
+				"productId":"00012345678905"
 			  }`),
 			code: []int{400},
 		},
@@ -564,7 +564,7 @@ func TestSearchByGtinNegative(t *testing.T) {
 		{
 			input: []byte(`{
 				"size":500,
-				"gtin":"123",
+				"productId":"123",
 				"facility_id":"store1"
 			  }`),
 			code: []int{400},
@@ -573,7 +573,7 @@ func TestSearchByGtinNegative(t *testing.T) {
 
 	inventory := Inventory{testDB.DB, config.AppConfig.ResponseLimit, testServer.URL + "/skus"}
 
-	handler := web.Handler(inventory.GetSearchByGtin)
+	handler := web.Handler(inventory.GetSearchByProductID)
 
 	testHandlerHelper(searchGtinTests, "POST", handler, testDB.DB, t)
 
@@ -883,7 +883,7 @@ func TestMapRequestToOdata(t *testing.T) {
 
 	actualMap := make(map[string][]string)
 	filterArray := []string{"facility_id eq 'store001' and qualified_state eq 'sold' and epc_state eq 'sold'" +
-		" and confidence ge 0.75 and gtin eq '12345678978945' and last_read ge 1482624000000" +
+		" and confidence ge 0.75 and productId eq '12345678978945' and last_read ge 1482624000000" +
 		" and last_read le 1483228800000 and last_read le 1483228800000"}
 	expectedMap := map[string][]string{
 		"$filter": filterArray,

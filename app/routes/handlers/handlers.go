@@ -157,11 +157,11 @@ func (inve *Inventory) PostCurrentInventory(ctx context.Context, writer http.Res
 	return processPostRequest(ctx, schemas.PostCurrentInventorySchema, inve.MasterDB, request, writer, inve.Url)
 }
 
-// GetSearchByGtin returns a list of unique EPCs matching the GTIN(s) provided. Body parameters shall be provided in request
+// GetSearchByProductID returns a list of unique EPCs matching the productId provided. Body parameters shall be provided in request
 // body in JSON format.
 //nolint:lll
-func (inve *Inventory) GetSearchByGtin(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
-	return processGetRequest(ctx, schemas.SearchByGtinSchema, inve.MasterDB, request, writer, inve.Url)
+func (inve *Inventory) GetSearchByProductID(ctx context.Context, writer http.ResponseWriter, request *http.Request) error {
+	return processGetRequest(ctx, schemas.SearchByProductIdSchema, inve.MasterDB, request, writer, inve.Url)
 }
 
 // UpdateQualifiedState is for uploading inventory events such as those from a handheld RFID reader

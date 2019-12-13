@@ -9,6 +9,7 @@ require (
 	github.com/intel/rsp-sw-toolkit-im-suite-gojsonschema v1.0.0
 	github.com/lib/pq v1.2.0
 	github.com/pborman/uuid v1.2.0
+	github.com/pelletier/go-toml v1.6.0 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.0
 	github.impcloud.net/RSP-Inventory-Suite/expect v1.1.0

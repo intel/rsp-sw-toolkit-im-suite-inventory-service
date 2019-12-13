@@ -30,6 +30,7 @@ type Response struct {
 }
 
 // Coefficients represents a set of attributes to calculate confidence
+//swagger:model Coefficients
 type Coefficients struct {
 	// Percent of inventory that is sold daily
 	DailyInventoryPercentage float64 `json:"dailyinventorypercentage" db:"dailyinventorypercentage"`
