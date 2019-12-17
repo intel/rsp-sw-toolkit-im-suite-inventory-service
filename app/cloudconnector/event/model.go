@@ -7,7 +7,7 @@
 package event
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
 	"net/http"
 )
 

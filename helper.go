@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 func errorHandler(message string, err error, errorGauge *metrics.Gauge) {

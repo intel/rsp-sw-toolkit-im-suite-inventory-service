@@ -8,7 +8,7 @@ package jsonrpc
 
 import (
 	"errors"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 )
 
 const (

@@ -11,9 +11,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"time"
 )
 

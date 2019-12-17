@@ -10,8 +10,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/cloudconnector/event"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	"io"
 	"net/http"
 	"plugin"
@@ -20,19 +20,19 @@ import (
 	"strings"
 	"time"
 
-	//"time"
+	// "time"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/dailyturn"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/dailyturn"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/statemodel"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/facility"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/routes/schemas"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/productdata"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/schemas"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/productdata"
 )
 
 // ApplyConfidence calculates the confidence to each tag using the facility coefficients

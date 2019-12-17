@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/encodingscheme"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/configuration"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/encodingscheme"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/configuration"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 )
 
 const (

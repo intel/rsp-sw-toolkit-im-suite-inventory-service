@@ -8,7 +8,7 @@ package heartbeat
 
 import (
 	"database/sql"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/jsonrpc"
 )
 
 func ProcessHeartbeat(hb *jsonrpc.Heartbeat, masterDB *sql.DB) error {

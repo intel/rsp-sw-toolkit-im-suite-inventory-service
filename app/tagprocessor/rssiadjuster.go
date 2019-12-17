@@ -7,8 +7,8 @@
 package tagprocessor
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/sensor"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 )
 
 type rssiAdjuster struct {

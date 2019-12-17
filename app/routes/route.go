@@ -9,11 +9,11 @@ package routes
 import (
 	"database/sql"
 	"github.com/gorilla/mux"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/middlewares"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/routes/handlers"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/middlewares"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/web"
 )
 
 // Route struct holds attributes to declare routes

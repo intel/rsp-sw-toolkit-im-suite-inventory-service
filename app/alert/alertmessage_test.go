@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
 )
 
 func TestMain(m *testing.M) {

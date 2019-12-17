@@ -8,8 +8,8 @@ package dailyturn
 
 import (
 	"errors"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"math"
 	"sort"
 	"time"

@@ -27,7 +27,6 @@ definitions:
         type: number
         x-go-name: ProbUnreadToRead
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility
   ErrReport:
     description: ErrReport is used to wrap schema validation errors int json object
     properties:
@@ -44,7 +43,6 @@ definitions:
         type: object
         x-go-name: Value
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/schemas
   Facility:
     description: Facility represents a facility model
     properties:
@@ -55,7 +53,6 @@ definitions:
         type: string
         x-go-name: Name
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility
   HandheldEvent:
     description: HandheldEvent represents a handheld event model
     properties:
@@ -70,7 +67,6 @@ definitions:
         type: integer
         x-go-name: Timestamp
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/handheldevent
   LocationHistory:
     description: LocationHistory is the model to record the whereabouts history of
       a tag
@@ -86,7 +82,6 @@ definitions:
         type: integer
         x-go-name: Timestamp
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag
   RequestBody:
     properties:
       confidence:
@@ -144,7 +139,6 @@ definitions:
         x-go-name: Time
     title: RequestBody is the model for request body used for many data apis.
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag
   Tag:
     description: Tag is the model containing items for a Tag
     properties:
@@ -219,7 +213,6 @@ definitions:
         type: string
         x-go-name: URI
     type: object
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag
   resultsResponse:
     description: Response is the model used to return the query response
     properties:
@@ -234,7 +227,6 @@ definitions:
         x-go-name: Results
     type: object
     x-go-name: Response
-    x-go-package: github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/facility
 info:
   description: Inventory Microservice.
   title: Inventory Service.

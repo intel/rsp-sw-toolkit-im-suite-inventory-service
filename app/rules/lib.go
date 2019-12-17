@@ -9,10 +9,10 @@ package rules
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
 	"io/ioutil"
 	"net/http"
 	"time"

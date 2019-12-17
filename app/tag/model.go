@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
 )
 
 // Tag is the model containing items for a Tag

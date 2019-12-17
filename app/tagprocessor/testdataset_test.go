@@ -9,10 +9,10 @@ package tagprocessor
 import (
 	"errors"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/sensor"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/jsonrpc"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"strings"
 )
 

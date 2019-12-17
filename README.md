@@ -28,10 +28,7 @@ EdgeX and RSP MQTT Device Service should be running at this point.
 ### Installation ###
 
 ```
-git clone https://github.impcloud.net/RSP-Inventory-Suite/inventory-service.git
-cd inventory-service
-sudo make build
-sudo make deploy
+make build deploy
 ```
 
 ### API Documentation ###

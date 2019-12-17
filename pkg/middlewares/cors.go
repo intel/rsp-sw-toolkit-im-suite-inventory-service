@@ -8,7 +8,7 @@ package middlewares
 
 import (
 	"context"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/web"
 	"net/http"
 )
 
