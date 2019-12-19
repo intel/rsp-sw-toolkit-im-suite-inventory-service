@@ -16,12 +16,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/alert"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/alert"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 const (

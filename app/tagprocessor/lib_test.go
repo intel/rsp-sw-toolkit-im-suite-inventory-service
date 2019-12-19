@@ -8,8 +8,8 @@ package tagprocessor
 
 import (
 	"fmt"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/sensor"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/sensor"
 	"testing"
 )
 

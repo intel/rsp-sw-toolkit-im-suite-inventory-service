@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 )
 
 func TestMain(m *testing.M) {

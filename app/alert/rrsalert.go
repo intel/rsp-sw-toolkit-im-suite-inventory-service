@@ -9,8 +9,8 @@ package alert
 import (
 	"encoding/json"
 	"github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"strings"
 )
 

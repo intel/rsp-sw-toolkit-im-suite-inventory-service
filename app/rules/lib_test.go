@@ -8,8 +8,8 @@ package rules
 
 import (
 	"encoding/json"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"

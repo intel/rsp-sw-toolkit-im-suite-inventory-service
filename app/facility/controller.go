@@ -11,14 +11,14 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	odata "github.com/intel/rsp-sw-toolkit-im-suite-go-odata/postgresql"
 	"github.com/lib/pq"
-	odata "github.impcloud.net/RSP-Inventory-Suite/go-odata/postgresql"
 	"net/url"
 	"time"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 )
 
 const facilitiesTable = "facilities"

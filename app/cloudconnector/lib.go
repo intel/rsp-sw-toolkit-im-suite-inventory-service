@@ -7,11 +7,11 @@
 package cloudconnector
 
 import (
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector/event"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/cloudconnector/event"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/jsonrpc"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 )
 
 func SendEvent(invEvent *jsonrpc.InventoryEvent, tagData []tag.Tag) error {

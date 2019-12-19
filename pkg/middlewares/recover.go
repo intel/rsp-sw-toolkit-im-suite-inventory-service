@@ -13,8 +13,8 @@ import (
 
 	"runtime/debug"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/web"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
 )
 
 // Recover middleware

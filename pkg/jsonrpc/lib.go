@@ -9,8 +9,8 @@ package jsonrpc
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"strings"
 )
 

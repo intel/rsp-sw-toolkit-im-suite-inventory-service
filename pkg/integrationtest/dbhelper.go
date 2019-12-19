@@ -20,8 +20,8 @@ package integrationtest
 import (
 	"database/sql"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
 	"github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
 	"log"
 	"strings"
 	"sync"

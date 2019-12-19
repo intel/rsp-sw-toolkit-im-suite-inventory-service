@@ -9,14 +9,14 @@ package facility
 import (
 	"database/sql"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/integrationtest"
 	"github.com/lib/pq"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
 	"net/url"
 	"os"
 	"reflect"
 	"testing"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/web"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/web"
 )
 
 var dbHost integrationtest.DBHost

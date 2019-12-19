@@ -8,17 +8,17 @@ package main
 
 import (
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/cloudconnector"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/routes/handlers"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/rules"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/jsonrpc"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/statemodel"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/cloudconnector"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/routes/handlers"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/rules"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/statemodel"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"time"
 )
 

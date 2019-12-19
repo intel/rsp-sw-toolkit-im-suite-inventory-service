@@ -11,15 +11,15 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 	"github.com/lib/pq"
 	"github.com/pkg/errors"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
 	"reflect"
 
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/go-metrics"
 	log "github.com/sirupsen/logrus"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/go-metrics"
 	"time"
 )
 

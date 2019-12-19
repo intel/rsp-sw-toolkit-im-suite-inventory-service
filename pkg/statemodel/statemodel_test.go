@@ -10,16 +10,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/integrationtest"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/pkg/jsonrpc"
 	"github.com/lib/pq"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/integrationtest"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/pkg/jsonrpc"
 	"os"
 	"testing"
 	"time"
 
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/tag"
-	"github.impcloud.net/RSP-Inventory-Suite/utilities/helper"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/tag"
+	"github.com/intel/rsp-sw-toolkit-im-suite-utilities/helper"
 )
 
 var existingTagTime = time.Now()

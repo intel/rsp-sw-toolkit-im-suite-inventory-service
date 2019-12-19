@@ -8,7 +8,7 @@ package productdata
 
 import (
 	"encoding/json"
-	"github.impcloud.net/RSP-Inventory-Suite/inventory-service/app/config"
+	"github.com/intel/rsp-sw-toolkit-im-suite-inventory-service/app/config"
 	"net/http"
 	"net/http/httptest"
 	"testing"
